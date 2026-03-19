@@ -1,0 +1,28 @@
+{
+  "name": "nilix",
+  "version": "2.3.0",
+  "description": "Multi-parser engine for terminal-aesthetic business applications",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test tests/authService.test.js tests/scopedDb.test.js tests/recordService.test.js",
+    "setup": "node scripts/setup.js",
+    "check": "node scripts/check.js",
+    "init-db": "node scripts/initCatalogsDB.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@owickstrom/the-monospace-web": "^0.1.5",
+    "@xmldom/xmldom": "^0.8.11",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "sql.js": "^1.10.3"
+  }
+}

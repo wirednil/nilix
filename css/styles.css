@@ -1,0 +1,2135 @@
+/* =========================================
+   1. ESTILOS BASE (LIMPIO)
+   ========================================= */
+*, *::before, *::after {
+    box-sizing: border-box; /* Buena práctica general */
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: var(--line-height);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* =========================================
+   2. VARIABLES Y TEMAS (Tu código original)
+   ========================================= */
+:root {
+    /* TEMA CLARO */
+    --bg-color: #fafafa;
+    --sidebar-bg: #eeeeee;
+    --workspace-bg: #ffffff;
+    --text-color: #222222;
+    --border-color: #333333;
+    --input-bg: #ffffff;
+    --input-border: #cccccc;
+    --help-color: #555555;
+    --help-bg: #f9f9f9;
+    --checkbox-wrapper-bg: #f4f4f4;
+    
+    --btn-bg: #000000;
+    --btn-text: #ffffff;
+    --btn-border: #000000;
+    --btn-hover-bg: #333333;
+    
+    --font-family: ui-monospace, 'Cascadia Code', 'JetBrains Mono', 
+                   'IBM Plex Mono', 'Fira Code', Menlo, Consolas, 
+                   'Courier New', monospace;
+    --line-height: 1.2rem;
+    --border-thickness: 2px;
+    
+    --tree-hover: #e0e0e0;
+    --tree-active: #cccccc;
+    
+    /* NEOBRUTALIST HYBRID SHADOWS */
+    --neo-shadow: 4px 4px 0 #000000;
+    --neo-shadow-hover: 6px 6px 0 #000000;
+    --neo-shadow-active: 2px 2px 0 #000000;
+    
+    /* CRT EFFECTS */
+    --crt-glow: rgba(0, 255, 0, 0.4);
+    --crt-scanline: rgba(0, 0, 0, 0.06);
+    
+    /* Global font settings */
+    font-family: var(--font-family);
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-size: 16px;
+}
+
+body.dark-mode {
+    --bg-color: #000000;
+    --sidebar-bg: #000000;
+    --workspace-bg: #000000;
+    --text-color: #ffffff;
+    --text-color-alt: #aaaaaa;
+    --border-color: #ffffff;
+    --input-bg: #111111;
+    --input-border: #ffffff;
+    --help-color: #aaaaaa;
+    --help-bg: #111111;
+    --checkbox-wrapper-bg: #111111;
+    
+    --btn-bg: #ffffff;
+    --btn-text: #000000;
+    --btn-border: #ffffff;
+    --btn-hover-bg: #cccccc;
+    
+    --tree-hover: #111111;
+    --tree-active: #222222;
+    
+    --neo-shadow: 4px 4px 0 #ffffff;
+    --neo-shadow-hover: 6px 6px 0 #ffffff;
+    --neo-shadow-active: 2px 2px 0 #ffffff;
+    
+    --crt-glow: rgba(0, 255, 0, 0.4);
+    --crt-scanline: rgba(0, 0, 0, 0.08);
+}
+
+/* =========================================
+   2.1 CRT EFFECT (Terminal Retro)
+   ========================================= */
+
+/* Scanlines CRT - activar con clase .crt-mode */
+body.dark-mode.crt-mode::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        var(--crt-scanline) 2px,
+        var(--crt-scanline) 4px
+    );
+    z-index: 9999;
+}
+
+/* Cursor Blink - inputs activos */
+@keyframes caret-blink {
+    0%, 50% { caret-color: #00ff00; }
+    51%, 100% { caret-color: transparent; }
+}
+
+body.dark-mode input:focus,
+body.dark-mode textarea:focus {
+    caret-color: #00ff00;
+    animation: caret-blink 1s step-end infinite;
+}
+
+/* Placeholder Glow */
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: #00ff00;
+    opacity: 0.5;
+    text-shadow: 0 0 3px rgba(0, 255, 0, 0.4);
+}
+
+/* Dark mode autofill override */
+body.dark-mode input:-webkit-autofill,
+body.dark-mode input:-webkit-autofill:hover,
+body.dark-mode input:-webkit-autofill:focus,
+body.dark-mode textarea:-webkit-autofill,
+body.dark-mode textarea:-webkit-autofill:hover,
+body.dark-mode textarea:-webkit-autofill:focus,
+body.dark-mode select:-webkit-autofill,
+body.dark-mode select:-webkit-autofill:hover,
+body.dark-mode select:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #111111 inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    caret-color: #00ff00 !important;
+}
+
+/* CRT Mode Toggle Button */
+.crt-toggle {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    cursor: pointer;
+    border-radius: 0;
+    display: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.1s ease;
+    box-shadow: 2px 2px 0 var(--border-color);
+
+    body.dark-mode & {
+        border-color: #00ff00;
+        color: #00ff00;
+        display: inline-block;
+
+        &:hover {
+            box-shadow: 3px 3px 0 #00ff00;
+            transform: translate(-1px, -1px);
+        }
+    }
+
+    body.dark-mode.crt-mode & {
+        background: #00ff00;
+        color: #000000;
+    }
+}
+
+/* =========================================
+   3. LAYOUT DE SISTEMA (Fuerzado)
+   ========================================= */
+#os-interface {
+    display: flex;
+    height: calc(100vh - 48px); /* Altura menos header */
+    height: calc(100dvh - 48px);
+    width: 100vw;
+}
+
+/* =========================================
+   3.1 GLOBAL HEADER (Brutalist)
+   ========================================= */
+#global-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 48px;
+    padding: 0 1rem;
+    background: var(--sidebar-bg);
+    border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1002;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* SIDEBAR */
+#sidebar {
+    width: 280px;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    transition: margin-left 0s, background-color 0.3s ease;
+    position: relative;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+}
+
+#file-tree {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1rem 0;
+}
+
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    background-color: rgba(0,0,0,0.05);
+}
+
+.sidebar-footer input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--border-color);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.8rem;
+}
+
+/* =========================================
+   HAMBURGER BUTTON (Brutalist)
+   ========================================= */
+.hamburger-btn {
+    background: transparent;
+    border: 2px solid var(--border-color);
+    padding: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: 0;
+
+    & span {
+        display: block;
+        width: 22px;
+        height: 3px;
+        background: var(--text-color);
+        transition: transform 0.15s, opacity 0.15s;
+    }
+
+    &:hover {
+        background: var(--tree-hover);
+    }
+
+    &.active span:nth-child(1) {
+        transform: rotate(45deg) translate(5px, 5px);
+    }
+
+    &.active span:nth-child(2) {
+        opacity: 0;
+    }
+
+    &.active span:nth-child(3) {
+        transform: rotate(-45deg) translate(5px, -5px);
+    }
+}
+
+/* Sidebar collapsible (Desktop) */
+#sidebar.collapsed {
+    margin-left: -280px;
+}
+
+/* ESTILOS DEL ÁRBOL (TREE) */
+ul.tree {
+    list-style-type: none;
+    padding-left: 1.2rem;
+    margin: 0;
+}
+
+ul.tree.root {
+    padding-left: 0.5rem;
+}
+
+.tree-node {
+    cursor: pointer;
+    padding: 2px 5px;
+    margin: 1px 0;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    border-radius: 0;
+
+    &:hover {
+        background-color: var(--tree-hover);
+    }
+
+    &.active {
+        background-color: var(--tree-active);
+        font-weight: bold;
+    }
+}
+
+.tree-icon {
+    display: inline-block;
+    width: 2.5rem; /* Aumentado de 1.2rem a 2.5rem para crear más separación */
+    text-align: right; /* Alinea el texto a la derecha dentro del recuadro */
+    margin-right: 0.5rem; /* Margen explícito de separación */
+    font-family: monospace;
+    opacity: 0.7;
+    flex-shrink: 0; /* Evita que el icono se encoja */
+}
+
+/* Fusiona todo esto en un solo bloque #workspace */
+#workspace {
+    flex-grow: 1;
+    background-color: var(--workspace-bg);
+    overflow-y: auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 2rem;
+    min-width: 0;
+    transition: background-color 0.3s ease;
+}
+
+#active-content {
+    max-width: 900px; /* Limite visual para el formulario dentro del workspace */
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* =========================================
+   ESTILOS DEL FORMULARIO (V2 - Hierarchy)
+   ========================================= */
+
+/* Contenedores Horizontales */
+.horizontal-container {
+    display: flex;
+    gap: 0.5rem; /* Espacio reducido entre los campos */
+    align-items: flex-end; /* Alinear inputs por la base */
+    flex-wrap: nowrap;
+}
+
+/* El bloque completo (Label + Input) dentro de un contenedor horizontal */
+.field-block-horizontal {
+    display: inline-flex; /* inline-flex para evitar expansión */
+    flex-direction: column; /* Label arriba, input abajo */
+    flex-shrink: 0;
+    flex-grow: 0; /* Por defecto no crecer */
+    width: auto; /* Ancho automático basado en contenido */
+    position: relative; /* Para posicionar tooltips */
+    overflow: visible; /* Permitir que tooltips sean visibles */
+}
+
+/* Solo campos sin tamaño específico pueden crecer */
+.field-block-horizontal:has(input:not([style*="width"]):not([type="date"])):not(:has(.readonly-field)),
+.field-block-horizontal:has(textarea:not([style*="width"])) {
+    flex-grow: 1;
+    flex-basis: 0;
+}
+
+.field-block-horizontal label {
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    margin-bottom: 0;
+    font-weight: bold;
+    white-space: nowrap;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Labels vacíos/ocultos no agregan altura extra */
+.field-block-horizontal label[style*="visibility: hidden"] {
+    height: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* Estilos de Campos Read-Only (Skip) */
+.readonly-field {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    cursor: not-allowed;
+    opacity: 0.8;
+    border-style: dashed !important;
+
+    body.dark-mode & {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+}
+
+/* --- ESTILOS DEL FORMULARIO (Integrados) --- */
+.terminal-window {
+    border: 3px solid var(--border-color);
+    padding: 2rem;
+    background: var(--window-bg, var(--workspace-bg));
+    box-shadow: var(--neo-shadow);
+    border-radius: 0;
+    transition: box-shadow 0.15s ease, background-color 0.3s ease, border-color 0.3s ease;
+    overflow: visible;
+    height: fit-content;
+}
+
+/* Path Bar dentro del Workspace (opcional, visual) */
+.path-display {
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    
+    /* CAMBIO: Color dinámico */
+    color: var(--help-color);
+    
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.window-header {
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Cambiado de 'baseline' a 'center' para mejor alineación */
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.window-title {
+    font-weight: 700;
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    color: var(--text-color);
+    /* CAMBIO CLAVE: display: block hace que el elemento ocupe toda una línea */
+    display: block;
+    
+    /* Separación visual con el elemento de abajo */
+    margin-bottom: 0.5rem; 
+    flex-shrink: 0;
+}
+
+.db-info {
+    font-size: 0.8rem;
+
+    /* CAMBIO: Usar variables para que se adapten al modo oscuro */
+    color: var(--help-color);
+    background-color: var(--checkbox-wrapper-bg);
+
+    padding: 4px 8px;
+    border-radius: 0; /* Brutalismo: ángulos rectos */
+    display: block;
+    margin-left: 0;
+    text-align: left;
+}
+
+.theme-toggle {
+    background: none;
+    border: 2px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 1.2rem;
+    padding: 2px 8px;
+    cursor: pointer;
+    border-radius: 0;
+    transition: all 0.1s ease;
+    box-shadow: 2px 2px 0 var(--border-color);
+
+    &:hover {
+        background: var(--input-bg);
+        box-shadow: 3px 3px 0 var(--border-color);
+        transform: translate(-1px, -1px);
+    }
+
+    &:active {
+        box-shadow: 1px 1px 0 var(--border-color);
+        transform: translate(1px, 1px);
+    }
+}
+
+/* Formulario vertical: una columna */
+.form-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Fila Vertical Estándar - Etiquetas ARRIBA del input (top-aligned) */
+.field-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    overflow: visible;
+}
+
+/* --- CONTENEDOR VERTICAL (Recursivo) --- */
+.vertical-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    padding-left: 1rem;
+    border-left: 1px dashed var(--border-color);
+}
+
+/* --- BORDER BOX (Recuadros alrededor de campos) --- */
+.border-box {
+    border: 3px solid var(--border-color);
+    border-radius: 0;
+    padding: 1rem;
+    margin: 0;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: fit-content;
+    box-shadow: var(--neo-shadow);
+}
+
+/* --- ALINEACIÓN DE CAMPOS --- */
+.field-align-right {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+}
+
+.field-align-center {
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+/* --- ESTILOS PARA GRUPOS HORIZONTALES (Simplificados) --- */
+
+.grid-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.simple-field {
+    display: flex;
+    flex-direction: column;
+    width: 100%; /* Se adapta al espacio del grupo */
+}
+
+.simple-field label {
+    text-align: left;
+    padding-top: 0;
+    font-weight: bold;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    margin-bottom: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Regla .field-row duplicada eliminada - ver línea 320 */
+
+label {
+    text-align: left;
+    padding-top: 0;
+    font-weight: bold;
+    color: var(--text-color);
+    white-space: nowrap;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: visible;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    max-width: 100%;
+    align-items: flex-start;
+    overflow: visible;
+    gap: 0;
+}
+
+/* Solo en layouts verticales (field-row), el input-group ocupa 100% */
+.field-row .input-group {
+    width: 100%;
+}
+
+/* En contenedores horizontales, input-group NO se expande */
+.field-block-horizontal .input-group {
+    width: auto !important;
+    min-width: 0; /* Permitir que se encoja */
+}
+
+/* Input-group con fecha: no expandir, mantener compacto */
+.input-group:has(input[type="date"]),
+.field-row .input-group:has(input[type="date"]) {
+    width: auto !important;
+}
+
+/* Input-group con textarea: siempre 100% */
+.input-group:has(textarea),
+.field-row .input-group:has(textarea) {
+    width: 100% !important;
+}
+
+input, textarea, select {
+    border: var(--border-thickness) solid var(--input-border);
+    padding: 
+        calc(var(--line-height) / 2 - var(--border-thickness))
+        calc(1ch - var(--border-thickness));
+    margin: 0;
+    font: inherit;
+    font-weight: inherit;
+    color: var(--text-color);
+    background: var(--input-bg);
+    box-sizing: border-box;
+    border-radius: 0;
+    line-height: normal;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    -webkit-font-smoothing: inherit;
+    -moz-osx-font-smoothing: inherit;
+}
+
+input {
+    height: calc(var(--line-height) * 2);
+    width: auto;
+    overflow: visible;
+}
+
+select {
+    height: calc(var(--line-height) * 2);
+    min-width: 10ch;
+    max-width: 100%;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300ff00' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    padding-right: 1.5rem;
+
+    body.dark-mode & {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    }
+}
+
+select.fixed-width-select {
+    min-width: 0;
+    flex-shrink: 0;
+}
+
+select option {
+    background: var(--bg-color);
+    color: var(--text-color);
+    padding: 0.5rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Override browser autofill styles */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+    -webkit-text-fill-color: var(--text-color) !important;
+    caret-color: var(--text-color) !important;
+    border: var(--border-thickness) solid var(--input-border) !important;
+}
+
+/* Clase aplicada dinámicamente cuando el label es más ancho que el input */
+input.expand-to-label {
+    min-width: 100%;
+    max-width: 100%;
+}
+
+/* Inputs con tamaño específico mantienen su width pero limitados al contenedor */
+input[style*="width"]:not([type="date"]):not(textarea) {
+    width: auto;
+    max-width: 100%;
+}
+
+/* Campos de fecha: ancho fijo compacto (incluye icono calendario) */
+input[type="date"] {
+    width: 17ch !important;
+    max-width: 17ch !important;
+    flex-shrink: 0;
+}
+
+select:hover {
+    border-color: var(--text-color);
+}
+
+select:focus {
+    outline: none;
+    border-color: var(--border-color);
+    box-shadow: var(--neo-shadow);
+}
+
+select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   AUTOCOMPLETE COMPONENT
+   ============================================ */
+
+.autocomplete-wrapper {
+    display: inline-flex;
+    align-items: stretch;
+    position: relative;
+}
+
+.autocomplete-wrapper input {
+    border-right: none;
+    min-width: 0;
+}
+
+.autocomplete-wrapper input:focus {
+    outline: none;
+    border-color: var(--border-color);
+    box-shadow: none;
+}
+
+.autocomplete-btn {
+    background: var(--input-bg);
+    border: var(--border-thickness) solid var(--input-border);
+    border-left: none;
+    padding: 0 0.5rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.8rem;
+    transition: background 0.1s ease;
+
+    &:hover {
+        background: var(--tree-hover);
+    }
+
+    body.dark-mode & {
+        border-color: var(--input-border);
+    }
+}
+
+.autocomplete-wrapper input:focus + .autocomplete-btn,
+.autocomplete-wrapper:focus-within .autocomplete-btn {
+    border-color: var(--border-color);
+}
+
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--workspace-bg);
+    border: var(--border-thickness) solid var(--border-color);
+    border-top: none;
+    z-index: 1000;
+    box-shadow: var(--neo-shadow);
+}
+
+.autocomplete-item {
+    padding: calc(var(--line-height) / 2) 0.5rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.highlighted {
+    background: var(--tree-hover);
+
+    body.dark-mode & {
+        background: var(--tree-active);
+    }
+}
+
+.autocomplete-key {
+    font-weight: bold;
+}
+
+.autocomplete-display {
+    color: var(--help-color);
+}
+
+.autocomplete-empty {
+    padding: calc(var(--line-height) / 2) 0.5rem;
+    color: var(--help-color);
+    font-style: italic;
+}
+
+
+/* Textarea: ocupa 100% del contenedor pero respeta max-width */
+textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    resize: vertical;
+    min-height: 6rem;
+    line-height: 1.6;
+    box-sizing: border-box; /* Incluir padding en el ancho */
+}
+
+/* ============================================
+   MULTIFIELD: TEXTAREA (Fase 1)
+   ============================================ */
+
+/* Textarea generado desde multifield - estilo terminal */
+textarea.multifield-textarea {
+    font: inherit;
+    background: var(--input-bg);
+    border: 2px solid var(--input-border);
+    padding: 0.5rem;
+    color: var(--text-color);
+    line-height: 1.4;
+    border-radius: 0;
+}
+
+/* ============================================
+   MULTIFIELD: GRID/TABLA (Fase 2)
+   ============================================ */
+
+/* Contenedor del grid */
+.multifield-grid {
+    width: 100%;
+    overflow-x: auto;
+    border: 2px solid var(--border-color);
+    background: var(--input-bg);
+    border-radius: 0;
+    margin-top: 0.5rem;
+    box-shadow: var(--neo-shadow);
+}
+
+/* Tabla del multifield */
+.multifield-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+/* Encabezados de columna */
+.multifield-table thead {
+    background: var(--border-color);
+    color: var(--bg-color);
+}
+
+.multifield-table th {
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+
+/* Filas del body */
+.multifield-table tbody tr {
+    border-bottom: 1px solid var(--input-border);
+    transition: background-color 0.2s;
+}
+
+.multifield-table tbody tr:hover {
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.multifield-table td {
+    padding: 0.3rem;
+}
+
+/* Inputs dentro de las celdas */
+.multifield-cell-input {
+    width: 100%;
+    padding: 0.3rem;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.85rem;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+.multifield-cell-input:focus {
+    outline: none;
+    border-color: var(--border-color);
+    background: var(--bg-color);
+}
+
+.multifield-cell-input.readonly-field {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    cursor: not-allowed;
+
+    body.dark-mode & {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+}
+
+/* Controles de navegación del multifield */
+.multifield-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: var(--help-bg);
+    border-top: 1px solid var(--border-color);
+    gap: 1rem;
+}
+
+.multifield-btn {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: 2px solid var(--btn-border);
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    border-radius: 0;
+    transition: all 0.1s ease;
+    box-shadow: 3px 3px 0 var(--btn-border);
+
+    &:hover:not(:disabled) {
+        background: var(--btn-hover-bg);
+        box-shadow: 4px 4px 0 var(--btn-border);
+        transform: translate(-1px, -1px);
+    }
+
+    &:active:not(:disabled) {
+        box-shadow: 2px 2px 0 var(--btn-border);
+        transform: translate(1px, 1px);
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+}
+
+.multifield-page-info {
+    font-size: 0.85rem;
+    color: var(--help-color);
+}
+
+/* Columna de acción (botón ✕) */
+.multifield-action-header {
+    width: 2rem;
+    min-width: 2rem;
+}
+
+.multifield-action-cell {
+    text-align: center;
+    width: 2rem;
+    padding: 0.2rem !important;
+}
+
+/* Botón de eliminar fila */
+.multifield-delete-btn {
+    background: transparent;
+    color: var(--help-color);
+    border: 1px solid var(--input-border);
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border-radius: 0;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.1s ease;
+
+    &:hover {
+        background: #c0392b;
+        color: white;
+        border-color: #c0392b;
+    }
+}
+
+/* Input con error de unicidad */
+.multifield-cell-input.field-error {
+    border-color: #c0392b;
+    background: rgba(192, 57, 43, 0.05);
+}
+
+/* Campo virtual/computado (is= attribute) */
+.computed-field {
+    font-style: italic;
+    background: rgba(0, 0, 0, 0.03) !important;
+    cursor: default;
+
+    body.dark-mode & {
+        background: rgba(255, 255, 255, 0.03) !important;
+    }
+}
+
+/* Stepper [▼ N ▲] — grupo unificado con un solo borde */
+.stepper-wrapper {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border-color, #ccc);
+}
+
+.stepper-btn {
+    min-width: 2rem;
+    padding: 0 0.3rem;
+    border: none;
+    border-radius: 0;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    line-height: 1;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+.stepper-btn:active {
+    background: var(--accent-color, #555);
+    color: #fff;
+}
+
+.stepper-wrapper .stepper-input {
+    width: auto;
+    border: none !important;
+    border-left:  1px solid var(--border-color, #ccc);
+    border-right: 1px solid var(--border-color, #ccc);
+    background: var(--bg-color);
+    color: var(--text-color);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    padding: 0 2px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.stepper-wrapper .stepper-input::-webkit-inner-spin-button,
+.stepper-wrapper .stepper-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+@media (max-width: 650px) {
+    .stepper-btn {
+        min-width: 2.5rem;
+        font-size: 1rem;
+    }
+}
+
+/* Responsive: tabla en móvil → cards compactas */
+@media (max-width: 650px) {
+    /* Ocultar filas vacías (filler) y thead */
+    .multifield-table tr[data-empty="true"] { display: none; }
+    .multifield-table thead { display: none; }
+
+    /* Tabla → bloque */
+    .multifield-grid    { overflow-x: unset; }
+    .multifield-table,
+    .multifield-table tbody { display: block; }
+
+    /* Card compacta: flex-wrap para que la action cell vaya primero (order:-1) */
+    .multifield-table tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        border: 2px solid var(--border-color);
+        margin-bottom: 0.5rem;
+        padding: 0;
+    }
+
+    /* Header strip: [X] a la derecha con border-bottom como separador */
+    .multifield-table tbody .multifield-action-cell {
+        order: -1;
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0;
+        box-sizing: border-box;
+    }
+    .multifield-table tbody .multifield-action-cell::before { display: none; }
+
+    .multifield-delete-btn {
+        width: auto;
+        min-width: 2.2rem;
+        min-height: 1.6rem;
+        font-size: 0.85rem;
+        border: none;
+        border-left: 1px solid var(--border-color);
+    }
+
+    /* Celda de campo: ancho completo, una línea por campo */
+    .multifield-table tbody td:not(.multifield-action-cell) {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        border: none;
+        padding: 0.15rem 0.5rem;
+        gap: 0;
+        font-size: 0.85rem;
+        box-sizing: border-box;
+    }
+
+    /* Label con ancho fijo para alinear los ":" */
+    .multifield-table tbody td:not(.multifield-action-cell)::before {
+        content: attr(data-label) "  :";
+        opacity: 0.6;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        flex: 0 0 7rem;
+        white-space: nowrap;
+    }
+
+    /* Inputs en card: fondo transparente, sin caja */
+    .multifield-table tbody td .multifield-cell-input {
+        flex: 1;
+        border: none;
+        border-bottom: 1px solid var(--input-border);
+        background: var(--bg-color);
+        padding: 0.1rem 0.2rem;
+        font-size: 0.85rem;
+        color: var(--text-color);
+        width: auto;
+        box-shadow: none;
+    }
+    .multifield-table tbody td .multifield-cell-input:focus {
+        outline: none;
+        border-bottom-color: var(--border-color);
+    }
+
+    /* Readonly: sin subrayado, opacidad reducida */
+    .multifield-table tbody td .multifield-cell-input.readonly-field {
+        border-bottom: none;
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    /* Stepper en card */
+    .multifield-table tbody td .stepper-wrapper { flex: 1; display: flex; }
+    .multifield-table tbody td .stepper-wrapper .stepper-btn {
+        padding: 0; min-width: 1.5rem; width: auto;
+    }
+    .multifield-table tbody td .stepper-wrapper .stepper-input { flex: 1; }
+
+    .multifield-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+
+input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--border-color);
+    box-shadow: var(--neo-shadow);
+}
+
+/* Placeholders con contraste mejorado - estilo terminal */
+input::placeholder,
+textarea::placeholder {
+    color: #888888;
+    opacity: 1;
+    font-style: italic;
+
+    body.dark-mode & {
+        color: #00ff00;
+        opacity: 0.6;
+    }
+}
+
+/* ============================================
+   SISTEMA DE AYUDA ESTILO TERMINAL
+   ============================================ */
+
+/* Icono de ayuda [?] estilo terminal dentro del label */
+.help-icon {
+    font-size: 0.75rem;
+    color: #00ff00;
+    cursor: pointer;
+    user-select: none;
+    padding: 0;
+    border: none;
+    background: transparent;
+    transition: all 0.2s;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1;
+
+    &:hover {
+        text-shadow: 0 0 8px rgba(0, 255, 0, 0.6);
+    }
+
+    &:focus {
+        outline: 1px dotted #00ff00;
+        outline-offset: 2px;
+    }
+
+    body.dark-mode & {
+        color: #ffaa00;
+
+        &:hover {
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+        }
+
+        &:focus {
+            outline-color: #ffaa00;
+        }
+    }
+}
+
+/* Tooltip estilo ventana de terminal */
+.help-tooltip {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.3rem;
+    z-index: 9999;
+    display: none;
+    background: #1a1a1a;
+    border: 2px solid #00ff00;
+    padding: 0.5rem;
+    min-width: 250px;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    pointer-events: auto;
+    animation: fadeInTerminal 0.2s ease-out;
+
+    &[style*="display: block"] {
+        display: block !important;
+    }
+
+    body.dark-mode & {
+        border-color: #ffaa00;
+    }
+}
+
+.help-icon-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.help-prompt {
+    color: #00ff00;
+    margin-bottom: 0.3rem;
+    font-weight: bold;
+
+    body.dark-mode & {
+        color: #ffaa00;
+    }
+}
+
+.help-text {
+    color: var(--text-color-alt, #aaaaaa);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+}
+
+@keyframes fadeInTerminal {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tooltip en contenedores horizontales: más compacto */
+.field-block-horizontal .help-tooltip {
+    min-width: 200px;
+    max-width: 300px;
+}
+
+/* Responsive: tooltip en móvil */
+@media (max-width: 650px) {
+    .help-tooltip {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        margin: 0;
+        max-width: 90vw;
+    }
+
+    @keyframes fadeInTerminal {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+}
+
+.field-row.checkbox-row {
+    /* Heredar flex-direction: column del padre .field-row */
+    align-items: flex-start;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent; 
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin: 0;
+    accent-color: var(--border-color);
+    -webkit-appearance: auto;
+    -moz-appearance: auto;
+    appearance: auto;
+}
+
+.checkbox-label-text {
+    font: inherit;
+    color: var(--text-color);
+    line-height: 1.2;
+    flex-grow: 1;
+    word-wrap: break-word;
+}
+
+.actions-nav {
+    margin-top: 1rem;
+    padding-top: 2rem;
+    border-top: 1px dashed var(--border-color);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between; /* Botones separados: uno izquierda, uno derecha */
+    transition: border-color 0.3s;
+}
+
+button {
+    background-color: var(--btn-bg);
+    color: var(--btn-text);
+    border: 3px solid var(--btn-border);
+    padding: 0.8rem 2rem;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.1s ease;
+    box-sizing: border-box;
+    border-radius: 0;
+    box-shadow: var(--neo-shadow);
+
+    &:hover {
+        background-color: var(--btn-hover-bg);
+        box-shadow: var(--neo-shadow-hover);
+        transform: translate(-2px, -2px);
+    }
+
+    &:active {
+        box-shadow: var(--neo-shadow-active);
+        transform: translate(2px, 2px);
+    }
+
+    &[type="button"] {
+        background-color: transparent;
+        color: var(--text-color);
+        border-color: var(--border-color);
+        box-shadow: var(--neo-shadow);
+
+        &:hover {
+            background-color: var(--input-bg);
+            box-shadow: var(--neo-shadow-hover);
+            transform: translate(-2px, -2px);
+        }
+    }
+}
+
+/* --- MENSAJES DE ERROR DE VALIDACIÓN --- */
+.error-msg {
+    display: block;
+    font: inherit;
+    font-size: 0.85rem;
+    color: #d32f2f;
+    background-color: #ffebee;
+    padding: 4px 8px;
+    border-left: 3px solid #d32f2f;
+    margin-top: 0.5rem;
+    box-sizing: border-box;
+    animation: shake 0.5s;
+
+    body.dark-mode & {
+        color: #ff6b6b;
+        background-color: #381818;
+        border-left-color: #ff6b6b;
+    }
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+
+/* Estilo para campos con error */
+input.field-error,
+textarea.field-error,
+select.field-error {
+    border-color: #d32f2f !important;
+    background-color: #ffebee;
+    outline: 2px solid rgba(211, 47, 47, 0.2);
+
+    body.dark-mode & {
+        border-color: #ff6b6b !important;
+        background-color: #381818;
+        outline: 2px solid rgba(255, 107, 107, 0.2);
+    }
+}
+
+/* =========================================
+   SUBMISSIONS VIEWER
+   ========================================= */
+.submissions-header {
+    padding: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.submissions-header h3 {
+    margin: 0 0 0.5rem 0;
+}
+
+.submissions-header .stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+    color: var(--help-color);
+}
+
+.submissions-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 1rem 1rem 1rem;
+    flex-wrap: wrap;
+}
+
+.btn-export, .btn-delete-all, .btn-refresh {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    border: 2px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-export:hover {
+    background-color: var(--btn-bg);
+    color: var(--btn-text);
+}
+
+.btn-delete-all {
+    border-color: #d32f2f;
+    color: #d32f2f;
+}
+
+.btn-delete-all:hover {
+    background-color: #d32f2f;
+    color: white;
+}
+
+.btn-refresh:hover {
+    background-color: var(--help-bg);
+}
+
+.submissions-list {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 0 1rem;
+}
+
+.submission-item {
+    border: 1px solid var(--border-color);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background-color: var(--help-bg);
+    position: relative;
+}
+
+.submission-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.submission-id {
+    font-weight: bold;
+}
+
+.submission-date {
+    color: var(--help-color);
+}
+
+.submission-item-data {
+    font-size: 0.85rem;
+    word-break: break-word;
+}
+
+.btn-delete-item {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.btn-delete-item:hover {
+    opacity: 1;
+}
+
+.submissions-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--help-color);
+}
+
+.submissions-info {
+    text-align: center;
+    padding: 1rem;
+    color: var(--help-color);
+    font-style: italic;
+}
+
+/* RESPONSIVE */
+@media (max-width: 650px) {
+    .hamburger-btn {
+        padding: 6px;
+        width: 32px;
+        height: 32px;
+        justify-content: center;
+        align-items: center;
+        gap: 3px;
+    }
+    
+    .hamburger-btn span {
+        width: 14px;
+        height: 2px;
+    }
+    
+    .autocomplete-btn {
+        padding: 0 0.25rem;
+        min-width: 1.5rem;
+        font-size: 0.6rem;
+        width: auto;
+    }
+    
+    #os-interface {
+        flex-direction: column;
+    }
+    
+    #sidebar {
+        position: fixed;
+        left: 0;
+        top: 48px;
+        width: 100%;
+        height: calc(100vh - 48px);
+        height: calc(100dvh - 48px);
+        z-index: 1000;
+        transform: translateX(-100%);
+        border-right: none;
+    }
+    
+    #sidebar.open {
+        transform: translateX(0);
+    }
+    
+    #workspace {
+        width: 100% !important;
+        margin-left: 0 !important;
+        padding: 1rem;
+    }
+    
+    /* Resto de responsive anterior */
+    .terminal-window { 
+        padding: 1rem;
+    }
+    
+    .border-box {
+        padding: 0.75rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .horizontal-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .field-block-horizontal {
+        width: 100%;
+    }
+    
+    .border-box input:not([type="checkbox"]),
+    .border-box select,
+    .border-box textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .form-vertical {
+        width: 100%;
+    }
+    .field-row { 
+        gap: 0.5rem; 
+        width: 100%;
+    }
+    .field-row .input-group {
+        width: 100%;
+    }
+    .field-row input:not([type="checkbox"]),
+    .field-row textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    .vertical-container {
+        margin-left: 0;
+        padding-left: 0.5rem;
+        width: 100%;
+    }
+    .window-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        border-bottom: none;
+        margin-bottom: 1.5rem;
+    }
+    .db-info { font-size: 0.7rem; align-self: flex-start; }
+    label { text-align: left; padding-top: 0; font-size: 0.85rem; }
+    .checkbox-wrapper {
+        background: var(--checkbox-wrapper-bg);
+        padding: 0.8rem 1rem;
+        border-radius: 0; /* Brutalismo: ángulos rectos */
+        align-items: center;
+    }
+    .actions-nav { flex-direction: column; gap: 0.8rem; }
+    button { width: 100%; }
+    
+    /* Header global responsive */
+    .header-title { font-size: 1rem; letter-spacing: 1px; }
+    #global-header { padding: 0 0.5rem; }
+}
+
+/* ============================================================
+   REPORT ENGINE STYLES
+   nil-report — Nilix
+   ============================================================ */
+
+.report-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+    font-family: var(--label-font);
+}
+
+/* Header */
+.report-header {
+    text-align: center;
+    padding: 1.5rem 0;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+.report-header-line {
+    color: var(--text-color);
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.report-header-line:first-child {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--help-icon-color);
+    margin-bottom: 0.5rem;
+}
+
+/* Navigation */
+.report-nav {
+    background: var(--bg-color);
+    border: 2px solid var(--border-color);
+    padding: 0.5rem;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+
+    body.dark-mode & {
+        background: #111111;
+    }
+}
+
+.report-nav-scroll {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    padding: 0 0.5rem;
+}
+
+.report-nav-item {
+    flex-shrink: 0;
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: var(--bg-color);
+    border: 2px solid var(--border-color);
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    cursor: pointer;
+    outline: none;
+
+    &:hover,
+    &:focus,
+    &:active,
+    &.active {
+        background: var(--text-color);
+        color: var(--bg-color);
+        border-color: var(--text-color);
+    }
+
+    body.dark-mode &:hover,
+    body.dark-mode &:focus,
+    body.dark-mode &:active,
+    body.dark-mode &.active {
+        background: #ffffff;
+        color: #000000;
+        border-color: #ffffff;
+    }
+}
+
+/* Category Separator */
+.report-separator {
+    margin: 1.5rem 0 1rem 0;
+    padding-top: 1rem;
+}
+
+.report-separator-line {
+    color: var(--help-icon-color);
+    font-size: 1rem;
+    line-height: 1.5;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: bold;
+}
+
+.report-separator-line:empty,
+.report-separator-line:first-child:not(:only-child) {
+    height: 0;
+}
+
+.report-separator-center {
+    text-align: center;
+}
+
+.report-separator-hr {
+    border: none;
+    border-top: 2px solid var(--border-color);
+    margin: 0.75rem 0;
+}
+
+/* Products Grid */
+.report-products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+@media (max-width: 650px) {
+    .report-products-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 650px) {
+    .report-url-input { display: none; }
+    .report-actions   { display: none; }
+    .report-preview-btn { display: none; }
+    .report-url-row   { justify-content: center; }
+}
+
+/* Product Card */
+.report-card {
+    background: var(--input-bg);
+    border: 2px solid var(--border-color);
+    padding: 1rem;
+
+    body.dark-mode & {
+        background: #111111;
+    }
+}
+
+.report-card-line {
+    margin-bottom: 0.5rem;
+}
+
+.report-card-title {
+    font-size: 1rem;
+    font-weight: bold;
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.report-card-description {
+    font-size: 0.85rem;
+    color: var(--text-color);
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.report-card-price {
+    font-size: 1.1rem;
+    color: var(--help-icon-color);
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
+
+/* Footer */
+.report-footer {
+    text-align: center;
+    padding: 1.5rem 0;
+    border-top: 2px solid var(--border-color);
+    margin-top: 1.5rem;
+}
+
+.report-footer-line {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Report Error State */
+.report-error {
+    background: #331111;
+    border: 2px solid var(--error-color);
+    color: var(--error-color);
+    padding: 1rem;
+    text-align: center;
+}
+
+/* Report Loading State */
+.report-loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--help-icon-color);
+}
+
+.report-loading::after {
+    content: '...';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+}
+
+
+/* Report Preview in Workspace */
+.report-preview {
+    padding: 2rem;
+    text-align: center;
+}
+
+.report-preview p {
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+.report-preview .report-hint {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.report-url-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    align-items: center;
+}
+
+.report-url-input {
+    flex: 1;
+    font: inherit;
+    font-size: 0.8rem;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 0.3rem 0.5rem;
+    min-width: 0;
+}
+
+.report-copy-btn {
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: var(--border-thickness) solid var(--btn-border);
+    padding: 0.3rem 0.75rem;
+    white-space: nowrap;
+}
+
+.report-actions {
+    margin: 1.5rem 0;
+}
+
+.qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.qr-image {
+    border: var(--border-thickness) solid var(--border-color);
+    display: block;
+}
+
+.qr-download-btn {
+    cursor: pointer;
+    font: inherit;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: var(--border-thickness) solid var(--btn-border);
+    padding: 0.4rem 1rem;
+}
+
+.report-link {
+    display: inline-block;
+    padding: 1rem 2rem;
+    background: var(--bg-color);
+    border: 2px solid var(--help-icon-color);
+    color: var(--help-icon-color);
+    text-decoration: none;
+    font-family: var(--label-font);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: all 0.2s ease;
+}
+
+.report-link:hover {
+    background: var(--help-icon-color);
+    color: var(--bg-color);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--help-icon-color);
+}
+
+/* Terminal log under copy button */
+.report-copy-log {
+    font-size: 0.75rem;
+    color: var(--help-icon-color);
+    min-height: 1.2em;
+    margin-bottom: 0.5rem;
+    text-align: left;
+    font-family: var(--label-font, monospace);
+    word-break: break-all;
+}
+
+/* Accent color on copy/preview buttons */
+.report-copy-btn,
+.report-preview-btn {
+    background: transparent;
+    color: #4caf50;
+    border-color: #4caf50;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.75rem;
+    white-space: nowrap;
+}
+.report-copy-btn:hover,
+.report-preview-btn:hover {
+    background: #4caf50;
+    color: #000;
+}
+
+/* Preview modal */
+.report-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.preview-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+}
+.preview-modal-frame {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-color);
+    border: 2px solid var(--border-color);
+}
+.preview-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    font-family: var(--label-font, monospace);
+}
+.preview-close-btn {
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.5rem;
+}
+.preview-phone-shell {
+    width: 375px;
+    height: 667px;
+    overflow: hidden;
+    border: none;
+}
+.preview-iframe {
+    width: 375px;
+    height: 667px;
+    border: none;
+    display: block;
+}
+
+/* Report in Workspace */
+.report-workspace-container {
+    padding: 1rem;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
+}
+
+.report-workspace-container .report-container {
+    max-width: 100%;
+    padding: 0;
+}
+

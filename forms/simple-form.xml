@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form-definition>
+    <form title="Formulario de Contacto" database="contacts">
+        <form-attributes>
+            <use>contacts</use>
+            <window border="single"/>
+            <messages>
+                <message id="NAME">Ingrese su nombre completo</message>
+                <message id="EMAIL">Dirección de correo electrónico válida</message>
+                <message id="PHONE">Número de teléfono con código de área</message>
+                <message id="MSG">Su mensaje o consulta</message>
+            </messages>
+            <display-status>true</display-status>
+            <confirm>add, end</confirm>
+        </form-attributes>
+
+        <layout>
+                <field id="fullname" 
+                label="00000000011111111112222222222333333333344444444445555555555666666666677777777778" type="text" size="50">
+                    <!-- <attributes>
+                        <help>NAME</help>
+                    </attributes> -->
+                    <validation>
+                        <required>true</required>
+                    </validation>
+                </field>
+
+                <field id="email" label="Correo Electrónico" type="email" size="50">
+                    <attributes>
+                        <help>EMAIL</help>
+                    </attributes>
+                    <validation>
+                        <required>true</required>
+                    </validation>
+                </field>
+
+                <field id="phone" label="Teléfono" type="tel" size="20">
+                    <attributes>
+                        <help>PHONE</help>
+                    </attributes>
+                </field>
+
+                <field id="message" label="Mensaje" type="textarea" rows="3">
+                    <attributes>
+                        <help>MSG</help>
+                    </attributes>
+                    <validation>
+                        <required>true</required>
+                    </validation>
+                </field>
+
+                <field id="subscribe" label="Suscribirse al newsletter" type="checkbox" default="false"/>
+                
+                <field id="created_date" label="Fecha de Contacto" type="date">
+                    <attributes>
+                        <default>today</default>
+                    </attributes>
+                </field>
+        </layout>
+    </form>
+</form-definition>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte — Nilix</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        html {
+            height: auto !important;
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            height: auto !important;
+            min-height: 100vh;
+            padding: 1rem;
+            max-width: 900px;
+            margin: 0 auto !important;
+            overflow: visible !important;
+            overflow-x: hidden;
+        }
+        
+        .report-separator {
+            scroll-margin-top: 60px;
+        }
+        
+        #report-container {
+            min-height: 400px;
+        }
+        
+        .report-loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .report-loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-color);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .report-loading-stage {
+            color: var(--help-icon-color);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        
+        .report-not-found {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .report-not-found h2 {
+            color: var(--help-icon-color);
+        }
+        
+        .report-error {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .report-error h2 {
+            color: #ff6b6b;
+        }
+        
+        .report-backend-badge {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+        
+        .report-backend-badge.duckdb {
+            color: #ffca28;
+        }
+        
+        .report-backend-badge.fallback {
+            color: var(--text-color);
+        }
+    </style>
+</head>
+<body>
+    <div id="report-container">
+        <div class="report-loading">
+            <span class="report-loading-spinner"></span>
+            <span class="report-loading-text">Cargando reporte</span>
+            <div class="report-loading-stage" id="loading-stage">Inicializando...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ReportEngine } from '/js/components/report/ReportEngine.js';
+
+        function updateLoadingStage(message) {
+            const stage = document.getElementById('loading-stage');
+            if (stage) {
+                stage.textContent = message;
+            }
+        }
+
+        async function loadReport() {
+            const container = document.getElementById('report-container');
+
+            const params = new URLSearchParams(window.location.search);
+            const reportFile = params.get('file') || params.get('name');
+            const publicToken = params.get('t') ?? null;
+
+            if (!reportFile) {
+                container.innerHTML = `
+                    <div class="report-not-found">
+                        <h2>Reporte no especificado</h2>
+                        <p>Uso: /report.html?file=carta</p>
+                    </div>
+                `;
+                document.title = 'Error — Nilix';
+                return;
+            }
+
+            const yamlPath = reportFile.endsWith('.yaml') || reportFile.endsWith('.yml')
+                ? `/reports/${reportFile}`
+                : `/reports/${reportFile}.yaml`;
+
+            // Fetch YAML first to detect public flag before auth check
+            updateLoadingStage('Cargando definición YAML...');
+            let yamlContent;
+            try {
+                const yamlRes = await fetch(yamlPath);
+                if (!yamlRes.ok) {
+                    throw new Error(`Reporte no encontrado: ${yamlPath}`);
+                }
+                yamlContent = await yamlRes.text();
+            } catch (error) {
+                console.error('❌ Error loading YAML:', error);
+                container.innerHTML = `
+                    <div class="report-not-found">
+                        <h2>Reporte no encontrado</h2>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+                document.title = 'Error — Nilix';
+                return;
+            }
+
+            const isPublic = /^\s*public:\s*true\s*$/m.test(yamlContent);
+
+            if (!isPublic) {
+                try {
+                    const checkRes = await fetch('/api/auth/check');
+                    const check = checkRes.ok ? await checkRes.json() : { ok: false };
+                    if (!check.ok) { window.location.href = '/login.html'; return; }
+                } catch { window.location.href = '/login.html'; return; }
+            }
+
+            const engine = new ReportEngine();
+
+            try {
+                // Pass pre-loaded content — avoids double fetch
+                await engine.load(yamlPath, yamlContent, publicToken);
+
+                const isDuckDB = engine.isDuckDBActive();
+                updateLoadingStage(isDuckDB
+                    ? 'Inicializando DuckDB (~2.5MB)...'
+                    : 'Procesando datos...'
+                );
+
+                const reportElement = await engine.render();
+
+                container.innerHTML = '';
+                container.appendChild(reportElement);
+
+                const schema = engine.getSchema();
+                if (schema && schema.name) {
+                    document.title = schema.description || schema.name;
+                }
+
+                const badge = document.createElement('div');
+                badge.className = `report-backend-badge ${isDuckDB ? 'duckdb' : 'fallback'}`;
+                badge.textContent = isDuckDB ? 'DuckDB' : 'JS';
+                container.appendChild(badge);
+
+                console.log('✅ Report loaded:', yamlPath, '| Public:', isPublic, '| Backend:', isDuckDB ? 'DuckDB' : 'JS');
+            } catch (error) {
+                console.error('❌ Error loading report:', error);
+                container.innerHTML = `
+                    <div class="report-error">
+                        <h2>Error al cargar el reporte</h2>
+                        <p>${error.message}</p>
+                        <pre style="text-align: left; font-size: 0.8rem; overflow: auto;">${error.stack || ''}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        loadReport();
+    </script>
+</body>
+</html>

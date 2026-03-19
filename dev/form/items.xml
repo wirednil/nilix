@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="items" title="Ítems" database="items" handler="none">
+
+    <form-attributes>
+        <window border="single"/>
+        <confirm>delete</confirm>
+        <display-status>true</display-status>
+        <messages>
+            <message id="HELP_ITEMNO">Número de ítem — clave primaria</message>
+            <message id="HELP_PESO">Peso en gramos</message>
+            <message id="HELP_VOLUMEN">Volumen en cm³</message>
+        </messages>
+    </form-attributes>
+
+    <layout>
+
+        <field id="itemno" label="N° Ítem" type="number" keyField="true" size="4"
+               help="HELP_ITEMNO">
+            <validation><min>1</min></validation>
+        </field>
+
+        <field id="dsc" label="Descripción" type="text" size="40">
+            <validation><required>true</required></validation>
+        </field>
+
+        <container type="horizontal">
+            <field id="peso"    label="Peso (g)"  type="number" size="10" help="HELP_PESO">
+                <validation><min>0</min></validation>
+            </field>
+            <field id="volumen" label="Vol (cm³)" type="number" size="10" help="HELP_VOLUMEN">
+                <validation><min>0</min></validation>
+            </field>
+        </container>
+
+    </layout>
+
+</form>

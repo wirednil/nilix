@@ -1,0 +1,26 @@
+# Dependencias
+node_modules/
+
+# Secretos y configuración local
+.env
+
+# Datos generados / bases de datos
+data/
+dev/dbase/
+*.db
+
+# Logs
+logs/
+*.log
+
+# Distribución
+dist/
+
+# Editor / herramientas locales
+.vscode/
+.claude/
+.agents/
+
+# OS
+.DS_Store
+Thumbs.db

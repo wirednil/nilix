@@ -1,0 +1,16 @@
+project $ISRC;
+//
+// Ibuild file for RGEN utility
+// $Id: rgen.ib,v 1.2 1999/08/06 01:20:28 eduardoc Exp $
+//
+
+rgen {
+	rgenpar.y;
+	rgenlex.l;
+	rgen.cc;
+	rgenrut.cc;
+	rgenconf.cc;
+	rgenerr.cc;
+	rgenver.cc;
+	rpgen.cc;
+}

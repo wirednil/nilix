@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form title="Clientes - Test Nueva Sintaxis" database="clientes">
+    <messages>
+        <help id="help-clieno">Seleccione el cliente de la lista</help>
+        <help id="help-prov">Seleccione la provincia</help>
+    </messages>
+    
+    <layout>
+        <border>
+            <field id="clieno" label="Cliente" type="select" size="1">
+                <in-table table="clientes" key="clieno" display="nombre">
+                    <copy from="nombre" to="nombre"/>
+                    <copy from="direc"  to="direc"/>
+                    <copy from="telef"  to="telef"/>
+                </in-table>
+                <attributes>
+                    <help>help-clieno</help>
+                </attributes>
+            </field>
+        </border>
+        
+        <border>
+            <field id="nombre" label="Nombre" type="text" size="35">
+            </field>
+            <field id="direc" label="Direccion" type="text" size="35">
+            </field>
+            <field id="telef" label="Telefono" type="text" size="15">
+            </field>
+        </border>
+        
+        <border>
+            <container type="horizontal">
+                <field id="prov" label="Provincia" type="select" size="3">
+                    <in-table table="provin" key="codpro" display="nombre">
+                        <copy from="nombre" to="prov_nombre"/>
+                    </in-table>
+                    <attributes>
+                        <help>help-prov</help>
+                    </attributes>
+                </field>
+                <field id="prov_nombre" label="Nombre Provincia" type="text" size="30">
+                    <attributes><skip>true</skip></attributes>
+                </field>
+            </container>
+        </border>
+        
+        <border>
+            <field id="tipo_iva" label="Tipo IVA" type="select" size="2">
+                <options>
+                    <option value="RI">Responsable Inscripto</option>
+                    <option value="CF">Consumidor Final</option>
+                    <option value="MT">Monotributo</option>
+                    <option value="EX">Exento</option>
+                </options>
+                <attributes>
+                    <default>CF</default>
+                </attributes>
+            </field>
+        </border>
+    </layout>
+</form>

@@ -1,0 +1,6 @@
+project $ISRC;
+//
+// Ideafix report development utilities
+// $Id: ALL.ib,v 1.2 1999/04/20 18:55:17 eduardoc Exp $
+//
+rgen.ib;

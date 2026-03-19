@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="ordenes" title="Órdenes de Clientes" database="ordenes" handler="none">
+
+    <form-attributes>
+        <window border="single"/>
+        <confirm>delete</confirm>
+        <display-status>true</display-status>
+        <messages>
+            <message id="HELP_ORDERNO">Número de orden — clave primaria</message>
+            <message id="HELP_CLIENO">Número de cliente — busca en tabla de clientes</message>
+            <message id="HELP_FENTR">Fecha de entrega — debe ser mayor o igual a la fecha de la orden</message>
+        </messages>
+    </form-attributes>
+
+    <layout>
+
+        <container type="horizontal">
+            <field id="orderno" label="N° Orden" type="number" keyField="true" size="5"
+                   help="HELP_ORDERNO">
+                <validation><min>1</min></validation>
+            </field>
+            <field id="fecha" label="Fecha" type="date" default="today"/>
+        </container>
+
+        <container type="horizontal">
+            <field id="clieno" label="Cliente" type="number" size="5" help="HELP_CLIENO">
+                <in-table table="clientes" key="clieno" display="nombre">
+                    <copy from="nombre" to="clie_nom"/>
+                </in-table>
+            </field>
+            <field id="clie_nom" label="Nombre" type="text" size="30"
+                   readonly="true" skip="true"/>
+        </container>
+
+        <field id="valor" label="Valor" type="number" size="12"/>
+
+        <container type="horizontal">
+            <field id="fentr" label="Fecha Entrega" type="date" default="today"
+                   help="HELP_FENTR">
+                <validation>
+                    <check>this >= fecha</check>
+                    <message>La fecha de entrega debe ser posterior a la fecha de la orden</message>
+                </validation>
+            </field>
+            <field id="mentr" label="Modo Entrega" type="select">
+                <options>
+                    <option value="0">Retira el cliente</option>
+                    <option value="1">Flete propio</option>
+                    <option value="2">Flete del cliente</option>
+                </options>
+            </field>
+        </container>
+
+        <field id="direc" label="Dirección entrega / Empresa flete" type="text" size="50"/>
+
+    </layout>
+
+</form>

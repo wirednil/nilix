@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nilix — Login</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="login-container"></div>
+
+    <script type="module">
+        import FormRenderer from './js/components/FormRenderer.js';
+
+        (async () => {
+            // If already logged in, skip login page
+            try {
+                const check = await fetch('/api/auth/check');
+                if (check.ok) { window.location.href = '/'; return; }
+            } catch { /* no hay sesión, mostrar login */ }
+            localStorage.removeItem('nil_token'); // limpieza de migración
+
+            const container = document.getElementById('login-container');
+            const renderer = new FormRenderer();
+
+            const res = await fetch('/forms/login.xml');
+            const xml = await res.text();
+            renderer.render(container, xml);
+        })();
+    </script>
+</body>
+</html>

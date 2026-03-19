@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="clientes" title="Tabla de Clientes" database="clientes" handler="none">
+
+    <form-attributes>
+        <window border="single"/>
+        <confirm>delete</confirm>
+        <display-status>true</display-status>
+        <messages>
+            <message id="HELP_CLIENO">Número de cliente — clave primaria</message>
+            <message id="HELP_SALDO">Saldo pendiente del cliente en pesos</message>
+        </messages>
+    </form-attributes>
+
+    <layout>
+
+        <container type="horizontal">
+            <field id="clieno" label="N° Cliente" type="number" keyField="true" size="5"
+                   help="HELP_CLIENO">
+                <validation><min>1</min></validation>
+            </field>
+            <field id="fealta" label="Fecha Alta" type="date" default="today"/>
+            <field id="activo" label="Activo" type="checkbox" default="true"/>
+        </container>
+
+        <field id="nombre" label="Nombre" type="text" size="40">
+            <validation><required>true</required></validation>
+        </field>
+
+        <field id="direc" label="Dirección" type="text" size="40"/>
+
+        <container type="horizontal">
+            <field id="ciudad" label="Ciudad" type="text" size="20"/>
+            <field id="prov"   label="Prov"   type="select" size="2">
+                <options>
+                    <option value="C">CABA</option>
+                    <option value="B">Buenos Aires</option>
+                    <option value="S">Santa Fe</option>
+                    <option value="Q">Neuquén</option>
+                </options>
+            </field>
+            <field id="cp" label="CP" type="number" size="5"/>
+        </container>
+
+        <field id="saldo" label="Saldo" type="number" size="12" help="HELP_SALDO"/>
+
+    </layout>
+
+</form>

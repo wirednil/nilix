@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Nilix</title>
+    
+    <!-- Librería Externa: The Monospace Web -->
+    <!-- <link rel="stylesheet" href="lib/reset.css">
+    <link rel="stylesheet" href="lib/index.css"> -->
+    
+    <!-- Nuestros Estilos -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Header Global (Brutalist) -->
+    <header id="global-header">
+        <div class="header-left">
+            <button id="sidebar-toggle" class="hamburger-btn" aria-label="Toggle sidebar">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <h1 class="header-title">NILIX</h1>
+        </div>
+        <div class="header-right">
+            <button id="crt-toggle" class="crt-toggle" aria-label="CRT effects" title="CRT Effects">CRT</button>
+            <button id="theme-btn" class="theme-toggle" aria-label="Cambiar tema" title="Cambiar tema"></button>
+        </div>
+    </header>
+
+    <!-- Interfaz Principal del Sistema -->
+    <div id="os-interface">
+        
+        <!-- Panel Lateral: Explorador -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <span>EXPLORADOR</span>
+            </div>
+            <!-- Aquí se inyectará el árbol de archivos -->
+            <div id="file-tree"></div>
+            
+            <!-- Configuración de Ruta Base -->
+            <div class="sidebar-footer">
+                <label for="base-path-input">ROOT PATH:</label>
+                <input type="text" id="base-path-input" value="/opt/user/home/progs/" readonly>
+            </div>
+        </aside>
+
+        <!-- Panel Principal: Espacio de Trabajo -->
+        <main id="workspace">
+            <!-- Aquí se cargarán los formularios dinámicamente -->
+            <div id="active-content"></div>
+        </main>
+
+    </div>
+
+    <!-- Scripts -->
+    <!-- <script src="lib/index.js"></script> -->
+    <!-- <script src="js/app.js"></script> -->
+    <!-- ... el resto del body igual ... -->
+
+        
+    <!-- IMPORTANTE: type="module" es necesario para usar import/export -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

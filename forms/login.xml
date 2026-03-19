@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form title="Iniciar Sesión" action="/api/auth/login">
+    <layout>
+        <field id="usuario" label="Usuario" type="text" size="20">
+            <validation>
+                <required>true</required>
+            </validation>
+        </field>
+        <field id="password" label="Contraseña" type="password" size="20">
+            <validation>
+                <required>true</required>
+            </validation>
+        </field>
+    </layout>
+</form>

@@ -1,0 +1,42 @@
+<form id="nil-users" title="Gestión de Usuarios" database="@auth:usuarios" handler="@auth:nil-users">
+
+    <form-attributes>
+        <use>usuarios</use>
+        <window border="single"/>
+        <confirm>delete</confirm>
+        <messages>
+            <message id="HELP_USUARIO">Nombre de usuario para el login. Solo letras, números y _ (3-30 caracteres).</message>
+            <message id="HELP_PASSWORD">Mínimo 8 caracteres. Dejar vacío para no modificar la contraseña actual.</message>
+            <message id="HELP_ROL">admin: acceso completo y gestión de usuarios. operador: acceso según permisos asignados.</message>
+            <message id="HELP_PERMISOS">Permisos globales del usuario sobre el menú. RADU: R=leer, A=agregar, D=borrar, U=modificar. Ej: RA = solo lectura y carga.</message>
+        </messages>
+        <display-status>true</display-status>
+    </form-attributes>
+
+    <layout>
+        <container type="vertical">
+            <field id="id" label="Usuario" type="select" keyField="true">
+                <in-table table="@auth:usuarios" key="id" display="usuario"/>
+            </field>
+            <field id="nombre"   label="Nombre"   type="text" size="50">
+                <validation><required>true</required></validation>
+            </field>
+            <field id="usuario"  label="Login"    type="text" size="30" help="HELP_USUARIO">
+                <validation><required>true</required></validation>
+            </field>
+            <field id="password" label="Password" type="password" size="30" help="HELP_PASSWORD"/>
+            <field id="email"    label="Email"    type="email" size="50"/>
+        </container>
+        <container type="horizontal">
+            <field id="rol" label="Rol" type="select" help="HELP_ROL">
+                <options>
+                    <option value="operador">Operador</option>
+                    <option value="admin">Administrador</option>
+                </options>
+            </field>
+            <field id="permisos" label="Permisos" type="text" size="10" help="HELP_PERMISOS"/>
+            <field id="activo" label="Activo" type="checkbox" default="1"/>
+        </container>
+    </layout>
+
+</form>
