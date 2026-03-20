@@ -1,7 +1,7 @@
 # Plan de Producción — Madurez y Seguridad del Sistema
 
 **Fecha de creación:** 2026-03-18
-**Actualizado:** 2026-03-19 — Auditoría de Fase 0 + estado Fase 1 documentado
+**Actualizado:** 2026-03-20 — T1.2 completada (rate limiting general)
 **Basado en:** Análisis técnico exhaustivo del proyecto (v2.2.0+)
 **Equipo asumido:** 1–4 desarrolladores full-time
 
@@ -28,14 +28,14 @@ Validación independiente del estado real del proyecto contra el plan.
 | Tarea | Estado | Gap |
 |-------|--------|-----|
 | T1.1 CI/CD | ❌ Faltante | No existe `.github/workflows/` ni equivalente. Deploy manual. |
-| T1.2 Rate limiting general | ⚠️ Parcial | Solo en `/api/auth/login` (10 req/15 min). No cubre `/api/records/*`, `/api/handler/*`, etc. |
+| T1.2 Rate limiting general | ✅ Implementado | `server.js`: 3 niveles — publicLimiter (60/min), apiLimiter (200/min), handlerLimiter (30/min). `/api/health` excluido. |
 | T1.3 Refresh token | ❌ Faltante | JWT fijo 8h. No hay `/api/auth/refresh` ni rolling sessions. |
 | T1.4 Structured logging | ❌ Faltante | Solo `console.*`. Sin pino/winston. Logs no parseables por herramientas. |
 | T1.5 OpenAPI | ❌ Faltante | No existe `docs/api/openapi.yaml`. |
 | T1.6 Docker | ❌ Faltante | No existe `Dockerfile` ni `docker-compose.yml`. |
 | T1.7 CSP reporting | ❌ Faltante | CSP configurada en `server.js` pero sin `report-uri`. No existe `POST /api/security/csp-report`. |
 
-**Veredicto Fase 1: ❌ 0/7 completadas**
+**Veredicto Fase 1: ⚠️ 1/7 completadas**
 
 ### 0.3 Hallazgos de seguridad
 
@@ -43,7 +43,7 @@ Validación independiente del estado real del proyecto contra el plan.
 
 | # | Hallazgo | Ubicación | Recomendación |
 |---|----------|-----------|---------------|
-| 1 | Sin rate limiting en API general | `server.js` | Aplicar limiter a `/api/*` (~100–200 req/min/IP), excluir `/api/health` |
+| 1 | ~~Sin rate limiting en API general~~ | ~~`server.js`~~ | ✅ Resuelto en v2.4.2 — 3 niveles implementados |
 | 2 | Sin CI/CD = merges sin validación | — | GitHub Actions mínimo: lint + `npm test` en cada PR |
 
 **Altos**
@@ -85,7 +85,7 @@ Validación independiente del estado real del proyecto contra el plan.
 
 | Dimensión | Puntaje | Comentario |
 |-----------|---------|------------|
-| Seguridad core | 8/10 | Auth robusto, tenant isolation, hardening básico |
+| Seguridad core | 9/10 | Auth robusto, tenant isolation, hardening básico, rate limiting completo |
 | Observabilidad | 4/10 | Health check OK, sin structured logs ni métricas |
 | Testing | 7/10 | Tests críticos presentes, coverage decente |
 | Documentación | 8/10 | `.env.example` completo, README claro |
@@ -93,7 +93,7 @@ Validación independiente del estado real del proyecto contra el plan.
 | Containerización | 1/10 | Sin Docker |
 | API governance | 2/10 | Sin versioning ni OpenAPI |
 
-**Madurez global estimada: 5.5/10**
+**Madurez global estimada: 5.8/10** *(+0.3 por T1.2)*
 
 > Nota: el plan estimaba 7.5/10 al completar Fase 0. La diferencia (2 puntos) refleja que Fase 1 — CI/CD, containerización, API governance — tiene mayor peso del esperado en la percepción de madurez operacional.
 
@@ -101,9 +101,9 @@ Validación independiente del estado real del proyecto contra el plan.
 
 | Prioridad | Acción | Esfuerzo | Impacto |
 |-----------|--------|----------|---------|
-| 1 | Rate limiting general en `/api/*` (T1.2) | 2–3 horas | Crítico — cierra el mayor vector de abuso activo |
-| 2 | CI/CD básico: GitHub Actions `npm test` en PRs (T1.1) | 4–6 horas | Crítico — evita regresiones en producción |
-| 3 | Structured logging con pino (T1.4) | 1–2 días | Alto — habilita debugging y alerting en campo |
+| ~~1~~ | ~~Rate limiting general en `/api/*` (T1.2)~~ | — | ✅ Completado en v2.4.2 |
+| 1 | CI/CD básico: GitHub Actions `npm test` en PRs (T1.1) | 4–6 horas | Crítico — evita regresiones en producción |
+| 2 | Structured logging con pino (T1.4) | 1–2 días | Alto — habilita debugging y alerting en campo |
 
 ---
 

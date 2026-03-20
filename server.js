@@ -32,6 +32,35 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// ─── Rate limiters ────────────────────────────────────────────────────────────
+// Endpoints públicos sin auth (auth/check, auth/logout, public reports)
+const publicLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
+});
+
+// API general autenticada (records, catalogs, menu, files, etc.)
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
+});
+
+// Handlers — ejecutan lógica de negocio, más restrictivo
+const handlerLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
+});
 const apiRoutes = require('./src/routes/apiRoutes');
 const recordRoutes = require('./src/routes/recordRoutes');
 const handlerRoutes = require('./src/routes/handlerRoutes');
@@ -80,9 +109,9 @@ app.use(cors(allowedOrigin ? { origin: allowedOrigin, credentials: true } : { or
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
-app.use('/api/health', healthRoutes);                    // public — health check
-app.use('/api/auth', authRoutes);                        // public — no token needed
-app.use('/api/public/report-data', publicReportRoutes);  // public — report data for public YAMLs
+app.use('/api/health', healthRoutes);                    // public — health check, sin rate limit (monitoring)
+app.use('/api/auth', publicLimiter, authRoutes);         // public — login ya tiene su propio limiter interno
+app.use('/api/public/report-data', publicLimiter, publicReportRoutes);  // public — report data for public YAMLs
 
 // public — devuelve la IP de red real del servidor (para QR codes)
 const os = require('os');
@@ -106,9 +135,10 @@ app.get('/api/server-info', (req, res) => {
 });
 app.use('/api', verifyToken);                            // protected — all /api/* below this
 app.use('/api', auditLog);                               // audit log — after token verification
+app.use('/api/handler', handlerLimiter, handlerRoutes); // handlers primero — límite estricto (30/min)
+app.use('/api', apiLimiter);                             // límite general para el resto de /api/*
 app.use('/api', apiRoutes);
 app.use('/api/records', recordRoutes);
-app.use('/api/handler', handlerRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/log', logRoutes);
 // App reports take priority over built-in reports

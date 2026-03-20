@@ -7,6 +7,28 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.2] — 2026-03-20
+
+### Rate limiting general (T1.2)
+
+- **`server.js`** — tres niveles de rate limiting con `express-rate-limit`:
+  - `publicLimiter` (60 req/min/IP) — `GET /api/auth/check`, `POST /api/auth/logout`, `GET /api/public/report-data`
+  - `apiLimiter` (200 req/min/IP) — resto de `/api/*` autenticado (records, catalogs, menu, files, users, log)
+  - `handlerLimiter` (30 req/min/IP) — `POST /api/handler/*`, montado antes del apiLimiter general
+  - `/api/health` queda excluido — sin rate limit para monitoring externo
+  - `/api/auth/login` mantiene su limiter propio (10 req/15min); `publicLimiter` se aplica igual al router de auth
+- Respuesta estandarizada en 429: `{ error: { code: 'RATE_LIMITED', message: '...' } }`
+- Headers `RateLimit-Policy`, `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` en todas las respuestas (standardHeaders: true)
+
+- **`scripts/attack-demo.js`** — script de demostración y verificación reescrito:
+  - Conteo por status HTTP real (429 vs 401 vs 404 son distinguibles — no más falsos positivos)
+  - N uniforme por vector (`N=100` para endpoints con límite bajo, `N_API=250` para apiLimiter)
+  - Nuevo Vector 4: `POST /api/handler/*/after` — demuestra el handlerLimiter
+  - Endpoint correcto para lectura de datos: `/api/catalogs/clientes` (no `/api/records/:table` que requiere keyField+id)
+  - Resumen final con tabla de 429s/N por endpoint
+
+---
+
 ## [2.4.1] — 2026-03-19
 
 ### Dev sandbox autónomo
