@@ -8,10 +8,15 @@ info:
 
     **Autenticación:** HttpOnly cookie `nil_token` (JWT). Obtener via `POST /api/auth/login`.
     Los endpoints marcados con 🔒 requieren cookie válida.
+  license:
+    name: ISC
+    identifier: ISC
 
 servers:
   - url: http://localhost:3000
-    description: Dev sandbox
+    description: Dev sandbox (local)
+  - url: http://your-server:3000
+    description: Producción — reemplazar con IP/dominio real
 
 # ─── Security ──────────────────────────────────────────────────────────────────
 
@@ -195,6 +200,7 @@ paths:
         Devuelve 503 si alguna DB no responde.
       operationId: getHealth
       tags: [System]
+      security: []
       responses:
         "200":
           description: Servidor operativo.
@@ -207,6 +213,7 @@ paths:
                 uptime: 3600
                 db: ok
                 authDb: ok
+        "429": { $ref: '#/components/responses/RateLimited' }
         "503":
           description: Una o ambas bases de datos no responden.
           content:
@@ -230,6 +237,7 @@ paths:
         La cuenta se bloquea automáticamente tras 5 intentos fallidos.
       operationId: login
       tags: [Auth]
+      security: []
       requestBody:
         required: true
         content:
@@ -268,6 +276,7 @@ paths:
         Público. Añade el JTI del token actual a la blacklist e invalida la cookie.
       operationId: logout
       tags: [Auth]
+      security: []
       responses:
         "200":
           description: Sesión cerrada.
@@ -291,6 +300,7 @@ paths:
         Usado por el frontend para decidir si redirigir a login.
       operationId: checkAuth
       tags: [Auth]
+      security: []
       responses:
         "200":
           description: Sesión válida.
@@ -319,6 +329,7 @@ paths:
         El rolling session automático en verifyToken hace este endpoint opcional para la mayoría de los casos.
       operationId: refreshToken
       tags: [Auth]
+      security: []
       responses:
         "200":
           description: Token rotado. Nueva cookie `nil_token` seteada.
@@ -751,6 +762,7 @@ paths:
         Rate limit: 60 req/min.
       operationId: getPublicReportData
       tags: [Reports]
+      security: []
       parameters:
         - name: reportName
           in: path
@@ -790,6 +802,7 @@ paths:
         Rate limit: 60 req/min.
       operationId: cspReport
       tags: [Security]
+      security: []
       requestBody:
         required: true
         content:
