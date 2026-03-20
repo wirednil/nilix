@@ -118,7 +118,7 @@ async function createRecord(req, res) {
         const { table } = req.params;
         if (!assertTableAllowed(table, res)) return;
         if (!assertOperationAllowed(table, 'canAdd', res)) return;
-        const { keyField, data, handler: handlerName, crudMode } = req.body;
+        const { data, handler: handlerName, crudMode } = req.body;
         
         if (!data) {
             return res.status(400).json({

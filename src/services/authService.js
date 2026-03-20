@@ -182,7 +182,7 @@ function isBlacklisted(jti) {
         const db = getAuthDatabase();
         const result = db.exec('SELECT jti FROM token_blacklist WHERE jti = ? LIMIT 1', [jti]);
         return result.length > 0 && result[0].values.length > 0;
-    } catch (e) {
+    } catch {
         return false;
     }
 }

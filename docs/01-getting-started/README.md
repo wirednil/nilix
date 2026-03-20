@@ -1,5 +1,7 @@
 # NILIX
 
+[![CI](https://github.com/wirednil/nilix/actions/workflows/ci.yml/badge.svg)](https://github.com/wirednil/nilix/actions/workflows/ci.yml)
+
 *From nil, all structures emerge.*
 
 Motor multi-parser para aplicaciones de negocio con estética terminal.

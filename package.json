@@ -1,10 +1,11 @@
 {
   "name": "nilix",
-  "version": "2.3.0",
+  "version": "2.4.2",
   "description": "Multi-parser engine for terminal-aesthetic business applications",
   "main": "index.js",
   "scripts": {
     "test": "node --test tests/authService.test.js tests/scopedDb.test.js tests/recordService.test.js",
+    "lint": "node node_modules/eslint/bin/eslint.js src/ js/ tests/ scripts/ server.js",
     "setup": "node scripts/setup.js",
     "check": "node scripts/check.js",
     "init-db": "node scripts/initCatalogsDB.js"
@@ -24,5 +25,9 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "sql.js": "^1.10.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.3"
   }
 }

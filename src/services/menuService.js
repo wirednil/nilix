@@ -77,15 +77,6 @@ function parseMenuChildren(menuEl, menuDir) {
     return items;
 }
 
-/**
- * Returns the intersection of two RADU permission strings.
- * Order is always preserved as R→A→D→U.
- * intersectPerms('RADU', 'RA') → 'RA'
- * intersectPerms('R', 'RADU')  → 'R'
- */
-function intersectPerms(menuPerms, userPerms) {
-    return [...'RADU'].filter(c => menuPerms.includes(c) && userPerms.includes(c)).join('');
-}
 
 /**
  * Filters a menu tree applying a single RADU permission string.

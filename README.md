@@ -1,5 +1,7 @@
 # NILIX
 
+[![CI](https://github.com/wirednil/nilix/actions/workflows/ci.yml/badge.svg)](https://github.com/wirednil/nilix/actions/workflows/ci.yml)
+
 > *"From nil, all structures emerge."*
 
 A terminal-aesthetic business application engine. Forms, reports, explorers, data — parsed from declarative XML and YAML, rendered in monospace. Inspired by the architecture of Blame! — layered, recursive, purposeful.
@@ -22,37 +24,30 @@ A terminal-aesthetic business application engine. Forms, reports, explorers, dat
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
-npm install --no-bin-links   # exFAT drives require --no-bin-links
-
-# 2. Create .env (see .env.example)
-cp .env.example .env
-# Edit NIL_ variables as needed
-
-# 3. Initialize auth database
-node utils/init-auth.js
-
-# 4. Start server
+git clone https://github.com/wirednil/nilix.git && cd nilix
+node scripts/setup.js   # configures .env, installs deps, initializes dev sandbox
 node server.js
 ```
 
-Open `http://localhost:3000` and log in with the credentials set during init.
+Open `http://localhost:3000` and log in with the dev sandbox credentials:
 
-### Environment Variables
-
-```env
-NIL_MENU_FILE=/path/to/your/app/menu.xml
-NIL_PORT=3000
-NIL_DB_FILE=/path/to/your/app/dbase/app.db
-NIL_AUTH_DB=data/auth.db
-NIL_JWT_SECRET=<random-256-bit-hex>
-NIL_JWT_EXPIRY=8h
-
-# Optional
-NIL_ALLOWED_ORIGIN=http://192.168.1.x:3000
-NIL_TLS_CERT=/path/to/cert.pem
-NIL_TLS_KEY=/path/to/key.pem
 ```
+usuario:  superdvlp
+password: devpass1234
+```
+
+`setup.js` handles everything: generates a random JWT secret, copies `.env.example` → `.env`, runs `npm install`, and initializes the dev database. See `.env.example` for all available variables.
+
+### Key Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `NIL_JWT_SECRET` | JWT signing secret — 256-bit hex | Yes |
+| `NIL_MENU_FILE` | Absolute path to your app's `menu.xml` | Yes |
+| `NIL_DB_FILE` | SQLite path for app data | Yes |
+| `NIL_AUTH_DB` | SQLite path for auth data | Yes |
+| `NIL_ALLOWED_ORIGIN` | CORS allowed origin — required in production | Prod |
+| `NIL_TLS_CERT` / `NIL_TLS_KEY` | TLS cert/key paths — enables HTTPS | Optional |
 
 ---
 

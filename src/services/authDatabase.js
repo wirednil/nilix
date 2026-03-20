@@ -41,7 +41,7 @@ async function initAuthDatabase() {
     `);
 
     // Ensure permisos column exists on usuarios (migration-safe for existing DBs)
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN permisos TEXT NOT NULL DEFAULT 'RADU'`); } catch (_) { /* already exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN permisos TEXT NOT NULL DEFAULT 'RADU'`); } catch { /* already exists */ }
     // Prune expired tokens on startup
     db.run(`DELETE FROM token_blacklist WHERE expires_at < ${Math.floor(Date.now() / 1000)}`);
 

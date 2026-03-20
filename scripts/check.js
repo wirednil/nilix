@@ -136,7 +136,7 @@ async function runHttp() {
         stdio: 'pipe',
     });
 
-    let sessionCookie = null;
+    let sessionCookie;
 
     try {
         const ready = await waitForServer();

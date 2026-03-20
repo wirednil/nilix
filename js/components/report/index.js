@@ -14,5 +14,3 @@ export { ExpressionEvaluator } from './ExpressionEvaluator.js';
 export { YamlParser } from './parsers/YamlParser.js';
 export { DuckDBAdapter } from './DuckDBAdapter.js';
 export { QueryBuilder } from './QueryBuilder.js';
-
-export default ReportEngine;

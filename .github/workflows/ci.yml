@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-bin-links
+      - run: npm test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-bin-links
+      - run: npm run lint
+
+  env-example:
+    name: .env.example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required keys present
+        run: |
+          required=(NIL_MENU_FILE NIL_PORT NIL_DB_FILE NIL_AUTH_DB NIL_JWT_SECRET NIL_JWT_EXPIRY)
+          missing=()
+          for key in "${required[@]}"; do
+            grep -q "^${key}=" .env.example || missing+=("$key")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "❌ Faltan en .env.example: ${missing[*]}"
+            exit 1
+          fi
+          echo "✅ .env.example contiene todas las claves requeridas"

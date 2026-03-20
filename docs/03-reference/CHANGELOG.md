@@ -7,6 +7,29 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.3] — 2026-03-20
+
+### CI/CD básico (T1.1)
+
+- **`.github/workflows/ci.yml`** — pipeline GitHub Actions en cada push/PR a `main`: tres jobs independientes:
+  - `Tests` — `npm ci --no-bin-links` + `npm test` (38 tests, Node 22)
+  - `Lint` — `npm run lint` (ESLint, exit 0 si solo warnings)
+  - `.env.example` — verifica que las 6 claves requeridas estén presentes (`NIL_MENU_FILE`, `NIL_PORT`, `NIL_DB_FILE`, `NIL_AUTH_DB`, `NIL_JWT_SECRET`, `NIL_JWT_EXPIRY`)
+- **`eslint.config.mjs`** — configuración flat config ESLint v10:
+  - Backend (`src/`, `scripts/`, `server.js`): reglas estrictas (`error`) — 0 errores
+  - Frontend (`js/`): `no-undef` como error, resto como `warn` — 27 warnings pre-existentes, no bloquean
+  - Tests: reglas estrictas + `allowEmptyCatch: true`
+- **`package.json`**: script `lint`, devDependencies `eslint@^10` + `@eslint/js@^10`, versión `2.4.3`
+- **Badge CI** en `docs/01-getting-started/README.md`
+- **5 fixes de backend** detectados por lint:
+  - `authService.js` — `catch (e)` → `catch {}` (variable no usada)
+  - `authDatabase.js` — `catch (_)` → `catch {}` (ídem)
+  - `menuService.js` — función `intersectPerms` removida (código muerto)
+  - `recordController.js` — `keyField` removido del destructuring en handler POST (no se usaba en INSERT)
+  - `scripts/check.js` — `let sessionCookie = null` → `let sessionCookie` (asignación inútil)
+- **1 fix de frontend** detectado por lint:
+  - `js/components/report/index.js` — `export default ReportEngine` removido (`ReportEngine` no estaba en scope)
+
 ## [2.4.2] — 2026-03-20
 
 ### Rate limiting general (T1.2)
