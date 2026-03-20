@@ -7,6 +7,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.5] — 2026-03-20
+
+### Rolling sessions y refresh token (T1.3)
+
+- **`src/middleware/verifyToken.js`** — rolling sessions transparentes: si el token tiene menos del 25% de vida restante, se emite un nuevo JWT con expiry completo y se rota la cookie `nil_token`. El cliente no necesita hacer nada. El token viejo expira naturalmente (no se blacklistea, para no romper requests concurrentes).
+- **`POST /api/auth/refresh`** — endpoint explícito para forzar rotación. Verifica cookie actual, emite nuevo token, blacklistea el JTI viejo. Útil para clientes que quieren renovar la sesión antes de operaciones críticas.
+- Montado en `/api/auth` (antes de `verifyToken`) junto con login/logout/check.
+
+Comportamiento con `NIL_JWT_EXPIRY=8h`:
+- Threshold de rolling: 2h restantes (25% de 8h)
+- Usuario activo → sesión nunca expira
+- Usuario inactivo 6h → próximo request rota cookie; inactivo 8h → sesión expirada, re-login
+
 ## [2.4.4] — 2026-03-20
 
 ### Structured logging con pino (T1.4)

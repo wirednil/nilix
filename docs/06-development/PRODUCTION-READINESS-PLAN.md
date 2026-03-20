@@ -29,13 +29,13 @@ Validación independiente del estado real del proyecto contra el plan.
 |-------|--------|-----|
 | T1.1 CI/CD | ✅ Implementado | `.github/workflows/ci.yml`: tests + lint + .env.example check en cada PR. Badge en README. |
 | T1.2 Rate limiting general | ✅ Implementado | `server.js`: 3 niveles — publicLimiter (60/min), apiLimiter (200/min), handlerLimiter (30/min). `/api/health` excluido. |
-| T1.3 Refresh token | ❌ Faltante | JWT fijo 8h. No hay `/api/auth/refresh` ni rolling sessions. |
+| T1.3 Refresh token | ✅ Implementado | Rolling sessions en `verifyToken.js` (refresh < 25% lifetime). `POST /api/auth/refresh` para rotación explícita. |
 | T1.4 Structured logging | ✅ Implementado | `src/services/logger.js`: pino singleton. TTY→pino-pretty, no-TTY→JSON. `NIL_LOG_LEVEL` configurable. Todos los `console.*` migrados. |
 | T1.5 OpenAPI | ❌ Faltante | No existe `docs/api/openapi.yaml`. |
 | T1.6 Docker | ❌ Faltante | No existe `Dockerfile` ni `docker-compose.yml`. |
 | T1.7 CSP reporting | ❌ Faltante | CSP configurada en `server.js` pero sin `report-uri`. No existe `POST /api/security/csp-report`. |
 
-**Veredicto Fase 1: ⚠️ 3/7 completadas**
+**Veredicto Fase 1: ⚠️ 4/7 completadas**
 
 ### 0.3 Hallazgos de seguridad
 
@@ -51,7 +51,7 @@ Validación independiente del estado real del proyecto contra el plan.
 | # | Hallazgo | Ubicación | Recomendación |
 |---|----------|-----------|---------------|
 | 3 | `ScopedDb.exec()` / `.prepare()` sin auditoría de uso | `scopedDb.js:85-96` | Documentar que handlers deben sanitizar al usar SQL raw. Agregar log warning. |
-| 4 | Sin refresh token | `authService.js` | Rolling sessions o endpoint `/api/auth/refresh` |
+| 4 | ~~Sin refresh token~~ | ~~`authService.js`~~ | ✅ Resuelto en v2.4.5 — rolling sessions + `POST /api/auth/refresh` |
 | 5 | ~~Logs no estructurados~~ | ~~Todo el backend~~ | ✅ Resuelto en v2.4.4 — pino, JSON estructurado, NIL_LOG_LEVEL |
 | 6 | Sin API versioning | `server.js` | Prefixar rutas con `/api/v1/` |
 

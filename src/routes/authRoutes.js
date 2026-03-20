@@ -7,7 +7,8 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const jwt = require('jsonwebtoken');
+const jwt    = require('jsonwebtoken');
+const crypto = require('crypto');
 const authService = require('../services/authService');
 const logger = require('../services/logger');
 
@@ -70,6 +71,60 @@ router.post('/logout', (req, res) => {
     } catch { /* token inválido — igual limpiamos */ }
     res.clearCookie('nil_token', { path: '/' });
     res.json({ ok: true });
+});
+
+/**
+ * POST /api/auth/refresh
+ * Emite un token nuevo e invalida el anterior (blacklist del JTI viejo).
+ * Útil para clientes que quieren forzar un refresh antes del vencimiento.
+ * Response 200: { ok: true }  — rota cookie nil_token
+ * Response 401: sin sesión o token inválido/expirado
+ */
+router.post('/refresh', (req, res) => {
+    const token = req.cookies?.nil_token;
+    if (!token) return res.status(401).json({ error: 'No hay sesión activa' });
+
+    try {
+        const payload = jwt.verify(token, process.env.NIL_JWT_SECRET);
+
+        if (payload.jti && authService.isBlacklisted(payload.jti)) {
+            res.clearCookie('nil_token', { path: '/' });
+            return res.status(401).json({ error: 'Sesión cerrada. Volvé a iniciar sesión.' });
+        }
+
+        const expiry  = process.env.NIL_JWT_EXPIRY || '8h';
+        const maxAge  = parseExpiry(expiry);
+        const newJti  = crypto.randomUUID();
+        const newToken = jwt.sign(
+            {
+                usuarioId:   payload.usuarioId,
+                empresaId:   payload.empresaId,
+                nombre:      payload.nombre,
+                usuario:     payload.usuario,
+                rol:         payload.rol,
+                publicToken: payload.publicToken,
+                jti:         newJti
+            },
+            process.env.NIL_JWT_SECRET,
+            { expiresIn: expiry }
+        );
+
+        // Blacklist old JTI — explicit refresh = deliberate rotation
+        if (payload.jti) authService.addToBlacklist(payload.jti, payload.exp);
+
+        res.cookie('nil_token', newToken, {
+            httpOnly: true,
+            sameSite: 'Lax',
+            secure:   !!(process.env.NIL_TLS_CERT && process.env.NIL_TLS_KEY),
+            maxAge:   maxAge * 1000,
+            path:     '/'
+        });
+        logger.info({ usuario: payload.usuario }, '[AUTH] Token refreshed');
+        res.json({ ok: true });
+    } catch {
+        res.clearCookie('nil_token', { path: '/' });
+        res.status(401).json({ error: 'Sesión inválida o expirada' });
+    }
 });
 
 /**
