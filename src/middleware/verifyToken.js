@@ -9,6 +9,7 @@
 
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('../services/authService');
+const logger = require('../services/logger');
 
 function verifyToken(req, res, next) {
     const token = req.cookies?.nil_token;
@@ -22,7 +23,7 @@ function verifyToken(req, res, next) {
         const payload = jwt.verify(token, secret);
 
         if (payload.jti && isBlacklisted(payload.jti)) {
-            console.warn(`[AUTH] Token revocado (logout) — ${req.method} ${req.path}`);
+            logger.warn({ method: req.method, path: req.path }, '[AUTH] Token revocado (logout)');
             return res.status(401).json({ error: 'Sesión cerrada. Volvé a iniciar sesión.' });
         }
 
@@ -33,7 +34,7 @@ function verifyToken(req, res, next) {
         next();
     } catch (err) {
         const expired = err.name === 'TokenExpiredError';
-        console.warn(`[AUTH] Token rejected — ${err.name} — ${req.method} ${req.path}`);
+        logger.warn({ errName: err.name, method: req.method, path: req.path }, '[AUTH] Token rejected');
         return res.status(401).json({
             error: expired ? 'Sesión expirada, volvé a iniciar sesión' : 'Token inválido'
         });

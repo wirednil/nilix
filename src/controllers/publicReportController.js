@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const catalogService = require('../services/catalogService');
 const { getAuthDatabase } = require('../services/authDatabase');
+const logger = require('../services/logger');
 
 const PUBLIC_REGEX = /^\s*public:\s*true\s*$/m;
 
@@ -55,7 +56,7 @@ function getTableData(req, res) {
         if (err.code === 'TABLE_NOT_FOUND') {
             return res.status(404).json({ error: err.message });
         }
-        console.error('publicReportController.getTableData error:', err);
+        logger.error({ err }, '[PUBLIC_REPORT] getTableData error');
         res.status(500).json({ error: 'Internal server error' });
     }
 }

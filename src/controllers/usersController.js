@@ -7,6 +7,7 @@
 
 const bcrypt = require('bcryptjs');
 const { getAuthDatabase, saveAuthDatabase } = require('../services/authDatabase');
+const logger = require('../services/logger');
 
 const SALT_ROUNDS = 10;
 
@@ -58,7 +59,7 @@ const listUsers = (req, res) => {
 
         res.json(users);
     } catch (err) {
-        console.error('[USERS] listUsers error:', err.message);
+        logger.error({ err }, '[USERS] listUsers error');
         res.status(500).json({ error: 'Error interno' });
     }
 };
@@ -96,13 +97,13 @@ const createUser = async (req, res) => {
         const newId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
         saveAuthDatabase();
 
-        console.log(`[USERS] Creado "${usuario}" empresa ${req.empresaId} por usuarioId ${req.usuarioId}`);
+        logger.info({ usuario, empresaId: req.empresaId, creadoPor: req.usuarioId }, '[USERS] Usuario creado');
         res.status(201).json({ id: newId, usuario, rol: rolFinal });
     } catch (err) {
         if (err.message.includes('UNIQUE')) {
             return res.status(409).json({ error: `El usuario "${usuario}" ya existe` });
         }
-        console.error('[USERS] createUser error:', err.message);
+        logger.error({ err }, '[USERS] createUser error');
         res.status(500).json({ error: 'Error interno' });
     }
 };
@@ -167,7 +168,7 @@ const updateUser = async (req, res) => {
 
         res.json({ ok: true });
     } catch (err) {
-        console.error('[USERS] updateUser error:', err.message);
+        logger.error({ err }, '[USERS] updateUser error');
         res.status(500).json({ error: 'Error interno' });
     }
 };
@@ -214,7 +215,7 @@ const setUserPermisos = (req, res) => {
         saveAuthDatabase();
         res.json({ ok: true });
     } catch (err) {
-        console.error('[USERS] setUserPermisos error:', err.message);
+        logger.error({ err }, '[USERS] setUserPermisos error');
         res.status(500).json({ error: 'Error interno' });
     }
 };

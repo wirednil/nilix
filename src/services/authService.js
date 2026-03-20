@@ -17,6 +17,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { initAuthDatabase, getAuthDatabase, saveAuthDatabase } = require('./authDatabase');
+const logger = require('./logger');
 
 // ─── Internal error codes (server logs only — never sent to client) ──────────
 const LoginError = Object.freeze({
@@ -114,7 +115,7 @@ async function login(usuario, password) {
             [usuario]
         );
     } catch (e) {
-        console.error('[AUTH] DB error during login:', e.message);
+        logger.error({ err: e }, '[AUTH] DB error during login');
         return { ok: false, errorCode: LoginError.DB_ERROR, error: MSG_INTERNAL };
     }
 
@@ -173,7 +174,7 @@ function addToBlacklist(jti, expiresAt) {
         db.run('INSERT OR IGNORE INTO token_blacklist (jti, expires_at) VALUES (?, ?)', [jti, expiresAt]);
         saveAuthDatabase();
     } catch (e) {
-        console.error('[AUTH] Error adding to blacklist:', e.message);
+        logger.error({ err: e }, '[AUTH] Error adding to blacklist');
     }
 }
 

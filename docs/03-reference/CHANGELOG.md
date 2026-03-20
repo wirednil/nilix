@@ -7,6 +7,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.4] — 2026-03-20
+
+### Structured logging con pino (T1.4)
+
+- **`src/services/logger.js`** — singleton pino. En TTY: pino-pretty (legible). Sin TTY: JSON estructurado a stdout. Nivel configurable con `NIL_LOG_LEVEL` (default `info`).
+- **Migración completa de `console.*` → `logger.*`** en todo el backend:
+  - `server.js` — startup, CORS warn, HTTPS, fatal crashes
+  - `src/middleware/auditLog.js` — logs estructurados `{ usuario, empresa, method, path, status, ms }`
+  - `src/middleware/verifyToken.js` — token revocado, token inválido
+  - `src/routes/authRoutes.js` — login ok/fail, logout
+  - `src/routes/logRoutes.js` — eventos del frontend
+  - `src/services/authService.js` — errores de DB en auth
+  - `src/services/handlerService.js` — load, path traversal, afterSave/afterDelete errors
+  - `src/services/authHandlerService.js` — load de auth handlers
+  - `src/controllers/recordController.js`, `catalogController.js`, `handlerController.js`, `filesystemController.js`, `publicReportController.js`, `usersController.js`
+- **`.env.example`** — documenta `NIL_LOG_LEVEL` con valores válidos
+- **`pino`** agregado a dependencies, **`pino-pretty`** a devDependencies
+
+Ejemplo de log estructurado en producción:
+```json
+{"level":30,"time":...,"usuario":"superdvlp","msg":"[AUTH] Login ok"}
+{"level":30,"time":...,"usuario":1,"empresa":99,"method":"GET","path":"/api/menu","status":200,"ms":15,"msg":"[AUDIT]"}
+{"level":40,"time":...,"errorCode":"INVALID_INPUT","usuario":"hacker","msg":"[AUTH] Login failed"}
+```
+
 ## [2.4.3] — 2026-03-20
 
 ### CI/CD básico (T1.1)

@@ -10,6 +10,7 @@
 
 const express = require('express');
 const router  = express.Router();
+const logger  = require('../services/logger');
 
 // ── Rate limiter en memoria ────────────────────────────────────────────────────
 const _counts = new Map(); // ip → { count, resetAt }
@@ -53,7 +54,8 @@ router.post('/', (req, res) => {
     const usuario = req.usuarioId ?? 'anon';
     const empresa = req.empresaId ?? '-';
 
-    console.log(`[CLIENT] ${lvl} | ${ts} | u=${usuario} emp=${empresa} | [${comp}] ${msg}`);
+    const logFn = lvl === 'ERROR' ? 'error' : lvl === 'WARN' ? 'warn' : 'info';
+    logger[logFn]({ usuario, empresa, component: comp, ts }, `[CLIENT] ${msg}`);
 
     res.json({ ok: true });
 });

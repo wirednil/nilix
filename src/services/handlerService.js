@@ -6,6 +6,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const logger = require('./logger');
 
 // Fallback: handlers built into nilix (generic/shared handlers)
 const coreHandlersDir = path.join(__dirname, '../../handlers');
@@ -23,7 +24,7 @@ const HANDLER_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 function getHandlerPath(handlerName) {
     // Prevent path traversal via handler name (e.g. "../../etc/passwd")
     if (!HANDLER_NAME_RE.test(handlerName)) {
-        console.warn(`[HANDLER] Nombre de handler rechazado (path traversal): "${handlerName}"`);
+        logger.warn({ handlerName }, '[HANDLER] Nombre rechazado (path traversal)');
         return null;
     }
 
@@ -65,10 +66,10 @@ function loadHandler(tableName) {
         delete require.cache[require.resolve(handlerPath)];
         const handler = require(handlerPath);
         handlerCache.set(tableName, handler);
-        console.log(`✅ Handler loaded: ${tableName}`);
+        logger.info({ handlerName: tableName }, '[HANDLER] Loaded');
         return handler;
     } catch (error) {
-        console.error(`❌ Error loading handler for ${tableName}:`, error.message);
+        logger.error({ handlerName: tableName, err: error }, '[HANDLER] Error loading');
         return null;
     }
 }
@@ -97,7 +98,7 @@ function afterSaveWithHandler(handler, data, isInsert) {
     try {
         handler.afterSave(data, isInsert);
     } catch (error) {
-        console.error(`❌ Error in afterSave handler:`, error.message);
+        logger.error({ err: error }, '[HANDLER] Error in afterSave');
     }
 }
 
@@ -117,7 +118,7 @@ function afterDeleteWithHandler(handler, id) {
     try {
         handler.afterDelete(id);
     } catch (error) {
-        console.error(`❌ Error in afterDelete handler:`, error.message);
+        logger.error({ err: error }, '[HANDLER] Error in afterDelete');
     }
 }
 

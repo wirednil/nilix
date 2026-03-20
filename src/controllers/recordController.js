@@ -5,6 +5,7 @@
  */
 
 const recordService = require('../services/recordService');
+const logger = require('../services/logger');
 const schemaService = require('../services/schemaService');
 const handlerService = require('../services/handlerService');
 const { getDatabase, saveDatabase } = require('../services/database');
@@ -92,7 +93,7 @@ function getRecord(req, res) {
                 error: { code: 'COLUMN_FORBIDDEN', message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -183,7 +184,7 @@ async function createRecord(req, res) {
                 error: { code: error.code, message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -288,7 +289,7 @@ async function upsertRecord(req, res) {
                 error: { code: error.code, message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -365,7 +366,7 @@ function updateRecord(req, res) {
                 error: { code: 'UPDATE_FAILED', message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -429,7 +430,7 @@ function deleteRecord(req, res) {
                 error: { code: 'RECORD_NOT_FOUND', message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -480,7 +481,7 @@ function navigateRecord(req, res) {
                 error: { code: 'TABLE_NOT_FOUND', message: error.message }
             });
         }
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -492,7 +493,7 @@ function getTables(req, res) {
         const tables = schemaService.getAllTables();
         res.json({ data: tables });
     } catch (error) {
-        console.error('RecordController error:', error);
+        logger.error({ err: error }, '[RECORD] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });

@@ -8,6 +8,7 @@ const handlerService = require('../services/handlerService');
 const { loadAuthHandler } = require('../services/authHandlerService');
 const { getDatabase } = require('../services/database');
 const { createScopedDb } = require('../services/scopedDb');
+const logger = require('../services/logger');
 
 function after(req, res) {
     try {
@@ -55,7 +56,7 @@ function after(req, res) {
         res.json({ result });
 
     } catch (error) {
-        console.error('HandlerController error:', error);
+        logger.error({ err: error }, '[HANDLER_CTRL] Controller error');
         res.status(500).json({
             error: {
                 code: 'HANDLER_ERROR',
@@ -100,7 +101,7 @@ function before(req, res) {
         res.json({ result });
         
     } catch (error) {
-        console.error('HandlerController error:', error);
+        logger.error({ err: error }, '[HANDLER_CTRL] Controller error');
         res.status(500).json({
             error: {
                 code: 'HANDLER_ERROR',
@@ -145,7 +146,7 @@ function afterField(req, res) {
         res.json({ result });
         
     } catch (error) {
-        console.error('HandlerController afterField error:', error);
+        logger.error({ err: error }, '[HANDLER_CTRL] afterField error');
         res.status(500).json({
             error: {
                 code: 'HANDLER_ERROR',

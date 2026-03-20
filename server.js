@@ -17,7 +17,7 @@ if (process.env.NIL_COMPAT_SPACE_FORM === '1') {
             const nilKey = sfKey.replace(/^SF_/, 'NIL_');
             if (process.env[nilKey] === undefined) {
                 process.env[nilKey] = process.env[sfKey];
-                console.warn(`[COMPAT] ${sfKey} → ${nilKey} (update your .env to use NIL_ prefix)`);
+                logger.warn({ sfKey, nilKey }, '[COMPAT] Rename env var to NIL_ prefix');
             }
         }
     }
@@ -33,6 +33,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const logger = require('./src/services/logger');
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 // Endpoints públicos sin auth (auth/check, auth/logout, public reports)
@@ -102,8 +103,8 @@ app.use(helmet({
 }));
 const allowedOrigin = process.env.NIL_ALLOWED_ORIGIN;
 if (!allowedOrigin) {
-    console.warn('[CORS] NIL_ALLOWED_ORIGIN no configurado — CORS bloqueado para todos los orígenes externos.');
-    console.warn('[CORS] Definí NIL_ALLOWED_ORIGIN=http://tu-ip:puerto en .env para habilitar acceso desde otros orígenes.');
+    logger.warn('[CORS] NIL_ALLOWED_ORIGIN no configurado — CORS bloqueado para todos los orígenes externos.');
+    logger.warn('[CORS] Definí NIL_ALLOWED_ORIGIN=http://tu-ip:puerto en .env para habilitar acceso desde otros orígenes.');
 }
 app.use(cors(allowedOrigin ? { origin: allowedOrigin, credentials: true } : { origin: false }));
 app.use(express.json({ limit: '1mb' }));
@@ -150,7 +151,7 @@ app.use(express.static(__dirname));
 // Global error handler — catches unhandled errors from middleware and routes
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error('[ERROR] Unhandled:', err);
+    logger.error({ err }, '[ERROR] Unhandled middleware error');
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 });
 
@@ -158,7 +159,7 @@ async function startServer() {
     try {
         await initDatabase();
         await initAuthDatabase();
-        console.log('Database initialized.');
+        logger.info('Database initialized');
 
         const tlsCert = process.env.NIL_TLS_CERT;
         const tlsKey  = process.env.NIL_TLS_KEY;
@@ -172,18 +173,14 @@ async function startServer() {
                 minVersion: 'TLSv1.2'
             };
             server = https.createServer(tlsOptions, app);
-            console.log('>>> HTTPS habilitado (TLS 1.2+)');
+            logger.info('[TLS] HTTPS habilitado (TLS 1.2+)');
         } else {
             server = require('http').createServer(app);
         }
 
         const proto = useHttps ? 'https' : 'http';
         server.listen(PORT, () => {
-            console.log(`\n>>> Sistema de Gestión corriendo en: ${proto}://localhost:${PORT}`);
-            console.log(`>>> API disponible en: ${proto}://localhost:${PORT}/api/files`);
-            console.log(`>>> Catalogs API: ${proto}://localhost:${PORT}/api/catalogs/:table`);
-            console.log(`>>> Records API: ${proto}://localhost:${PORT}/api/records/:table`);
-            console.log(`>>> Handler API: ${proto}://localhost:${PORT}/api/handler/:handler\n`);
+            logger.info({ url: `${proto}://localhost:${PORT}` }, 'Nilix server started');
         });
         
         process.on('SIGINT', () => {
@@ -193,20 +190,19 @@ async function startServer() {
             process.exit(0);
         });
     } catch (error) {
-        console.error('Failed to start server:', error);
+        logger.error({ err: error }, 'Failed to start server');
         process.exit(1);
     }
 }
 
 // Capturar crashes no manejados — van a stderr, capturados por start.js si se usa
 process.on('uncaughtException', err => {
-    console.error(`[FATAL] uncaughtException: ${err.message}`);
-    console.error(err.stack);
+    logger.fatal({ err }, '[FATAL] uncaughtException');
     process.exit(1);
 });
 
 process.on('unhandledRejection', reason => {
-    console.error(`[FATAL] unhandledRejection: ${reason}`);
+    logger.fatal({ reason }, '[FATAL] unhandledRejection');
     process.exit(1);
 });
 

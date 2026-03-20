@@ -3,6 +3,7 @@ const fs = require('fs');
 const { scanDirectory } = require('../services/filesystemService');
 const menuService = require('../services/menuService');
 const { getUserPermisos } = require('../services/authDatabase');
+const logger = require('../services/logger');
 
 /**
  * Controlador para obtener la estructura de archivos de la carpeta 'forms'.
@@ -83,7 +84,7 @@ const getMenu = (req, res) => {
         const filtered = menuService.filterMenuByRole(tree, userPerms);
         res.json(filtered);
     } catch (err) {
-        console.error('Error parsing menu.xml:', err);
+        logger.error({ err }, '[FS] Error parsing menu.xml');
         res.status(500).json({ error: 'Failed to parse menu file' });
     }
 };
@@ -112,7 +113,7 @@ const getContent = (req, res) => {
         const content = fs.readFileSync(resolved, 'utf-8');
         res.type('text/plain').send(content);
     } catch (err) {
-        console.error('Error reading file:', err);
+        logger.error({ err }, '[FS] Error reading file');
         res.status(500).json({ error: 'Failed to read file' });
     }
 };

@@ -1,7 +1,7 @@
 # Plan de Producción — Madurez y Seguridad del Sistema
 
 **Fecha de creación:** 2026-03-18
-**Actualizado:** 2026-03-20 — T1.1 + T1.2 completadas
+**Actualizado:** 2026-03-20 — T1.1 + T1.2 + T1.4 completadas
 **Basado en:** Análisis técnico exhaustivo del proyecto (v2.2.0+)
 **Equipo asumido:** 1–4 desarrolladores full-time
 
@@ -30,12 +30,12 @@ Validación independiente del estado real del proyecto contra el plan.
 | T1.1 CI/CD | ✅ Implementado | `.github/workflows/ci.yml`: tests + lint + .env.example check en cada PR. Badge en README. |
 | T1.2 Rate limiting general | ✅ Implementado | `server.js`: 3 niveles — publicLimiter (60/min), apiLimiter (200/min), handlerLimiter (30/min). `/api/health` excluido. |
 | T1.3 Refresh token | ❌ Faltante | JWT fijo 8h. No hay `/api/auth/refresh` ni rolling sessions. |
-| T1.4 Structured logging | ❌ Faltante | Solo `console.*`. Sin pino/winston. Logs no parseables por herramientas. |
+| T1.4 Structured logging | ✅ Implementado | `src/services/logger.js`: pino singleton. TTY→pino-pretty, no-TTY→JSON. `NIL_LOG_LEVEL` configurable. Todos los `console.*` migrados. |
 | T1.5 OpenAPI | ❌ Faltante | No existe `docs/api/openapi.yaml`. |
 | T1.6 Docker | ❌ Faltante | No existe `Dockerfile` ni `docker-compose.yml`. |
 | T1.7 CSP reporting | ❌ Faltante | CSP configurada en `server.js` pero sin `report-uri`. No existe `POST /api/security/csp-report`. |
 
-**Veredicto Fase 1: ⚠️ 2/7 completadas**
+**Veredicto Fase 1: ⚠️ 3/7 completadas**
 
 ### 0.3 Hallazgos de seguridad
 
@@ -52,7 +52,7 @@ Validación independiente del estado real del proyecto contra el plan.
 |---|----------|-----------|---------------|
 | 3 | `ScopedDb.exec()` / `.prepare()` sin auditoría de uso | `scopedDb.js:85-96` | Documentar que handlers deben sanitizar al usar SQL raw. Agregar log warning. |
 | 4 | Sin refresh token | `authService.js` | Rolling sessions o endpoint `/api/auth/refresh` |
-| 5 | Logs no estructurados | Todo el backend | Migrar a pino: `{ level, time, msg, empresaId, usuarioId }` |
+| 5 | ~~Logs no estructurados~~ | ~~Todo el backend~~ | ✅ Resuelto en v2.4.4 — pino, JSON estructurado, NIL_LOG_LEVEL |
 | 6 | Sin API versioning | `server.js` | Prefixar rutas con `/api/v1/` |
 
 **Medios**
@@ -86,14 +86,14 @@ Validación independiente del estado real del proyecto contra el plan.
 | Dimensión | Puntaje | Comentario |
 |-----------|---------|------------|
 | Seguridad core | 9/10 | Auth robusto, tenant isolation, hardening básico, rate limiting completo |
-| Observabilidad | 4/10 | Health check OK, sin structured logs ni métricas |
+| Observabilidad | 7/10 | Health check + structured logging pino (JSON/pretty) |
 | Testing | 7/10 | Tests críticos presentes, coverage decente |
 | Documentación | 8/10 | `.env.example` completo, README claro |
 | CI/CD | 6/10 | GitHub Actions: tests + lint + .env.example en cada PR |
 | Containerización | 1/10 | Sin Docker |
 | API governance | 2/10 | Sin versioning ni OpenAPI |
 
-**Madurez global estimada: 6.3/10** *(+0.5 por T1.1)*
+**Madurez global estimada: 6.8/10** *(+0.5 por T1.4)*
 
 > Nota: el plan estimaba 7.5/10 al completar Fase 0. La diferencia (2 puntos) refleja que Fase 1 — CI/CD, containerización, API governance — tiene mayor peso del esperado en la percepción de madurez operacional.
 

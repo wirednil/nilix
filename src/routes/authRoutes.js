@@ -9,6 +9,7 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const authService = require('../services/authService');
+const logger = require('../services/logger');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
@@ -38,12 +39,12 @@ router.post('/login', loginLimiter, async (req, res) => {
     const result = await authService.login(usuario ?? '', password ?? '');
 
     if (!result.ok) {
-        console.warn(`[AUTH] Login failed — code: ${result.errorCode}, usuario: "${usuario}"`);
+        logger.warn({ errorCode: result.errorCode, usuario }, '[AUTH] Login failed');
         const status = result.errorCode === authService.LoginError.USER_BLOCKED ? 403 : 401;
         return res.status(status).json({ error: result.error });
     }
 
-    console.log(`[AUTH] Login ok — usuario: "${usuario}"`);
+    logger.info({ usuario }, '[AUTH] Login ok');
     const maxAge = parseExpiry(process.env.NIL_JWT_EXPIRY || '8h');
     res.cookie('nil_token', result.token, {
         httpOnly: true,
@@ -65,7 +66,7 @@ router.post('/logout', (req, res) => {
     try {
         const payload = jwt.verify(token, process.env.NIL_JWT_SECRET);
         if (payload.jti) authService.addToBlacklist(payload.jti, payload.exp);
-        console.log(`[AUTH] Logout — usuario: "${payload.usuario}"`);
+        logger.info({ usuario: payload.usuario }, '[AUTH] Logout');
     } catch { /* token inválido — igual limpiamos */ }
     res.clearCookie('nil_token', { path: '/' });
     res.json({ ok: true });

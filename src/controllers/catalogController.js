@@ -2,6 +2,7 @@ const catalogService = require('../services/catalogService');
 const schemaService = require('../services/schemaService');
 const authRecordService = require('../services/authRecordService');
 const { getAuthDatabase } = require('../services/authDatabase');
+const logger = require('../services/logger');
 
 const CACHE_TTL = 86400;
 
@@ -76,7 +77,7 @@ function getTable(req, res) {
                 error: { code: 'TABLE_NOT_FOUND', message: error.message }
             });
         }
-        console.error('CatalogController error:', error);
+        logger.error({ err: error }, '[CATALOG] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -99,7 +100,7 @@ function validateKey(req, res) {
                 error: { code: 'TABLE_NOT_FOUND', message: error.message }
             });
         }
-        console.error('CatalogController error:', error);
+        logger.error({ err: error }, '[CATALOG] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });
@@ -111,7 +112,7 @@ function getAllowedTables(req, res) {
         const tables = schemaService.getAllTables();
         res.json({ data: tables });
     } catch (error) {
-        console.error('CatalogController error:', error);
+        logger.error({ err: error }, '[CATALOG] Controller error');
         res.status(500).json({
             error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }
         });

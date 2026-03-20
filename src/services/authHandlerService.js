@@ -8,6 +8,7 @@
 
 const path = require('path');
 const fs   = require('fs');
+const logger = require('./logger');
 
 const AUTH_HANDLERS_DIR = path.join(__dirname, '../handlers/auth');
 const handlerCache = new Map();
@@ -24,10 +25,10 @@ function loadAuthHandler(handlerRef) {
         delete require.cache[require.resolve(handlerPath)];
         const handler = require(handlerPath);
         handlerCache.set(name, handler);
-        console.log(`✅ Auth handler loaded: ${name}`);
+        logger.info({ handlerName: name }, '[AUTH_HANDLER] Loaded');
         return handler;
     } catch (error) {
-        console.error(`❌ Error loading auth handler ${name}:`, error.message);
+        logger.error({ handlerName: name, err: error }, '[AUTH_HANDLER] Error loading');
         return null;
     }
 }

@@ -7,6 +7,8 @@
  * Los logs van a stdout — redirigir en producción con PM2 / systemd journald.
  */
 
+const logger = require('../services/logger');
+
 function auditLog(req, res, next) {
     const start = Date.now();
 
@@ -24,8 +26,8 @@ function auditLog(req, res, next) {
         const shouldLog = !isTTY || method !== 'GET' || status >= 400;
         if (!shouldLog) return;
 
-        const level = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO';
-        console.log(`[AUDIT] ${level} | ${new Date().toISOString()} | u=${usuario} emp=${empresa} | ${method} ${path} → ${status} (${ms}ms)`);
+        const logFn = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+        logger[logFn]({ usuario, empresa, method, path, status, ms }, '[AUDIT]');
     });
 
     next();
