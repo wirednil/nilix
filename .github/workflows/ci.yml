@@ -49,6 +49,14 @@ jobs:
           fi
           echo "✅ .env.example contiene todas las claves requeridas"
 
+  openapi:
+    name: OpenAPI lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint openapi.yaml
+        run: npx --yes @redocly/cli@latest lint docs/api/openapi.yaml
+
   docker:
     name: Docker build
     runs-on: ubuntu-latest

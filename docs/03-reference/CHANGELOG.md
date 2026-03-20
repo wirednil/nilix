@@ -7,6 +7,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.8] — 2026-03-20
+
+### OpenAPI spec (T1.5)
+
+- **`docs/api/openapi.yaml`** — spec OpenAPI 3.1 con 19 operaciones en 16 paths:
+  - **System:** `GET /api/health`
+  - **Auth:** login, logout, check, refresh
+  - **App:** `GET /api/menu`
+  - **Records:** CRUD + navigate (`GET`, `POST`, `PUT`, `DELETE` sobre `/:table`)
+  - **Handlers:** after, after-field
+  - **Users:** list, create, update, set-permisos (admin only)
+  - **Reports:** `GET /api/public/report-data/:reportName/:table`
+  - **Security:** `POST /api/security/csp-report`
+- **Schemas:** `Record`, `MenuItem`, `HandlerRequest/Response`, `UserCreateRequest`, `PermisosRequest`, `CspReport`, `HealthResponse`, `AuthCheckResponse`, `ErrorResponse`
+- **Responses reutilizables:** `Unauthorized`, `Forbidden`, `NotFound`, `RateLimited`, `InternalError`
+- **Security scheme:** `cookieAuth` (apiKey in cookie `nil_token`)
+- **`.github/workflows/ci.yml`** — nuevo job `openapi` que valida con `@redocly/cli lint` en cada PR
+
 ## [2.4.7] — 2026-03-20
 
 ### Docker (T1.6)

@@ -1,0 +1,823 @@
+openapi: "3.1.0"
+
+info:
+  title: Nilix API
+  version: "2.4.7"
+  description: |
+    Motor de formularios declarativos XML→UI con multi-tenancy.
+
+    **Autenticación:** HttpOnly cookie `nil_token` (JWT). Obtener via `POST /api/auth/login`.
+    Los endpoints marcados con 🔒 requieren cookie válida.
+
+servers:
+  - url: http://localhost:3000
+    description: Dev sandbox
+
+# ─── Security ──────────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: nil_token
+
+  # ─── Schemas ─────────────────────────────────────────────────────────────────
+
+  schemas:
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                code:    { type: string }
+                message: { type: string }
+
+    HealthResponse:
+      type: object
+      required: [status, version, uptime, db, authDb]
+      properties:
+        status:  { type: string, enum: [ok, degraded] }
+        version: { type: string, example: "2.4.7" }
+        uptime:  { type: integer, description: Segundos desde el inicio del proceso }
+        db:      { type: string, enum: [ok, error] }
+        authDb:  { type: string, enum: [ok, error] }
+
+    LoginRequest:
+      type: object
+      required: [usuario, password]
+      properties:
+        usuario:  { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_]+$' }
+        password: { type: string, minLength: 8 }
+
+    AuthCheckResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:          { type: boolean }
+        usuario:     { type: string }
+        rol:         { type: string, enum: [admin, operador] }
+        publicToken: { type: string, description: Token para URLs de reportes públicos }
+
+    MenuItem:
+      type: object
+      properties:
+        type:        { type: string, enum: [form, report, separator, menu] }
+        id:          { type: string }
+        label:       { type: string }
+        target:      { type: string, description: Ruta absoluta al archivo XML o YAML }
+        permissions: { type: string, description: "Permisos RADU (R=Read, A=Add, D=Delete, U=Update)" }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/MenuItem' }
+          description: Sub-items (solo si type=menu)
+
+    Record:
+      type: object
+      additionalProperties: true
+      description: Objeto con los campos de la tabla. Las claves son los nombres de columna.
+
+    HandlerRequest:
+      type: object
+      required: [fieldId, value, data]
+      properties:
+        fieldId: { type: string, description: Campo que disparó el evento }
+        value:   { description: Valor actual del campo }
+        data:    { type: object, additionalProperties: true, description: Todos los campos del formulario }
+
+    HandlerResponse:
+      type: object
+      description: Respuesta del handler — puede incluir campos a actualizar en el formulario.
+      additionalProperties: true
+      properties:
+        appendRow:
+          type: object
+          description: Instrucción para agregar una fila en un multifield
+          properties:
+            field: { type: string }
+            row:   { type: object, additionalProperties: true }
+
+    UserCreateRequest:
+      type: object
+      required: [nombre, usuario, password]
+      properties:
+        nombre:   { type: string }
+        usuario:  { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_]+$' }
+        password: { type: string, minLength: 8 }
+        email:    { type: string, format: email }
+        rol:      { type: string, enum: [admin, operador], default: operador }
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        nombre:   { type: string }
+        email:    { type: string, format: email }
+        rol:      { type: string, enum: [admin, operador] }
+        activo:   { type: boolean }
+        password: { type: string, minLength: 8 }
+
+    PermisosRequest:
+      type: array
+      items:
+        type: object
+        required: [target, perms]
+        properties:
+          target: { type: string, description: Nombre de tabla o ruta de archivo }
+          perms:  { type: string, description: "Combinación de R, A, D, U", example: "RAU" }
+
+    CspReport:
+      type: object
+      properties:
+        csp-report:
+          type: object
+          properties:
+            document-uri:        { type: string }
+            violated-directive:  { type: string }
+            effective-directive: { type: string }
+            blocked-uri:         { type: string }
+            disposition:         { type: string, enum: [enforce, report] }
+            script-sample:       { type: string }
+
+  # ─── Responses comunes ────────────────────────────────────────────────────────
+
+  responses:
+
+    Unauthorized:
+      description: Token ausente, inválido o expirado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    Forbidden:
+      description: Sin permisos suficientes (rol o RADU).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    RateLimited:
+      description: Límite de requests excedido.
+      headers:
+        RateLimit-Limit:     { schema: { type: integer } }
+        RateLimit-Remaining: { schema: { type: integer } }
+        RateLimit-Reset:     { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    InternalError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+# ─── Paths ─────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+
+  /api/health:
+    get:
+      summary: Estado del servidor y bases de datos
+      description: |
+        Público. Sin rate limit. Usado por balanceadores, monitoreo y Docker healthcheck.
+        Devuelve 503 si alguna DB no responde.
+      operationId: getHealth
+      tags: [System]
+      responses:
+        "200":
+          description: Servidor operativo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+              example:
+                status: ok
+                version: "2.4.7"
+                uptime: 3600
+                db: ok
+                authDb: ok
+        "503":
+          description: Una o ambas bases de datos no responden.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+              example:
+                status: degraded
+                version: "2.4.7"
+                uptime: 10
+                db: error
+                authDb: ok
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /api/auth/login:
+    post:
+      summary: Iniciar sesión
+      description: |
+        Público. Rate limit: 10 intentos / 15 minutos por IP.
+        En éxito, setea la cookie HttpOnly `nil_token` (JWT). El body de respuesta es `{ ok: true }`.
+        La cuenta se bloquea automáticamente tras 5 intentos fallidos.
+      operationId: login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        "200":
+          description: Login exitoso. Cookie `nil_token` seteada.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "nil_token=eyJ...; Path=/; HttpOnly; SameSite=Lax"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401":
+          description: Credenciales incorrectas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        "403":
+          description: Cuenta bloqueada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /api/auth/logout:
+    post:
+      summary: Cerrar sesión
+      description: |
+        Público. Añade el JTI del token actual a la blacklist e invalida la cookie.
+      operationId: logout
+      tags: [Auth]
+      responses:
+        "200":
+          description: Sesión cerrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "400":
+          description: No hay sesión activa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/auth/check:
+    get:
+      summary: Verificar sesión activa
+      description: |
+        Público. Verifica la cookie sin pasar por verifyToken.
+        Usado por el frontend para decidir si redirigir a login.
+      operationId: checkAuth
+      tags: [Auth]
+      responses:
+        "200":
+          description: Sesión válida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthCheckResponse' }
+              example:
+                ok: true
+                usuario: superdvlp
+                rol: admin
+                publicToken: "abc123XYZ456-_"
+        "401":
+          description: Sin sesión o token inválido.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: false }
+
+  /api/auth/refresh:
+    post:
+      summary: Rotar token de sesión
+      description: |
+        Público. Emite un nuevo JWT con expiry completo y blacklistea el token anterior.
+        El rolling session automático en verifyToken hace este endpoint opcional para la mayoría de los casos.
+      operationId: refreshToken
+      tags: [Auth]
+      responses:
+        "200":
+          description: Token rotado. Nueva cookie `nil_token` seteada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  # ── Menu ────────────────────────────────────────────────────────────────────
+
+  /api/menu:
+    get:
+      summary: Árbol de menú de la aplicación 🔒
+      description: |
+        Parsea el XML definido por `NIL_MENU_FILE` y devuelve el árbol de items
+        accesibles para el usuario autenticado. Incluye permisos RADU por item.
+      operationId: getMenu
+      tags: [App]
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Árbol de menú.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MenuItem' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  # ── Records (CRUD) ──────────────────────────────────────────────────────────
+
+  /api/records/{table}:
+    get:
+      summary: Leer registro 🔒
+      description: |
+        Devuelve un registro por clave primaria.
+        Requiere query params `keyField` e `id`. Tenant-scoped automáticamente.
+      operationId: getRecord
+      tags: [Records]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+          description: Nombre de la tabla en la base de datos de la app.
+        - name: keyField
+          in: query
+          required: true
+          schema: { type: string }
+          description: Nombre del campo clave primaria.
+        - name: id
+          in: query
+          required: true
+          schema: { type: string }
+          description: Valor de la clave primaria.
+      responses:
+        "200":
+          description: Registro encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Record' }
+        "400":
+          description: Parámetros faltantes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+    post:
+      summary: Crear registro 🔒
+      description: |
+        Inserta un nuevo registro. El `empresa_id` se inyecta automáticamente
+        si la tabla tiene esa columna (ScopedDb).
+      operationId: createRecord
+      tags: [Records]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Record' }
+      responses:
+        "201":
+          description: Registro creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Record' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /api/records/{table}/{id}:
+    put:
+      summary: Actualizar registro 🔒
+      description: Actualiza un registro existente por clave primaria. Tenant-scoped.
+      operationId: updateRecord
+      tags: [Records]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Record' }
+      responses:
+        "200":
+          description: Registro actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Record' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+    delete:
+      summary: Eliminar registro 🔒
+      description: Elimina un registro por clave primaria. Requiere permiso D (RADU).
+      operationId: deleteRecord
+      tags: [Records]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Registro eliminado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  /api/records/{table}/navigate:
+    get:
+      summary: Navegar al registro adyacente 🔒
+      description: Devuelve el registro anterior o siguiente ordenado por clave primaria.
+      operationId: navigateRecord
+      tags: [Records]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+        - name: keyField
+          in: query
+          required: true
+          schema: { type: string }
+        - name: current
+          in: query
+          required: true
+          schema: { type: string }
+          description: Valor de la clave actual.
+        - name: dir
+          in: query
+          required: true
+          schema: { type: string, enum: [next, prev] }
+      responses:
+        "200":
+          description: Registro adyacente encontrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Record' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404":
+          description: Límite de navegación (primer o último registro).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ── Handlers ────────────────────────────────────────────────────────────────
+
+  /api/handler/{handler}/after:
+    post:
+      summary: Ejecutar callback after() del handler 🔒
+      description: |
+        Invoca el callback `after(fieldId, value, data, db)` del handler de la tabla.
+        Rate limit: 30 req/min (handlerLimiter — más estricto que el API general).
+        El handler puede devolver campos a actualizar en el formulario o instrucciones
+        como `appendRow` para multifieds.
+      operationId: handlerAfter
+      tags: [Handlers]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: handler
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-zA-Z0-9_-]+$' }
+          description: Nombre del handler (= nombre de la tabla).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandlerRequest' }
+      responses:
+        "200":
+          description: Callback ejecutado. Puede devolver campos a actualizar.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandlerResponse' }
+        "400":
+          description: Parámetros inválidos o handler no encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /api/handler/{handler}/after-field:
+    post:
+      summary: Ejecutar callback afterField() del handler 🔒
+      description: |
+        Invoca el callback `afterField(fieldId, value, data, db)` del handler.
+        Mismo contrato que `/after`.
+      operationId: handlerAfterField
+      tags: [Handlers]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: handler
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[a-zA-Z0-9_-]+$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandlerRequest' }
+      responses:
+        "200":
+          description: Callback ejecutado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandlerResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429": { $ref: '#/components/responses/RateLimited' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  # ── Users (admin only) ──────────────────────────────────────────────────────
+
+  /api/users:
+    get:
+      summary: Listar usuarios del tenant 🔒
+      description: Requiere rol `admin`. Devuelve usuarios + permisos de menú del tenant actual.
+      operationId: listUsers
+      tags: [Users]
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Lista de usuarios.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:       { type: integer }
+                    nombre:   { type: string }
+                    usuario:  { type: string }
+                    email:    { type: string }
+                    rol:      { type: string, enum: [admin, operador] }
+                    activo:   { type: boolean }
+                    permisos:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          target: { type: string }
+                          perms:  { type: string }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+    post:
+      summary: Crear usuario 🔒
+      description: Requiere rol `admin`. Crea un usuario en el tenant actual.
+      operationId: createUser
+      tags: [Users]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        "201":
+          description: Usuario creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:      { type: integer }
+                  usuario: { type: string }
+                  rol:     { type: string }
+        "400":
+          description: Datos inválidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "409":
+          description: Nombre de usuario ya existe.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /api/users/{id}:
+    put:
+      summary: Actualizar usuario 🔒
+      description: Requiere rol `admin`. Actualiza campos del usuario (incluyendo password y estado activo).
+      operationId: updateUser
+      tags: [Users]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdateRequest' }
+      responses:
+        "200":
+          description: Usuario actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /api/users/{id}/permisos:
+    put:
+      summary: Reemplazar permisos de menú de un usuario 🔒
+      description: |
+        Requiere rol `admin`. Reemplaza TODOS los permisos del usuario.
+        Enviar array vacío `[]` elimina todos los permisos.
+      operationId: setUserPermisos
+      tags: [Users]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermisosRequest' }
+      responses:
+        "200":
+          description: Permisos actualizados.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, example: true }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ── Public Reports ──────────────────────────────────────────────────────────
+
+  /api/public/report-data/{reportName}/{table}:
+    get:
+      summary: Datos de reporte público
+      description: |
+        Accesible sin autenticación si el YAML del reporte tiene `public: true`.
+        El `token` identifica el tenant — un token inválido devuelve filas vacías (no error).
+        Rate limit: 60 req/min.
+      operationId: getPublicReportData
+      tags: [Reports]
+      parameters:
+        - name: reportName
+          in: path
+          required: true
+          schema: { type: string }
+        - name: table
+          in: path
+          required: true
+          schema: { type: string }
+        - name: t
+          in: query
+          required: true
+          schema: { type: string }
+          description: public_token del tenant (obtenido via /api/auth/check).
+      responses:
+        "200":
+          description: Datos de la tabla. Array vacío si el token no es válido o el reporte no es público.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rows:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+  # ── CSP Reporting ───────────────────────────────────────────────────────────
+
+  /api/security/csp-report:
+    post:
+      summary: Receptor de violaciones CSP
+      description: |
+        Público. Los browsers envían reportes automáticamente cuando se viola la Content Security Policy.
+        No requiere autenticación (los browsers no envían cookies en CSP reports).
+        Registra la violación como `warn` en el log estructurado. Responde 204 (sin body).
+        Rate limit: 60 req/min.
+      operationId: cspReport
+      tags: [Security]
+      requestBody:
+        required: true
+        content:
+          application/csp-report:
+            schema: { $ref: '#/components/schemas/CspReport' }
+          application/json:
+            schema: { $ref: '#/components/schemas/CspReport' }
+      responses:
+        "204":
+          description: Reporte recibido y registrado.
+        "429": { $ref: '#/components/responses/RateLimited' }
+
+# ─── Tags ──────────────────────────────────────────────────────────────────────
+
+tags:
+  - name: System
+    description: Health check y métricas del servidor.
+  - name: Auth
+    description: Login, logout, verificación y rotación de sesión.
+  - name: App
+    description: Menú, archivos y contenido de la aplicación.
+  - name: Records
+    description: CRUD sobre tablas de la base de datos de la app (tenant-scoped).
+  - name: Handlers
+    description: Callbacks de lógica de negocio definidos por la app.
+  - name: Users
+    description: Gestión de usuarios del tenant (solo admins).
+  - name: Reports
+    description: Datos para reportes YAML públicos.
+  - name: Security
+    description: Endpoints de seguridad (CSP reporting).

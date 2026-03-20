@@ -31,11 +31,11 @@ Validación independiente del estado real del proyecto contra el plan.
 | T1.2 Rate limiting general | ✅ Implementado | `server.js`: 3 niveles — publicLimiter (60/min), apiLimiter (200/min), handlerLimiter (30/min). `/api/health` excluido. |
 | T1.3 Refresh token | ✅ Implementado | Rolling sessions en `verifyToken.js` (refresh < 25% lifetime). `POST /api/auth/refresh` para rotación explícita. |
 | T1.4 Structured logging | ✅ Implementado | `src/services/logger.js`: pino singleton. TTY→pino-pretty, no-TTY→JSON. `NIL_LOG_LEVEL` configurable. Todos los `console.*` migrados. |
-| T1.5 OpenAPI | ❌ Faltante | No existe `docs/api/openapi.yaml`. |
+| T1.5 OpenAPI | ✅ Implementado | `docs/api/openapi.yaml`: OpenAPI 3.1, 19 operaciones, 16 paths. CI valida con `@redocly/cli lint`. |
 | T1.6 Docker | ✅ Implementado | `Dockerfile` multi-stage (node:22-alpine). `docker-compose.yml` con volúmenes para SQLite. Entrypoint inicializa dev sandbox en primer arranque. CI valida build. |
 | T1.7 CSP reporting | ✅ Implementado | `POST /api/security/csp-report` (público, antes de verifyToken). `report-uri` en helmet CSP. Logs estructurados `[CSP]`. |
 
-**Veredicto Fase 1: ⚠️ 6/7 completadas**
+**Veredicto Fase 1: ✅ 7/7 completadas**
 
 ### 0.3 Hallazgos de seguridad
 
@@ -61,7 +61,7 @@ Validación independiente del estado real del proyecto contra el plan.
 |---|----------|-----------|---------------|
 | 7 | ~~CSP sin reporting~~ | ~~`server.js:54-73`~~ | ✅ Resuelto en v2.4.6 — `report-uri` + `POST /api/security/csp-report` |
 | 8 | ~~Sin containerización~~ | — | ✅ Resuelto en v2.4.7 — `Dockerfile` multi-stage + `docker-compose.yml` |
-| 9 | Sin OpenAPI spec | — | Documentar los 8 endpoints críticos |
+| 9 | ~~Sin OpenAPI spec~~ | — | ✅ Resuelto en v2.4.8 — `docs/api/openapi.yaml`, 19 operaciones, validado en CI |
 
 **Controles positivos confirmados**
 
