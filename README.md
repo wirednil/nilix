@@ -23,10 +23,18 @@ A terminal-aesthetic business application engine. Forms, reports, explorers, dat
 
 ## Quick Start
 
+**Node.js (bare-metal)**
 ```bash
 git clone https://github.com/wirednil/nilix.git && cd nilix
 node scripts/setup.js   # configures .env, installs deps, initializes dev sandbox
 node server.js
+```
+
+**Docker**
+```bash
+git clone https://github.com/wirednil/nilix.git && cd nilix
+cp .env.example .env    # edit NIL_JWT_SECRET
+docker compose up
 ```
 
 Open `http://localhost:3000` and log in with the dev sandbox credentials:
@@ -36,7 +44,7 @@ usuario:  superdvlp
 password: devpass1234
 ```
 
-`setup.js` handles everything: generates a random JWT secret, copies `.env.example` → `.env`, runs `npm install`, and initializes the dev database. See `.env.example` for all available variables.
+`setup.js` (bare-metal) or the Docker entrypoint handle everything: JWT secret, dependencies, and dev database initialization. See `.env.example` for all available variables.
 
 ### Key Environment Variables
 
@@ -110,18 +118,23 @@ zones:
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auth/login` | Login — sets `nil_token` HttpOnly cookie |
-| POST | `/api/auth/logout` | Logout — clears cookie, blacklists JWT |
-| GET | `/api/auth/check` | Check session — `{ ok, usuario, rol, publicToken }` |
-| GET | `/api/menu` | Parse and return menu tree |
-| GET | `/api/files/content?path=` | Serve authorized file |
-| GET | `/api/records/:table` | List records (tenant-scoped) |
-| POST | `/api/records/:table` | Insert record |
-| PUT | `/api/records/:table/:id` | Update record |
-| DELETE | `/api/records/:table/:id` | Delete record |
-| GET | `/api/public/report-data/:report/:table?t=TOKEN` | Public report data |
+Full spec: [`docs/api/openapi.yaml`](docs/api/openapi.yaml) (OpenAPI 3.1 — importable in Postman/Insomnia).
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/health` | — | Server + DB status |
+| POST | `/api/auth/login` | — | Login — sets `nil_token` HttpOnly cookie |
+| POST | `/api/auth/logout` | — | Logout — clears cookie, blacklists JWT |
+| GET | `/api/auth/check` | — | Check session — `{ ok, usuario, rol, publicToken }` |
+| POST | `/api/auth/refresh` | — | Rotate token — issues new JWT, blacklists old |
+| GET | `/api/menu` | 🔒 | Parse and return menu tree |
+| GET | `/api/records/:table` | 🔒 | Read record (tenant-scoped) |
+| POST | `/api/records/:table` | 🔒 | Insert record |
+| PUT | `/api/records/:table/:id` | 🔒 | Update record |
+| DELETE | `/api/records/:table/:id` | 🔒 | Delete record |
+| POST | `/api/handler/:handler/after` | 🔒 | Execute handler after() callback |
+| GET | `/api/public/report-data/:report/:table?t=TOKEN` | — | Public report data |
+| POST | `/api/security/csp-report` | — | CSP violation receiver |
 
 ---
 
