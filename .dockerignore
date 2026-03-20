@@ -1,0 +1,30 @@
+# Dependencias — se instalan dentro del contenedor
+node_modules/
+
+# Secretos — provistos via env_file en docker-compose
+.env
+
+# Datos / bases de datos — provistos via volúmenes
+data/
+dev/dbase/
+*.db
+
+# Git
+.git/
+.gitignore
+
+# Herramientas locales y docs de desarrollo
+.claude/
+.vscode/
+docs/
+
+# Scripts de demo y herramientas de dev
+scripts/attack-demo.js
+scripts/csp-demo.js
+
+# Tests (no necesarios en runtime)
+tests/
+
+# Logs
+*.log
+logs/

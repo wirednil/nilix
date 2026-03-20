@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.7] — 2026-03-20
+
+### Docker (T1.6)
+
+- **`Dockerfile`** — multi-stage: stage `deps` instala solo dependencias de producción (`npm ci --omit=dev`); stage `runtime` copia fuente + deps. Base `node:22-alpine`. Sin `--no-bin-links` (no necesario en Linux).
+- **`docker-compose.yml`** — levanta el dev sandbox con `docker compose up`. Volúmenes para persistir `data/` (auth.db) y `dev/dbase/` (app DB) entre reinicios. Healthcheck integrado usando `GET /api/health`.
+- **`.dockerignore`** — excluye `node_modules/`, `.env`, `*.db`, `data/`, `dev/dbase/`, `.git/`, `docs/`, `tests/`.
+- **`scripts/docker-entrypoint.sh`** — primer arranque: si `auth.db` no existe, corre `init-dev.js` (inicializa dev sandbox); luego `exec node server.js`.
+- **`.github/workflows/ci.yml`** — nuevo job `docker` que valida `docker build` en cada PR.
+
+Uso:
+```bash
+cp .env.example .env          # editar NIL_JWT_SECRET
+docker compose up             # primer arranque inicializa DBs automáticamente
+```
+
 ## [2.4.6] — 2026-03-20
 
 ### CSP reporting endpoint (T1.7)

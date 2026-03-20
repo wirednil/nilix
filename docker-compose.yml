@@ -1,0 +1,36 @@
+services:
+  nilix:
+    build: .
+    image: nilix:latest
+    ports:
+      - "${NIL_PORT:-3000}:3000"
+
+    # Variables de entorno desde .env (copiado de .env.example + setup.js)
+    env_file: .env
+
+    volumes:
+      # auth.db persiste entre reinicios del contenedor
+      - ./data:/app/data
+      # dev sandbox app DB persiste entre reinicios
+      - ./dev/dbase:/app/dev/dbase
+
+    restart: unless-stopped
+
+    # Healthcheck usando el endpoint propio de Nilix
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ─── Para apps reales (no dev sandbox) ────────────────────────────────────────
+# Descomenta y ajusta si apuntás a una app fuera del repo:
+#
+#   volumes:
+#     - ./data:/app/data
+#     - /ruta/a/tu/app:/app/appdata
+#
+#   environment:
+#     NIL_MENU_FILE: /app/appdata/menu.xml
+#     NIL_DB_FILE:   /app/appdata/dbase/app.db

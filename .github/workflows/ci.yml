@@ -48,3 +48,11 @@ jobs:
             exit 1
           fi
           echo "✅ .env.example contiene todas las claves requeridas"
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t nilix:ci .
