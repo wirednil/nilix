@@ -33,9 +33,9 @@ Validación independiente del estado real del proyecto contra el plan.
 | T1.4 Structured logging | ✅ Implementado | `src/services/logger.js`: pino singleton. TTY→pino-pretty, no-TTY→JSON. `NIL_LOG_LEVEL` configurable. Todos los `console.*` migrados. |
 | T1.5 OpenAPI | ❌ Faltante | No existe `docs/api/openapi.yaml`. |
 | T1.6 Docker | ❌ Faltante | No existe `Dockerfile` ni `docker-compose.yml`. |
-| T1.7 CSP reporting | ❌ Faltante | CSP configurada en `server.js` pero sin `report-uri`. No existe `POST /api/security/csp-report`. |
+| T1.7 CSP reporting | ✅ Implementado | `POST /api/security/csp-report` (público, antes de verifyToken). `report-uri` en helmet CSP. Logs estructurados `[CSP]`. |
 
-**Veredicto Fase 1: ⚠️ 4/7 completadas**
+**Veredicto Fase 1: ⚠️ 5/7 completadas**
 
 ### 0.3 Hallazgos de seguridad
 
@@ -59,7 +59,7 @@ Validación independiente del estado real del proyecto contra el plan.
 
 | # | Hallazgo | Ubicación | Recomendación |
 |---|----------|-----------|---------------|
-| 7 | CSP sin reporting | `server.js:54-73` | Agregar `report-uri: /api/security/csp-report` |
+| 7 | ~~CSP sin reporting~~ | ~~`server.js:54-73`~~ | ✅ Resuelto en v2.4.6 — `report-uri` + `POST /api/security/csp-report` |
 | 8 | Sin containerización | — | `Dockerfile` + `docker-compose.yml` |
 | 9 | Sin OpenAPI spec | — | Documentar los 8 endpoints críticos |
 

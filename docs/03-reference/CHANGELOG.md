@@ -7,6 +7,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.4.6] — 2026-03-20
+
+### CSP reporting endpoint (T1.7)
+
+- **`src/routes/cspReportRoutes.js`** — `POST /api/security/csp-report`: acepta `application/csp-report` y `application/json`, loguea la violación como `logger.warn` con campos estructurados (`blockedUri`, `violatedDirective`, `effectiveDir`, `documentUri`, `disposition`, `scriptSample`), responde 204.
+- **`server.js`** — ruta montada **antes** de `verifyToken` (los browsers envían CSP reports sin cookies). Aplica `publicLimiter` (60/min).
+- **`server.js` helmet CSP** — agrega directiva `report-uri /api/security/csp-report`. Los browsers ahora envían automáticamente reportes de violación al servidor.
+
+Log de violación en producción:
+```json
+{"level":40,"blockedUri":"inline","violatedDirective":"script-src 'self'","effectiveDir":"script-src","documentUri":"http://host/","scriptSample":"fetch(...)","msg":"[CSP] Violation reported"}
+```
+
 ## [2.4.5] — 2026-03-20
 
 ### Rolling sessions y refresh token (T1.3)

@@ -67,6 +67,7 @@ const recordRoutes = require('./src/routes/recordRoutes');
 const handlerRoutes = require('./src/routes/handlerRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const publicReportRoutes = require('./src/routes/publicReportRoutes');
+const cspReportRoutes = require('./src/routes/cspReportRoutes');
 const usersRoutes = require('./src/routes/usersRoutes');
 const logRoutes    = require('./src/routes/logRoutes');
 const healthRoutes = require('./src/routes/healthRoutes');
@@ -95,6 +96,7 @@ app.use(helmet({
             baseUri:                ["'self'"],
             formAction:             ["'self'"],
             upgradeInsecureRequests: useHttps ? [] : null, // solo en HTTPS
+            reportUri:              '/api/security/csp-report',
         }
     },
     hsts:                    useHttps,   // HSTS solo con HTTPS activo
@@ -110,9 +112,10 @@ app.use(cors(allowedOrigin ? { origin: allowedOrigin, credentials: true } : { or
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
-app.use('/api/health', healthRoutes);                    // public — health check, sin rate limit (monitoring)
-app.use('/api/auth', publicLimiter, authRoutes);         // public — login ya tiene su propio limiter interno
+app.use('/api/health', healthRoutes);                                    // public — health check, sin rate limit (monitoring)
+app.use('/api/auth', publicLimiter, authRoutes);                         // public — login ya tiene su propio limiter interno
 app.use('/api/public/report-data', publicLimiter, publicReportRoutes);  // public — report data for public YAMLs
+app.use('/api/security/csp-report', publicLimiter, cspReportRoutes);   // public — CSP violation reports (browsers no mandan cookies)
 
 // public — devuelve la IP de red real del servidor (para QR codes)
 const os = require('os');
