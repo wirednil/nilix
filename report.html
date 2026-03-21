@@ -92,9 +92,32 @@
         .report-backend-badge.fallback {
             color: var(--text-color);
         }
+
+        #print-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 5rem;
+            padding: 0.35rem 0.75rem;
+            font-family: inherit;
+            font-size: 0.8rem;
+            cursor: pointer;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        #print-btn:hover {
+            background: var(--border-color);
+        }
+
+        @media print {
+            #print-btn { display: none; }
+            .report-backend-badge { display: none; }
+        }
     </style>
 </head>
 <body>
+    <button id="print-btn">Imprimir / PDF</button>
     <div id="report-container">
         <div class="report-loading">
             <span class="report-loading-spinner"></span>
@@ -119,6 +142,13 @@
             const params = new URLSearchParams(window.location.search);
             const reportFile = params.get('file') || params.get('name');
             const publicToken = params.get('t') ?? null;
+
+            // Collect extra URL params (everything except reserved keys) to pass as report params
+            const RESERVED = new Set(['file', 'name', 't']);
+            const reportParams = {};
+            for (const [k, v] of params.entries()) {
+                if (!RESERVED.has(k)) reportParams[k] = v;
+            }
 
             if (!reportFile) {
                 container.innerHTML = `
@@ -170,7 +200,7 @@
 
             try {
                 // Pass pre-loaded content — avoids double fetch
-                await engine.load(yamlPath, yamlContent, publicToken);
+                await engine.load(yamlPath, yamlContent, publicToken, reportParams);
 
                 const isDuckDB = engine.isDuckDBActive();
                 updateLoadingStage(isDuckDB
@@ -206,6 +236,7 @@
             }
         }
 
+        document.getElementById('print-btn').addEventListener('click', () => window.print());
         loadReport();
     </script>
 </body>

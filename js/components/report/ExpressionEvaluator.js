@@ -142,7 +142,19 @@ export class ExpressionEvaluator {
                     : this._resolveVal(falseStr.trim(), context);
             }
         }
-        return '';
+
+        // Arithmetic: replace field names with their numeric values, then evaluate
+        let expr = f;
+        for (const [key, val] of Object.entries(context)) {
+            if (!/^[a-zA-Z_]\w*$/.test(key)) continue;
+            const num = parseFloat(val);
+            if (!isNaN(num)) {
+                expr = expr.replace(new RegExp(`\\b${key}\\b`, 'g'), num);
+            }
+        }
+        // Allow only digits, whitespace, and basic math operators/parens
+        if (!/^[\d\s+\-*/.()]+$/.test(expr.trim())) return '';
+        try { return new Function(`return (${expr})`)(); } catch { return ''; }
     }
 
     _splitArgs(str) {

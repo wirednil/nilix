@@ -1,7 +1,7 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.2
-**Basado en:** REP-SPEC.md (Capítulo 17, IDEA-FIX RDL) + implementación nilix v2.5.1
+**Versión:** 1.4
+**Basado en:** REP-SPEC.md (Capítulo 17, IDEA-FIX RDL) + implementación nilix v2.5.3
 **Formato nativo:** YAML (reemplaza el RDL textual del legado)
 
 ---
@@ -15,6 +15,8 @@
 5. [Sección `zones`](#5-sección-zones)
 6. [Condiciones de impresión](#6-condiciones-de-impresión)
 7. [Expresiones y templates](#7-expresiones-y-templates)
+   - [7.5 Markdown en templates](#75-markdown-en-templates)
+   - [7.5 `rowTemplate` — tabla GFM iterada](#rowtemplate--tabla-gfm-con-datos-iterados)
 8. [Funciones de agregación](#8-funciones-de-agregación)
 9. [Acceso público y multi-tenant](#9-acceso-público-y-multi-tenant)
 10. [Equivalencias RDL → YAML](#10-equivalencias-rdl--yaml)
@@ -85,6 +87,10 @@ fields:
       displayField: nombre        # Columna a mostrar
 
     resolvedFrom: prod_id_cat     # Nombre del campo fuente de la FK a resolver
+
+    escape: true                  # (opcional) Markdown-escapa el valor antes de insertarlo
+                                  # en el template. Solo relevante cuando config.markdown: true.
+                                  # Usar en campos con texto libre ingresado por usuarios.
 ```
 
 ### Tipos disponibles
@@ -389,6 +395,163 @@ campo >= número        campo <= número
 - Nombre de campo del contexto: `monto_fmt`
 
 > **Nota:** condiciones compuestas (`&&`, `||`) usan `Function()` con `isConditionSafe` como guardia de seguridad.
+
+---
+
+### 7.5 Markdown en templates
+
+Activar con `config.markdown: true`. Cuando está activo, los templates de todas las zones se procesan con **marked.js v12** (GFM). Reportes sin el flag siguen renderizando como texto plano.
+
+#### Habilitación
+
+```yaml
+config:
+  markdown: true
+```
+
+#### Inline vs bloque según tipo de zona
+
+El parsing markdown varía según la zone:
+
+| Tipo de zone | Parser usado | Elementos disponibles |
+|---|---|---|
+| `lines` | `marked.parse()` | Todos (inline + bloque) |
+| `header`, `footer`, `subtotal` | `marked.parseInline()` | Solo inline |
+
+**Consecuencia importante:** en zones `header`/`footer`/`subtotal`, los elementos de bloque (`#`, `---`, `- lista`) **se muestran como texto literal**. El estilo de título en un `header` lo provee el CSS — no se necesita `#`:
+
+```yaml
+# ✅ correcto en zona header — CSS aplica estilo de título
+template:
+  - "FLUJO DE CAJA MENSUAL"
+
+# ❌ incorrecto — el # aparece literalmente en la pantalla
+template:
+  - "# FLUJO DE CAJA MENSUAL"
+```
+
+#### Construcciones soportadas
+
+| Sintaxis | Output | Disponible en |
+|---|---|---|
+| `**texto**` | negrita | todas las zones |
+| `*texto*` / `_texto_` | cursiva | todas las zones |
+| `` `texto` `` | código monospace | todas las zones |
+| `[texto](url)` | link | todas las zones |
+| `---` (línea sola) | `<hr>` | solo `lines` |
+| `# Título` / `## / ###` | `<h1>`–`<h3>` | solo `lines` |
+| `- item` | bullet list | solo `lines` |
+| `1. item` | numbered list | solo `lines` |
+| Tabla GFM | `<table>` | solo `lines` |
+
+**NO soportado:** blockquotes, código en bloque, imágenes, HTML embebido.
+
+#### Orden de procesamiento
+
+```
+Template YAML → resolver {placeholders} → parsear Markdown → HTML final
+```
+
+Los valores de la DB se HTML-escapean automáticamente antes de que marked los procese. El template en sí (texto literal del YAML) se considera de confianza.
+
+#### Escape de contenido de usuario
+
+Si un campo contiene datos ingresados por usuarios, agregar `escape: true` en su definición de `fields` para que los caracteres Markdown (`*`, `_`, `` ` ``, `[`, `]`, `#`, `\`) queden literales:
+
+```yaml
+fields:
+  - name: concepto
+    type: string
+    escape: true    # "Compra *urgente*" → "Compra \*urgente\*" → no cursiva
+    dbRef: { table: caja, field: concepto }
+```
+
+#### Ejemplo completo
+
+```yaml
+config:
+  markdown: true
+
+# template en zona layout: lines
+template:
+  - "**{fecha_fmt}**   Balance: `{balance_dia}` {indicador}"
+  - ""
+  - "---"
+  - "## RESUMEN DEL MES"
+  - ""
+  - "- **Ingresos:** `{total_ingresos}`"
+  - "- **Egresos:** `{total_egresos}`"
+```
+
+**Output:**
+
+```html
+<strong>Domingo 08/02/2026</strong>   Balance: <code>$15.000,00</code> ✓
+
+<hr>
+<h2>RESUMEN DEL MES</h2>
+<ul>
+  <li><strong>Ingresos:</strong> <code>$68.000,00</code></li>
+  <li><strong>Egresos:</strong> <code>-$113.500,00</code></li>
+</ul>
+```
+
+#### Interacción con `||` (split)
+
+El operador `||` de alineación derecha funciona también en modo markdown. Cada lado se procesa con `parseInline`:
+
+```yaml
+template:
+  - "  `{concepto}`  `{monto_fmt}` || [{metodo}]"
+  # izquierda: código inline  |  derecha: alineado a la derecha
+```
+
+#### `rowTemplate` — tabla GFM con datos iterados
+
+Propiedad opcional de zona que habilita la generación de una fila de tabla GFM por cada registro del `dataSource`. Solo funciona en `layout: lines` con `markdown: true`.
+
+**Estructura:**
+- `template[]` → cabecera de la tabla (se renderiza **una vez**)
+- `rowTemplate[]` → plantilla de fila (se repite **por cada registro**)
+
+```yaml
+- name: movimientos_tabla
+  layout: lines
+  condition: { when: after, on: report }
+  dataSource: movimientos
+  expressions:
+    - name: icono
+      formula: "if(tipo == 'Ingreso', '↓', '↑')"
+    - name: tipo_label
+      field: tipo
+      format: upper
+    - name: categoria
+      field: categoria_flujo
+    - name: concepto
+      field: concepto
+    - name: monto_fmt
+      field: monto
+      format: currency
+  template:
+    - "| | Tipo | Categoría | Concepto | Monto |"
+    - "|:---:|:---|:---|:---|---:|"
+  rowTemplate:
+    - "| {icono} | {tipo_label} | {categoria} | {concepto} | `{monto_fmt}` |"
+```
+
+**Requisito:** la zone debe tener `dataSource` apuntando a una fuente de datos válida. El engine pasa el array completo de registros al renderer (en lugar del `datasetMap` habitual de las zones after-report).
+
+**Alineación GFM** en la fila separadora del `template`:
+
+| Sintaxis | Alineación |
+|---|---|
+| `:---` | izquierda (default) |
+| `:---:` | centro |
+| `---:` | derecha |
+
+#### Fallback DIY
+
+Si el CDN no está disponible, el renderer usa un parser interno que cubre Fases 1-2 (inline + `---` + headers + listas). Las tablas GFM requieren marked.js.
 
 ---
 

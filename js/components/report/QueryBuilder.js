@@ -84,44 +84,58 @@ export class QueryBuilder {
         if (!dataSource.joins || dataSource.joins.length === 0) {
             return null;
         }
-        
+
         const joins = [];
-        
+        // fieldSource tracks which alias provides each column (first-win, no overwrite)
+        const fieldSource = new Map(); // columnName → alias ('t' or 'j_table')
+
         dataSource.joins.forEach(join => {
             const [joinTable, joinField] = join.to.split('.');
             const joinFromDb = this.yamlToDbField.get(join.from) || join.from;
             const joinAlias = `j_${joinTable}`;
-            
-            const existingJoin = joins.find(j => j.includes(`JOIN ${joinTable}`));
-            
+
+            // The `from` field might come from a previous join rather than the main table
+            const fromAlias = fieldSource.has(joinFromDb) ? fieldSource.get(joinFromDb) : 't';
+
+            const existingJoin = joins.find(j => j.includes(`JOIN ${joinTable} `));
+
             if (!existingJoin) {
                 joins.push(
-                    `LEFT JOIN ${joinTable} ${joinAlias} ON t.${joinFromDb} = ${joinAlias}.${joinField}`
+                    `LEFT JOIN ${joinTable} ${joinAlias} ON ${fromAlias}.${joinFromDb} = ${joinAlias}.${joinField}`
                 );
             }
+
+            // Register included fields (first join that provides a column wins)
+            (join.include || []).forEach(col => {
+                if (!fieldSource.has(col)) fieldSource.set(col, joinAlias);
+            });
         });
-        
+
         return joins.join('\n');
     }
 
     buildWhere(dataSource) {
-        if (!dataSource.filter) {
-            return null;
+        const filter = dataSource._substitutedFilter ?? dataSource.filter;
+        if (!filter) return null;
+
+        // Handle quoted string value: fieldName = 'value'
+        const quotedMatch = filter.match(/^(\w+)\s*=\s*'([^']*)'$/);
+        if (quotedMatch) {
+            const dbField = this.yamlToDbField.get(quotedMatch[1]) || quotedMatch[1];
+            return `WHERE t.${dbField} = '${quotedMatch[2]}'`;
         }
-        
-        const filter = dataSource.filter;
-        
+
         const filterMatch = filter.match(/(\w+)\s*=\s*(\w+)/);
-        
+
         if (!filterMatch) {
             console.warn('⚠️ Could not parse filter:', filter);
             return null;
         }
-        
+
         const [, fieldName, value] = filterMatch;
-        
+
         const dbField = this.yamlToDbField.get(fieldName) || fieldName;
-        
+
         let sqlValue = value;
         if (value === 'true') {
             sqlValue = '1';
@@ -132,7 +146,7 @@ export class QueryBuilder {
         } else {
             sqlValue = `'${value}'`;
         }
-        
+
         return `WHERE t.${dbField} = ${sqlValue}`;
     }
 

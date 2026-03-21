@@ -23,8 +23,10 @@ export class FormContext {
             ? { table: this.database, keyField, handler, crudMode }
             : null;
 
+        this.outputDirectives = this._parseOutputDirectives(formNode);
         this.currentKey = null;
         this.permissions = null;
+        this.formPath = null;
         this.fields = new Map();
         this.container = null;
         this.abortController = new AbortController();
@@ -49,6 +51,25 @@ export class FormContext {
 
     getAllFieldIds() {
         return Array.from(this.fields.keys());
+    }
+
+    _parseOutputDirectives(formNode) {
+        const directives = [];
+        const outputEls = formNode.getElementsByTagName
+            ? Array.from(formNode.getElementsByTagName('output'))
+            : [];
+        for (const el of outputEls) {
+            const report = el.getAttribute('report');
+            const param  = el.getAttribute('param');
+            if (!report || !param) continue;
+            directives.push({
+                report,
+                param,
+                on:        el.getAttribute('on') || 'save',
+                condition: el.getAttribute('condition') || null
+            });
+        }
+        return directives;
     }
 
     _findKeyField(layoutNode) {

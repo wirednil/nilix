@@ -7,6 +7,100 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.5.3] — 2026-03-21
+
+### Report engine — `rowTemplate` + comportamiento inline/block en markdown
+
+**`rowTemplate` en zones**
+
+Nueva propiedad de zona que permite generar una fila de tabla GFM por cada registro del `dataSource`, útil en zonas after-report donde antes solo había acceso al `datasetMap`.
+
+Pipeline de rendering cuando `rowTemplate` está presente:
+1. `template[]` → se evalúa una sola vez (cabecera de la tabla: `| Col |` + `|---|`)
+2. `rowTemplate[]` → se evalúa por cada registro del `dataSource` (filas de datos)
+3. El bloque completo se pasa a `marked.parse()` → `<table>` GFM
+
+```yaml
+- name: resumen_tabla
+  layout: lines
+  condition: { when: after, on: report }
+  dataSource: movimientos
+  expressions:
+    - name: monto_fmt
+      field: monto
+      format: currency
+  template:
+    - "| Tipo | Concepto | Monto |"
+    - "|---|---|---:|"
+  rowTemplate:
+    - "| {tipo_label} | {concepto} | `{monto_fmt}` |"
+```
+
+**Fix en `renderAfterReport`:** cuando una zona tiene `dataSource` + `rowTemplate`, el engine pasa el array completo de datos en lugar del `datasetMap`. Consistente con el comportamiento de `renderBeforeReport`.
+
+**Comportamiento inline vs block en markdown**
+
+Las zones `header`, `footer` y `subtotal` usan `marked.parseInline()` — solo procesan markdown inline (`**bold**`, `` `code` ``, `[link](url)`). Los elementos de bloque (`# H1`, `---`, `- lista`) **no se procesan** en estas zones.
+
+La zone `lines` usa `marked.parse()` sobre el bloque completo → soporta todos los elementos.
+
+Consecuencia práctica: en zones `header`, escribir el texto directamente sin `#`. El estilo de título lo aporta el CSS (`.report-header-line:first-child`):
+
+```yaml
+# ✅ correcto — el CSS lo estiliza como título
+template:
+  - "FLUJO DE CAJA MENSUAL"
+
+# ❌ el # se muestra literal en zones header/footer/subtotal
+template:
+  - "# FLUJO DE CAJA MENSUAL"
+```
+
+**CSS para tablas markdown**
+
+Nuevos estilos en `.report-lines-md table/th/td`: `width: 100%`, bordes, padding. Layout `auto` para distribución dinámica de columnas por contenido.
+
+**Archivos modificados:** `ReportRenderer.js`, `ReportEngine.js`, `parsers/YamlParser.js`, `css/styles.css`
+
+---
+
+## [2.5.2] — 2026-03-21
+
+### Report engine — Soporte Markdown en templates
+
+**`config.markdown: true`**
+
+Nuevo flag opt-in que habilita parsing Markdown en los templates de todas las zones. Reportes sin el flag siguen renderizando como texto plano (backward compatible).
+
+**Pipeline correcto:** `{placeholders}` se resuelven ANTES del parsing Markdown. Los valores inyectados desde la DB se HTML-escapen automáticamente para prevenir XSS en `innerHTML`.
+
+**`fields[].escape: true`**
+
+Nuevo atributo en la sección `fields`. Cuando está presente, los caracteres Markdown del valor (`*`, `_`, `` ` ``, `[`, `]`, `#`, `\`) se escapean antes de la sustitución, evitando que datos de usuario rompan el formato del template.
+
+**Markdown soportado (Fases 1-3):**
+
+| Construcción | Sintaxis | Output |
+|---|---|---|
+| Negrita | `**texto**` | `<strong>` |
+| Cursiva | `*texto*` / `_texto_` | `<em>` |
+| Código inline | `` `texto` `` | `<code>` |
+| Link | `[texto](url)` | `<a>` |
+| Separador | `---` (línea sola) | `<hr>` |
+| Headers | `# ## ###` | `<h1>` – `<h3>` |
+| Bullet list | `- item` | `<ul><li>` |
+| Numbered list | `1. item` | `<ol><li>` |
+| Tablas GFM | `\| Col \| …` | `<table>` |
+
+Listas consecutivas se agrupan automáticamente en un único `<ul>` o `<ol>`.
+
+**Implementación:** marked.js v12 (CDN ESM) con fallback DIY para Fases 1-2 si CDN no disponible.
+
+**Archivos modificados:** `ReportRenderer.js`, `ReportEngine.js`, `parsers/YamlParser.js`, `css/styles.css`
+**YAML de prueba:** `flujo_mensual_md.yaml` (demo completo con casos 1-4 del spec)
+
+---
+
 ## [2.5.1] — 2026-03-21
 
 ### Report engine — Nivel 2 features

@@ -48,7 +48,7 @@ class RecordService {
             console.log(`🔍 RecordService.create: also invalidating`, options.handler.invalidateTables);
             options.handler.invalidateTables.forEach(t => LookupService.invalidateCache(t));
         }
-        return result.data;
+        return { data: result.data, created: true, output: result.output ?? null };
     }
     
     static async upsert(table, keyField, id, data, options = {}) {
@@ -71,7 +71,7 @@ class RecordService {
         const result = await response.json();
         console.log(`🔍 RecordService.upsert: invalidating cache for ${table}`);
         LookupService.invalidateCache(table);
-        return { data: result.data, created: result.created, updated: result.updated };
+        return { data: result.data, created: result.created, updated: result.updated, output: result.output ?? null };
     }
     
     static async update(table, keyField, id, data, options = {}) {

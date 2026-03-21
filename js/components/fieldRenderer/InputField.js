@@ -166,14 +166,16 @@ export const renderInputField = (config, messages, parentContainer, formContaine
 
         if (type !== 'textarea' && type !== 'date') {
             setTimeout(() => {
-                const labelEl = fieldWrapper.querySelector('label');
                 const inputEl = fieldWrapper.querySelector('input');
+                if (!inputEl) return;
 
-                if (labelEl && inputEl) {
-                    const labelWidth = labelEl.offsetWidth;
-                    const inputWidth = inputEl.offsetWidth;
-
-                    if (labelWidth > inputWidth) {
+                if (!parentIsHorizontal) {
+                    // Vertical layout: always fill the available width
+                    inputEl.classList.add('expand-to-label');
+                } else {
+                    // Horizontal layout: expand only if label is wider than input
+                    const labelEl = fieldWrapper.querySelector('label');
+                    if (labelEl && labelEl.offsetWidth > inputEl.offsetWidth) {
                         inputEl.classList.add('expand-to-label');
                     }
                 }

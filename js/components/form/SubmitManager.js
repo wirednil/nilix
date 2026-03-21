@@ -129,11 +129,25 @@ export class SubmitManager {
                     }
 
                     const isCreated = result.created;
+                    const savedData = result.data || data;
                     this.showSubmitFeedback(submitBtn, {
-                        id: data[this.ctx.tableConfig.keyField],
+                        id: savedData[this.ctx.tableConfig.keyField] ?? data[this.ctx.tableConfig.keyField],
                         created: isCreated,
                         updated: result.updated
                     });
+
+                    // Notify subform listeners and output reports
+                    formEl.dispatchEvent(new CustomEvent('sf:record-saved', {
+                        bubbles: true,
+                        detail: { data: savedData, created: isCreated }
+                    }));
+
+                    // Open output reports (non-blocking)
+                    try {
+                        this._openOutputReports(result, isCreated, formEl);
+                    } catch (err) {
+                        console.error('[SubmitManager] Failed to open output reports:', err);
+                    }
                 } else {
                     const submission = PersistenceService.save(this.ctx.formId, data);
                     console.log(`✅ Formulario guardado con ID: ${submission.id}`);
@@ -211,6 +225,87 @@ export class SubmitManager {
             submitBtn.disabled = false;
             submitBtn.textContent = submitBtn.dataset.originalText || 'ENVIAR';
         }
+    }
+
+    // ── Output reports (post-save) ───────────────────────────────────────────
+
+    _openOutputReports(result, isCreated, formEl) {
+        const savedData = result.data || {};
+        const outputsToOpen = [];
+
+        if (result.output) {
+            // Handler-driven output takes priority
+            outputsToOpen.push(result.output);
+        } else {
+            const matched = this._matchOutputs(savedData, isCreated);
+            outputsToOpen.push(...matched);
+        }
+
+        outputsToOpen.forEach(hint => this._openReport(hint, savedData, formEl));
+    }
+
+    _matchOutputs(data, isCreated) {
+        const directives = this.ctx.outputDirectives || [];
+        return directives.filter(d => {
+            if (d.on === 'create' && !isCreated) return false;
+            if (d.condition && !this._evalOutputCondition(d.condition, data)) return false;
+            return true;
+        });
+    }
+
+    _evalOutputCondition(condition, data) {
+        if (!condition) return true;
+        const m = condition.match(/^(\w+)\s*==\s*(?:'([^']*)'|(-?\d+(?:\.\d+)?))$/);
+        if (m) {
+            const fieldVal = String(data[m[1]] ?? '');
+            const cmpVal = m[2] ?? m[3];
+            return fieldVal === cmpVal;
+        }
+        return true; // unknown condition → allow
+    }
+
+    _openReport(hint, data, formEl) {
+        const paramValue = data[hint.param];
+        if (paramValue == null || paramValue === '') {
+            console.warn(`[SubmitManager] Output report "${hint.report}": param "${hint.param}" missing in saved data`);
+            return;
+        }
+        const url = `/report.html?file=${encodeURIComponent(hint.report)}&${encodeURIComponent(hint.param)}=${encodeURIComponent(paramValue)}`;
+        const popup = window.open(url, '_blank');
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+            this._showPopupFallback(url, hint.report, formEl);
+        } else {
+            this._showToast(`Comprobante generado — revisá la nueva pestaña`, formEl);
+        }
+    }
+
+    _showPopupFallback(url, reportName, formEl) {
+        let fallback = formEl.querySelector('.report-popup-fallback');
+        if (!fallback) {
+            fallback = document.createElement('div');
+            fallback.className = 'report-popup-fallback';
+            fallback.style.cssText = 'margin-top: 0.75rem; padding: 0.5rem; border: 1px solid var(--border-color); font-family: inherit; font-size: 0.85rem;';
+            formEl.appendChild(fallback);
+        }
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = `Abrir comprobante: ${reportName}`;
+        link.style.cssText = 'display: block; margin-bottom: 0.25rem;';
+        fallback.appendChild(link);
+    }
+
+    _showToast(msg, formEl) {
+        let toast = formEl.querySelector('.report-toast');
+        if (!toast) {
+            toast = document.createElement('p');
+            toast.className = 'report-toast';
+            toast.style.cssText = 'margin-top: 0.5rem; font-family: inherit; font-size: 0.85rem; color: var(--help-icon-color, #888);';
+            formEl.appendChild(toast);
+        }
+        toast.textContent = msg;
+        setTimeout(() => { toast.textContent = ''; }, 4000);
     }
 
     /**

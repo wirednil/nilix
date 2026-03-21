@@ -523,6 +523,7 @@ ul.tree.root {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    min-width: 80ch;
 }
 
 /* Fila Vertical Estándar - Etiquetas ARRIBA del input (top-aligned) */
@@ -615,6 +616,7 @@ label {
 .input-group {
     display: flex;
     flex-direction: column;
+    max-width: 100%;
     box-sizing: border-box;
     max-width: 100%;
     align-items: flex-start;
@@ -759,11 +761,13 @@ select:disabled {
     display: inline-flex;
     align-items: stretch;
     position: relative;
+    max-width: 100%;
 }
 
 .autocomplete-wrapper input {
     border-right: none;
     min-width: 0;
+    max-width: 100%;
 }
 
 .autocomplete-wrapper input:focus {
@@ -1681,6 +1685,12 @@ select.field-error {
     
     .form-vertical {
         width: 100%;
+        min-width: 0;
+    }
+
+    .subform-modal {
+        max-width: 98vw;
+        padding: 0.75rem;
     }
     .field-row { 
         gap: 0.5rem; 
@@ -1964,6 +1974,82 @@ select.field-error {
     white-space: pre;
 }
 
+/* Markdown in report templates (config.markdown: true) */
+.report-lines-md {
+    font-family: var(--label-font);
+    line-height: 1.5;
+}
+.report-lines-md p {
+    margin: 0.15em 0;
+}
+.report-lines-md h1 {
+    font-size: 1.4em;
+    font-weight: 700;
+    margin: 0.8em 0 0.4em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.report-lines-md h2 {
+    font-size: 1.15em;
+    font-weight: 700;
+    margin: 0.6em 0 0.3em;
+    text-transform: uppercase;
+}
+.report-lines-md h3 {
+    font-size: 1em;
+    font-weight: 700;
+    margin: 0.5em 0 0.25em;
+}
+.report-lines-md ul,
+.report-lines-md ol {
+    margin: 0.3em 0;
+    padding-left: 1.5em;
+}
+.report-lines-md li {
+    margin: 0.2em 0;
+}
+.report-lines-md hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0.6em 0;
+}
+.report-lines-md table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-family);
+    font-size: 0.9em;
+}
+.report-lines-md th {
+    padding: 3px 6px;
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.report-lines-md td {
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--input-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Inline markdown elements (active in all zones when markdown: true) */
+.report-container strong { font-weight: 700; }
+.report-container em     { font-style: italic; }
+.report-container code {
+    background: var(--checkbox-wrapper-bg);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-family: var(--font-family);
+    font-size: 0.88em;
+}
+.report-container a {
+    color: var(--text-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.report-container a:hover { opacity: 0.65; }
+
 /* Footer */
 .report-footer {
     text-align: center;
@@ -2192,5 +2278,63 @@ select.field-error {
 .report-workspace-container .report-container {
     max-width: 100%;
     padding: 0;
+}
+
+/* ── Subform Modal ──────────────────────────────────────────────────── */
+.subform-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.subform-modal {
+    position: relative;
+    background: var(--bg-color, #fff);
+    border: 1px solid var(--border-color, #ccc);
+    max-width: min(680px, 92vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.subform-close-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+    color: var(--text-color, inherit);
+    padding: 0.1rem 0.3rem;
+    line-height: 1;
+}
+
+.subform-close-btn:hover {
+    opacity: 0.6;
+}
+
+.subform-modal .terminal-window {
+    border: none;
+    background: transparent;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.subform-modal .form-vertical {
+    min-width: 0;
+    width: 100%;
+}
+
+.form-vertical input:not([type="date"]):not([type="checkbox"]),
+.form-vertical textarea,
+.form-vertical .autocomplete-wrapper {
+    max-width: 100% !important;
+    box-sizing: border-box;
 }
 

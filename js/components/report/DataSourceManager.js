@@ -18,12 +18,52 @@ export class DataSourceManager {
         this.useDuckDB = true;
         this.publicMode = false;
         this.publicReportName = null;
+        this.params = {};
     }
 
     setPublicMode(reportName, token = null) {
         this.publicMode = true;
         this.publicReportName = reportName;
         this.publicToken = token;
+    }
+
+    setParams(params) {
+        this.params = params || {};
+    }
+
+    _unaliasJoinColumns(rows, joins) {
+        if (!joins || joins.length === 0) return rows;
+        return rows.map(row => {
+            const out = { ...row };
+            joins.forEach(join => {
+                const prefix = join.from.replace(/_/g, '') + '_';
+                (join.include || []).forEach(col => {
+                    const aliased = `${prefix}${col}`;
+                    if (aliased in out && !(col in out)) {
+                        out[col] = out[aliased];
+                    }
+                });
+            });
+            return out;
+        });
+    }
+
+    _substituteParams(filterStr) {
+        if (!filterStr || !filterStr.includes(':')) return filterStr;
+        return filterStr.replace(/:(\w+)/g, (_, name) => {
+            if (!(name in this.params)) {
+                throw new Error(`Missing required report param: ${name}`);
+            }
+            const val = this.params[name];
+            const n = parseFloat(val);
+            if (!isNaN(n) && String(n) === String(val).trim()) return String(n);
+            // String: allow only safe chars to prevent injection
+            const safe = String(val).replace(/[^\w\s@.-]/g, '');
+            if (safe !== String(val)) {
+                throw new Error(`Invalid characters in report param: ${name}`);
+            }
+            return `'${safe.replace(/'/g, "''")}'`;
+        });
     }
 
     async initDuckDB() {
@@ -83,25 +123,35 @@ export class DataSourceManager {
             }
         }
         
+        // Substitute URL params before building SQL
+        if (dataSource.filter) {
+            dataSource._substitutedFilter = this._substituteParams(dataSource.filter);
+        }
+
         const sql = this.queryBuilder.buildQuery(dataSource, fields);
         console.log('📊 Generated SQL:', sql);
         
         const results = await this.duckdb.query(sql);
-        
-        return this.mapFieldsFromSchema(results, fields);
+
+        // DuckDB aliases join columns as "fromfield_col" (e.g. idequipo_tipo).
+        // Restore original column names so zone expressions work the same as JS path.
+        const unaliased = this._unaliasJoinColumns(results, dataSource.joins);
+
+        return this.mapFieldsFromSchema(unaliased, fields);
     }
 
     async loadWithJS(dataSource, fields) {
         let data = await this.fetchTable(dataSource.table);
-        
+
         if (dataSource.joins && dataSource.joins.length > 0) {
             data = await this.resolveJoinsJS(data, dataSource.joins, fields);
         }
-        
+
         data = this.mapFieldsFromSchema(data, fields);
-        data = this.applyFilter(data, dataSource.filter, fields);
+        const substitutedFilter = this._substituteParams(dataSource.filter);
+        data = this.applyFilter(data, substitutedFilter, fields);
         data = this.applyOrderBy(data, dataSource.orderBy, fields);
-        
+
         return data;
     }
 
@@ -251,17 +301,25 @@ export class DataSourceManager {
             }
         });
 
+        // Handle quoted string values (e.g. from param substitution: field = 'value')
+        const quotedMatch = filter.match(/^(\w+)\s*=\s*'([^']*)'$/);
+        if (quotedMatch) {
+            const dbField = yamlToDbField.get(quotedMatch[1]) || quotedMatch[1];
+            const cmpVal = quotedMatch[2];
+            return data.filter(row => String(row[dbField] ?? '') === cmpVal);
+        }
+
         const filterMatch = filter.match(/(\w+)\s*=\s*(\w+)/);
-        
+
         if (!filterMatch) return data;
 
         const [, fieldName, value] = filterMatch;
-        
+
         const dbField = yamlToDbField.get(fieldName) || fieldName;
-        
-        const filterValue = value === 'true' ? true : 
-                           value === 'false' ? false : 
-                           isNaN(value) ? value : 
+
+        const filterValue = value === 'true' ? true :
+                           value === 'false' ? false :
+                           isNaN(value) ? value :
                            (value.includes('.') ? parseFloat(value) : parseInt(value));
 
         return data.filter(row => {

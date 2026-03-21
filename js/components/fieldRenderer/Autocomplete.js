@@ -20,7 +20,14 @@ export function createAutocomplete({ id, size, isRequired, isSkip, lookupConfig,
     if (isRequired) inputEl.required = true;
     if (isSkip) {
         inputEl.readOnly = true;
-        inputEl.classList.add('readonly-field');
+        // Select-type skip: allow dropdown but block free typing.
+        // Plain text skip: fully readonly, no interaction.
+        const isSelectType = lookupConfig || (selectOptions && selectOptions.length > 0);
+        if (isSelectType) {
+            inputEl.dataset.skipSelect = 'true';
+        } else {
+            inputEl.classList.add('readonly-field');
+        }
     }
     
     if (size) {
@@ -50,6 +57,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     let catalogLoadTime = 0;
     let isOpen = false;
     let highlightedIndex = -1;
+    let parentFilterValue = null; // cascade: value of parent field (null = no filter applied)
     
     async function loadCatalog() {
         const invalidationTime = LookupService.getInvalidationTimestamp();
@@ -108,11 +116,20 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         
         const keyField = getKeyField();
         const displayField = getDisplayField();
+
+        // Cascade filter: restrict rows to those matching the parent field value
+        let rows = catalogData;
+        if (lookupConfig?.filterBy && lookupConfig?.filterField && parentFilterValue != null) {
+            rows = catalogData.filter(row =>
+                String(row[lookupConfig.filterField] ?? '') === String(parentFilterValue)
+            );
+        }
+
         const filterLower = filter.toLowerCase();
-        const filtered = catalogData.filter(row => {
+        const filtered = rows.filter(row => {
             const key = String(row[keyField] || '');
             const display = String(row[displayField] || '');
-            return key.toLowerCase().includes(filterLower) || 
+            return key.toLowerCase().includes(filterLower) ||
                    display.toLowerCase().includes(filterLower);
         });
         
@@ -181,7 +198,10 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         
         closeDropdown();
         inputEl.focus();
-        
+
+        // sf:user-change: distinguishes user selection from programmatic fill.
+        // Cascade listeners use this to reset dependent fields only on user interaction.
+        inputEl.dispatchEvent(new CustomEvent('sf:user-change', { bubbles: true }));
         inputEl.dispatchEvent(new Event('change', { bubbles: true }));
     }
     
@@ -204,7 +224,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     }
     
     function openDropdown() {
-        if (inputEl.readOnly) return;
+        if (inputEl.readOnly && !inputEl.dataset.skipSelect) return;
 
         loadCatalog().then(() => {
             renderOptions('');
@@ -366,6 +386,31 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         delete inputEl.dataset.selectedKey;
         closeDropdown();
     }, listenerOpts);
+
+    // Cascade: watch parent field and filter options when it changes
+    if (lookupConfig?.filterBy) {
+        setTimeout(() => {
+            const parentInput = container.querySelector(`#${lookupConfig.filterBy}`);
+            if (!parentInput) return;
+
+            // Seed filter from parent's current value (e.g. loading existing record)
+            if (parentInput.value) parentFilterValue = parentInput.value;
+
+            // Programmatic fill (form load): update filter but don't reset this field
+            parentInput.addEventListener('change', () => {
+                parentFilterValue = parentInput.value || null;
+            }, listenerOpts);
+
+            // User selection: update filter AND reset this dependent field
+            parentInput.addEventListener('sf:user-change', () => {
+                parentFilterValue = parentInput.value || null;
+                inputEl.value = '';
+                delete inputEl.dataset.selectedKey;
+                closeDropdown();
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }, listenerOpts);
+        }, 0);
+    }
 }
 
 export default {

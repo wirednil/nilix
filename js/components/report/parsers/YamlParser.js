@@ -227,7 +227,8 @@ export class YamlParser {
             outputTo: c.outputTo || 'display',
             formFeed: c.formFeed !== false,
             pageLength: c.pageLength || 66,
-            pageWidth: c.pageWidth || 80
+            pageWidth: c.pageWidth || 80,
+            markdown: c.markdown === true
         };
     }
 
@@ -242,6 +243,7 @@ export class YamlParser {
             type: f.type || 'string',
             length: f.length || 50,
             decimals: f.decimals,
+            escape: f.escape === true,
             dbRef: f.dbRef ? { table: f.dbRef.table, field: f.dbRef.field } : null,
             references: f.references ? {
                 table: f.references.table,
@@ -303,6 +305,7 @@ export class YamlParser {
             } : null,
             ifCondition: z.ifCondition || null,
             template: this.buildTemplate(z.template),
+            rowTemplate: this.buildTemplate(z.rowTemplate),
             columns: Array.isArray(z.columns) ? z.columns : null,
             noPrint: z.noPrint === true
         }));

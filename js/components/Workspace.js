@@ -37,7 +37,7 @@ class Workspace {
             if (xmlContent) {
                 const formContainer = document.createElement('div');
                 this.container.appendChild(formContainer);
-                this.formRenderer.render(formContainer, xmlContent, { permissions: item.permissions });
+                this.formRenderer.render(formContainer, xmlContent, { permissions: item.permissions, formPath: item.target });
             } else {
                 logger.error('Workspace', `No se pudo cargar XML: ${item.target}`);
                 this.showError("No se pudo cargar el XML");

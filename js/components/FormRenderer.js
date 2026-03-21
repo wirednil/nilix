@@ -44,6 +44,7 @@ class FormRenderer {
         const ctx = new FormContext(formNode, messagesNode, layoutNode);
         ctx.container = container;
         ctx.permissions = options.permissions || null;
+        ctx.formPath = options.formPath || null;
         this.ctx = ctx;
 
         // Backward compat sync

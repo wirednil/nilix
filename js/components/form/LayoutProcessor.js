@@ -91,6 +91,9 @@ export class LayoutProcessor {
                 if (config.isExpression) {
                     this.setupIsExpression(el, config.isExpression);
                 }
+                if (config.subformConfig) {
+                    this.setupSubformTrigger(el, config.subformConfig);
+                }
             }
             if (this.onFieldRendered) {
                 this.onFieldRendered(fieldXml, config.id);
@@ -176,12 +179,17 @@ export class LayoutProcessor {
                 const copyFields = inTableEl.querySelectorAll('copy');
                 const isKeyField = fieldXml.getAttribute('key') === 'true' || fieldXml.getAttribute('keyField') === 'true';
 
+                const filterBy    = inTableEl.getAttribute('filter-by') || null;
+                const filterField = inTableEl.getAttribute('filter-field') || filterBy;
+
                 lookupConfig = {
                     table: inTableEl.getAttribute('table'),
                     key: inTableEl.getAttribute('key'),
                     displayField: inTableEl.getAttribute('display') || inTableEl.getAttribute('key'),
                     copyFields: [],
-                    isKeyField
+                    isKeyField,
+                    filterBy,
+                    filterField
                 };
 
                 copyFields.forEach(copy => {
@@ -213,6 +221,13 @@ export class LayoutProcessor {
                 }
             }
 
+            const subformEl = fieldXml.querySelector('subform');
+            const subformConfig = subformEl ? {
+                triggerValue: subformEl.getAttribute('trigger-value'),
+                form: subformEl.getAttribute('form'),
+                onSave: subformEl.getAttribute('on-save') || null
+            } : null;
+
             return {
                 id: fieldXml.getAttribute('id') || `field-${Date.now()}`,
                 labelTxt: fieldXml.getAttribute('label') || '',
@@ -229,12 +244,88 @@ export class LayoutProcessor {
                 display: fieldXml.getAttribute('display'),
                 selectOptions,
                 lookupConfig,
-                isExpression: fieldXml.getAttribute('is') || null
+                isExpression: fieldXml.getAttribute('is') || null,
+                subformConfig
             };
         } catch (error) {
             console.error('❌ Error extrayendo configuración del campo:', error);
             throw new Error(`Campo XML mal formado: ${fieldXml.outerHTML}`);
         }
+    }
+
+    /**
+     * Abre un subformulario modal cuando el campo toma un valor específico.
+     * Al guardar en el subform, invalida el catálogo del padre y resetea el selector.
+     */
+    setupSubformTrigger(el, subformConfig) {
+        const signal = this.ctx.signal;
+
+        el.addEventListener('change', async () => {
+            if (el.value !== subformConfig.triggerValue) return;
+
+            const formPath = this.ctx.formPath || '';
+            const baseDir = formPath.replace(/\/[^/]+$/, '');
+            const subformPath = baseDir
+                ? `${baseDir}/${subformConfig.form}.xml`
+                : `${subformConfig.form}.xml`;
+
+            // Cargar XML del subform
+            let xmlString;
+            try {
+                const { authFetch } = await import('../../api/client.js');
+                const res = await authFetch(`/api/files/content?path=${encodeURIComponent(subformPath)}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                xmlString = await res.text();
+            } catch (err) {
+                console.error('[LayoutProcessor] No se pudo cargar el subform:', err);
+                if (el.options?.length > 0) el.value = el.options[0].value;
+                return;
+            }
+
+            const workspaceContainer = this.ctx.container?.parentElement;
+            if (!workspaceContainer) return;
+
+            const { authFetch } = await import('../../api/client.js');
+            const FormRenderer = (await import('../FormRenderer.js')).default;
+
+            // Vuelve al formulario padre
+            const restoreParent = async () => {
+                workspaceContainer.innerHTML = '';
+                try {
+                    const res = await authFetch(`/api/files/content?path=${encodeURIComponent(formPath)}`);
+                    const parentXml = await res.text();
+                    const container = document.createElement('div');
+                    workspaceContainer.appendChild(container);
+                    new FormRenderer().render(container, parentXml, { formPath });
+                } catch (err) {
+                    console.error('[LayoutProcessor] No se pudo restaurar el formulario padre:', err);
+                }
+            };
+
+            // Reemplazar workspace con el subform
+            workspaceContainer.innerHTML = '';
+
+            const backBtn = document.createElement('button');
+            backBtn.type = 'button';
+            backBtn.className = 'subform-back-btn';
+            backBtn.textContent = '← Volver';
+            backBtn.addEventListener('click', restoreParent);
+            workspaceContainer.appendChild(backBtn);
+
+            const subContainer = document.createElement('div');
+            workspaceContainer.appendChild(subContainer);
+            new FormRenderer().render(subContainer, xmlString, { formPath: subformPath });
+
+            // Al guardar: invalidar catálogo y volver al padre tras el feedback
+            subContainer.addEventListener('sf:record-saved', async () => {
+                try {
+                    const LookupService = (await import('../../services/LookupService.js')).default;
+                    LookupService.invalidateCache(subformConfig.form);
+                } catch (_) { /* sin cache, no importa */ }
+                setTimeout(restoreParent, 1500);
+            }, { once: true });
+
+        }, signal ? { signal } : undefined);
     }
 }
 

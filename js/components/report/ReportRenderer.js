@@ -5,10 +5,36 @@
 
 import { ExpressionEvaluator } from './ExpressionEvaluator.js';
 
+// ── Marked.js loader (markdown in templates) ─────────────────────────────────
+let markedLib = null;
+async function loadMarked() {
+    if (markedLib) return markedLib;
+    try {
+        const module = await import('https://cdn.jsdelivr.net/npm/marked@12/+esm');
+        markedLib = module.marked ?? module.default ?? module;
+        if (markedLib?.setOptions) markedLib.setOptions({ gfm: true, breaks: false });
+        console.log('✅ marked.js loaded from CDN');
+        return markedLib;
+    } catch (e) {
+        console.warn('⚠️ Could not load marked.js, using DIY inline parser');
+        return null;
+    }
+}
+
 export class ReportRenderer {
     constructor() {
         this.evaluator = new ExpressionEvaluator();
         this.renderedZones = new Set();
+        this.markdownEnabled = false;
+        this.escapeFields = new Set();
+    }
+
+    async setConfig(config, fields = []) {
+        this.markdownEnabled = config?.markdown === true;
+        this.escapeFields = new Set(
+            (fields || []).filter(f => f.escape).map(f => f.name)
+        );
+        if (this.markdownEnabled) await loadMarked();
     }
 
     renderZone(zone, context, options = {}) {
@@ -93,7 +119,12 @@ export class ReportRenderer {
         zone.template.forEach(line => {
             const p = document.createElement('div');
             p.className = 'report-header-line';
-            p.textContent = this.evaluator.evaluate(line, evaluatedContext);
+            const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+            if (this.markdownEnabled) {
+                p.innerHTML = this._markedInline(evaluated);
+            } else {
+                p.textContent = evaluated;
+            }
             header.appendChild(p);
         });
 
@@ -111,7 +142,12 @@ export class ReportRenderer {
         zone.template.forEach(line => {
             const p = document.createElement('div');
             p.className = 'report-subtotal-line';
-            p.textContent = this.evaluator.evaluate(line, evaluatedContext);
+            const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+            if (this.markdownEnabled) {
+                p.innerHTML = this._markedInline(evaluated);
+            } else {
+                p.textContent = evaluated;
+            }
             el.appendChild(p);
         });
 
@@ -128,7 +164,12 @@ export class ReportRenderer {
         zone.template.forEach(line => {
             const p = document.createElement('div');
             p.className = 'report-footer-line';
-            p.textContent = this.evaluator.evaluate(line, evaluatedContext);
+            const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+            if (this.markdownEnabled) {
+                p.innerHTML = this._markedInline(evaluated);
+            } else {
+                p.textContent = evaluated;
+            }
             footer.appendChild(p);
         });
 
@@ -295,32 +336,87 @@ export class ReportRenderer {
         el.className = 'report-lines';
         el.dataset.zone = zone.name;
 
-        zone.template.forEach(line => {
-            const p = document.createElement('div');
-            p.className = 'report-lines-line';
-
-            if (line.includes('||')) {
-                const splitIdx = line.indexOf('||');
-                const left  = this.evaluator.evaluate(line.slice(0, splitIdx), evaluatedContext);
-                const right = this.evaluator.evaluate(line.slice(splitIdx + 2).trim(), evaluatedContext);
-                p.classList.add('report-lines-split');
-                const spanL = document.createElement('span');
-                spanL.textContent = left;
-                const spanR = document.createElement('span');
-                spanR.textContent = right;
-                p.appendChild(spanL);
-                p.appendChild(spanR);
-            } else {
-                const evaluated = this.evaluator.evaluate(line, evaluatedContext);
-                if (evaluated.trim() === '') {
-                    p.innerHTML = '&nbsp;';
-                } else {
-                    p.textContent = evaluated;
-                }
+        if (this.markdownEnabled) {
+            // rowTemplate: header lines rendered once + row template repeated per record
+            if (zone.rowTemplate?.length > 0 && Array.isArray(context)) {
+                const mdLines = [];
+                zone.template.forEach(line => {
+                    mdLines.push(this.evaluator.evaluate(line, {}));
+                });
+                context.forEach(row => {
+                    const rowCtx = this.evaluateExpressions(zone.expressions, row, accumulators, breakLevel);
+                    zone.rowTemplate.forEach(line => {
+                        mdLines.push(this.evaluator.evaluate(line, rowCtx));
+                    });
+                });
+                const wrapper = document.createElement('div');
+                wrapper.className = 'report-lines-md';
+                wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
+                el.appendChild(wrapper);
+                return el;
             }
 
-            el.appendChild(p);
-        });
+            // Markdown mode: batch consecutive non-split lines into blocks
+            let mdLines = [];
+            const flushMdBlock = () => {
+                if (mdLines.length === 0) return;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'report-lines-md';
+                wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
+                el.appendChild(wrapper);
+                mdLines = [];
+            };
+
+            zone.template.forEach(line => {
+                if (line.includes('||')) {
+                    flushMdBlock();
+                    const splitIdx = line.indexOf('||');
+                    const left  = this.evaluator.evaluate(line.slice(0, splitIdx), evaluatedContext);
+                    const right = this.evaluator.evaluate(line.slice(splitIdx + 2).trim(), evaluatedContext);
+                    const p = document.createElement('div');
+                    p.className = 'report-lines-line report-lines-split';
+                    const spanL = document.createElement('span');
+                    spanL.innerHTML = this._markedInline(left);
+                    const spanR = document.createElement('span');
+                    spanR.innerHTML = this._markedInline(right);
+                    p.appendChild(spanL);
+                    p.appendChild(spanR);
+                    el.appendChild(p);
+                } else {
+                    const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+                    // Normalize ---SEPARATOR--- back to --- so marked renders it as <hr>
+                    mdLines.push(evaluated === '---SEPARATOR---' ? '---' : evaluated);
+                }
+            });
+            flushMdBlock();
+        } else {
+            zone.template.forEach(line => {
+                const p = document.createElement('div');
+                p.className = 'report-lines-line';
+
+                if (line.includes('||')) {
+                    const splitIdx = line.indexOf('||');
+                    const left  = this.evaluator.evaluate(line.slice(0, splitIdx), evaluatedContext);
+                    const right = this.evaluator.evaluate(line.slice(splitIdx + 2).trim(), evaluatedContext);
+                    p.classList.add('report-lines-split');
+                    const spanL = document.createElement('span');
+                    spanL.textContent = left;
+                    const spanR = document.createElement('span');
+                    spanR.textContent = right;
+                    p.appendChild(spanL);
+                    p.appendChild(spanR);
+                } else {
+                    const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+                    if (evaluated.trim() === '') {
+                        p.innerHTML = '&nbsp;';
+                    } else {
+                        p.textContent = evaluated;
+                    }
+                }
+
+                el.appendChild(p);
+            });
+        }
 
         return el;
     }
@@ -357,10 +453,108 @@ export class ReportRenderer {
             if (expr.format && val !== undefined && val !== null) {
                 val = this.evaluator.formatValue(val, expr.format);
             }
+            // In markdown mode: markdown-escape user-controlled fields, then HTML-escape all
+            if (this.markdownEnabled && val !== undefined && val !== null) {
+                const fieldKey = expr.field ?? expr.name;
+                if (this.escapeFields.has(fieldKey)) {
+                    val = String(val).replace(/([*_`\[\]#\\])/g, '\\$1');
+                }
+            }
             result[expr.name] = val;
         });
 
+        // In markdown mode: HTML-escape all string values to prevent XSS in innerHTML
+        if (this.markdownEnabled) {
+            for (const key of Object.keys(result)) {
+                const v = result[key];
+                if (typeof v === 'string') {
+                    result[key] = v
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                }
+            }
+        }
+
         return result;
+    }
+
+    // ── Markdown helpers ──────────────────────────────────────────────────────
+
+    _markedParse(text) {
+        if (markedLib?.parse) {
+            // Ensure '---' lines are preceded by a blank line so marked treats them
+            // as <hr> and not as setext h2 headings (which trigger when text precedes ---)
+            const normalized = text.replace(/([^\n])\n(---+)\n/g, '$1\n\n$2\n');
+            try { return markedLib.parse(normalized, { breaks: true }); } catch (e) { /* fall through */ }
+        }
+        return this._diyParse(text);
+    }
+
+    _markedInline(text) {
+        if (markedLib?.parseInline) {
+            try { return markedLib.parseInline(text); } catch (e) { /* fall through */ }
+        }
+        return this._diyInline(text);
+    }
+
+    /** DIY block parser — Phase 1-2 fallback (used when CDN is unavailable) */
+    _diyParse(text) {
+        const lines = text.split('\n');
+        const result = [];
+        let listType = null;
+        let listItems = [];
+
+        const flushList = () => {
+            if (listItems.length === 0) return;
+            const tag = listType === 'ol' ? 'ol' : 'ul';
+            result.push(`<${tag}>${listItems.map(i => `<li>${i}</li>`).join('')}</${tag}>`);
+            listItems = [];
+            listType = null;
+        };
+
+        lines.forEach(line => {
+            if (line.trim() === '---' || line === '---SEPARATOR---') {
+                flushList();
+                result.push('<hr>');
+            } else if (/^### (.+)/.test(line)) {
+                flushList();
+                result.push(`<h3>${this._diyInline(line.slice(4))}</h3>`);
+            } else if (/^## (.+)/.test(line)) {
+                flushList();
+                result.push(`<h2>${this._diyInline(line.slice(3))}</h2>`);
+            } else if (/^# (.+)/.test(line)) {
+                flushList();
+                result.push(`<h1>${this._diyInline(line.slice(2))}</h1>`);
+            } else if (/^- (.+)/.test(line)) {
+                if (listType !== 'ul') { flushList(); listType = 'ul'; }
+                listItems.push(this._diyInline(line.slice(2)));
+            } else if (/^\d+\. (.+)/.test(line)) {
+                if (listType !== 'ol') { flushList(); listType = 'ol'; }
+                listItems.push(this._diyInline(line.replace(/^\d+\. /, '')));
+            } else if (line.trim() === '') {
+                flushList();
+                result.push('');
+            } else {
+                flushList();
+                result.push(`<p>${this._diyInline(line)}</p>`);
+            }
+        });
+
+        flushList();
+        return result.join('\n');
+    }
+
+    /** DIY inline parser — Phase 1 fallback */
+    _diyInline(text) {
+        let s = String(text ?? '');
+        // Bold must precede italic to avoid matching inner stars
+        s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
+        s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+        s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+        return s;
     }
 
     createContainer() {

@@ -155,6 +155,13 @@ async function createRecord(req, res) {
             saveDatabase();
         }
 
+        // Extract output hint (not a DB column)
+        let handlerOutput = null;
+        if (transformedData && typeof transformedData === 'object' && '__output' in transformedData) {
+            handlerOutput = transformedData.__output;
+            delete transformedData.__output;
+        }
+
         // Handler devuelve null → manejó todo internamente, omitir CRUD estándar
         if (handler && transformedData === null) {
             handlerService.afterSaveWithHandler(handler, data, false);
@@ -167,7 +174,7 @@ async function createRecord(req, res) {
             handlerService.afterSaveWithHandler(handler, result.data, true);
         }
 
-        res.status(201).json({ data: result.data });
+        res.status(201).json({ data: result.data, output: handlerOutput });
     } catch (error) {
         if (error.code === 'TABLE_NOT_FOUND') {
             return res.status(404).json({
@@ -256,6 +263,13 @@ async function upsertRecord(req, res) {
             saveDatabase();
         }
 
+        // Extract output hint (not a DB column)
+        let handlerOutput = null;
+        if (transformedData && typeof transformedData === 'object' && '__output' in transformedData) {
+            handlerOutput = transformedData.__output;
+            delete transformedData.__output;
+        }
+
         // Handler devuelve null → manejó todo internamente, omitir CRUD estándar
         if (handler && transformedData === null) {
             handlerService.afterSaveWithHandler(handler, data, false);
@@ -267,16 +281,13 @@ async function upsertRecord(req, res) {
         if (handler) {
             handlerService.afterSaveWithHandler(handler, result.data || result, !result.updated);
         }
-        
+
         const invalidateTables = handler?.invalidateTables || [];
-        // console.log(`🔄 [BACKEND] Handler: ${handlerName}`);
-        // console.log(`🔄 [BACKEND] invalidateTables del handler:`, invalidateTables);
-        // console.log(`🔄 [BACKEND] (ANTES: hardcodeado en FormRenderer.js)`);
-        
+
         if (result.updated) {
-            res.json({ data: result.data || result, updated: true, invalidateTables });
+            res.json({ data: result.data || result, updated: true, invalidateTables, output: handlerOutput });
         } else {
-            res.status(201).json({ data: result.data || result, created: true, invalidateTables });
+            res.status(201).json({ data: result.data || result, created: true, invalidateTables, output: handlerOutput });
         }
     } catch (error) {
         if (error.code === 'TABLE_NOT_FOUND') {

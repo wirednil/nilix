@@ -24,7 +24,7 @@ export class ReportEngine {
         this.duckdbReady = false;
     }
 
-    async load(reportPath, yamlContent = null, empresaId = null) {
+    async load(reportPath, yamlContent = null, empresaId = null, params = {}) {
         if (yamlContent === null) {
             const response = await fetch(reportPath);
             if (!response.ok) {
@@ -34,6 +34,10 @@ export class ReportEngine {
         }
 
         this.schema = await this.parser.parse(yamlContent);
+        await this.renderer.setConfig(this.schema.config, this.schema.fields);
+
+        this.params = params;
+        this.dataSourceManager.setParams(params);
 
         if (this.schema.public) {
             const reportName = reportPath.split('/').pop().replace(/\.ya?ml$/, '');
@@ -216,7 +220,13 @@ export class ReportEngine {
         );
 
         afterReportZones.forEach(zone => {
-            const element = this.renderer.renderZone(zone, { ...datasetMap }, {
+            // If zone has a dataSource and rowTemplate, pass the full data array
+            // so the renderer can iterate over every record (markdown row-per-row)
+            const context = (zone.dataSource && zone.rowTemplate?.length > 0)
+                ? (this.data.get(zone.dataSource) || [])
+                : { ...datasetMap };
+
+            const element = this.renderer.renderZone(zone, context, {
                 accumulators: this.accumulators,
                 breakLevel: null
             });
