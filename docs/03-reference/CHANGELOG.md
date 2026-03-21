@@ -7,6 +7,195 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.6.0] — 2026-03-21
+
+### Pipeline Form → Report (`<output>`), reportes parametrizados, joins encadenados, aritmética en fórmulas, botón imprimir, selects en cascada, subformularios, `skip` en selects, layout vertical expand
+
+---
+
+**1. Directiva `<output>` — pipeline Formulario → Reporte**
+
+Después de un guardado exitoso, el formulario puede abrir automáticamente un reporte en una pestaña nueva. La directiva se declara dentro de `<form>`, antes de `<form-attributes>`:
+
+```xml
+<output report="comprobante_ingreso" param="id_orden" on="create"/>
+<output report="comprobante_entrega" param="id_orden" condition="estado == 'Entregado'"/>
+```
+
+Atributos:
+
+| Atributo | Descripción |
+|---|---|
+| `report` | Nombre del YAML del reporte (sin `.yaml`) |
+| `param` | Campo del registro guardado que se pasa como parámetro URL |
+| `on` | `"create"` (solo al insertar) \| `"save"` (siempre, default) |
+| `condition` | Expresión `campo == 'valor'` evaluada contra el dato guardado |
+
+Si el navegador bloquea el popup, aparece un enlace clickeable inline en el formulario como alternativa.
+
+**Output desde handler:** el handler puede disparar un reporte asignando `data.__output = { report: 'nombre', param: 'campo' }` en `beforeSave`. La salida del handler tiene prioridad sobre las directivas XML.
+
+**Archivos modificados:** `FormContext.js`, `SubmitManager.js`, `parsers/FormParser.js`
+
+---
+
+**2. Reportes parametrizados — sustitución `:param` en `filter`**
+
+Los reportes pueden recibir parámetros via URL que se sustituyen directamente en la expresión `filter`:
+
+URL: `report.html?file=comprobante_ingreso&id_orden=5`
+
+```yaml
+dataSources:
+  orden:
+    table: ordenes
+    filter: "id_orden = :id_orden"
+```
+
+`:id_orden` se reemplaza con el valor del parámetro de URL correspondiente. Reglas de sustitución:
+- Parámetros numéricos → se inyectan sin comillas.
+- Parámetros string → validados contra lista blanca de caracteres seguros y entrecomillados con comillas simples.
+- Parámetro ausente → el motor lanza un error visible en `report.html`.
+- Caracteres inválidos en parámetro string → también producen error.
+
+**Archivos modificados:** `parsers/YamlParser.js`, `DataSourceManager.js`, `report.html`
+
+---
+
+**3. Joins encadenados**
+
+Los joins pueden referenciar columnas traídas por joins anteriores, no solo campos de la tabla principal. El motor resuelve el `from:` buscando en el resultado acumulado de joins previos.
+
+```yaml
+dataSources:
+  orden:
+    table: ordenes
+    filter: "id_orden = :id_orden"
+    joins:
+      - from: id_equipo
+        to: equipos.id_equipo
+        include: [tipo, marca_modelo, numero_serie, id_cliente]
+      - from: id_cliente          # proviene del join anterior (equipos), no de ordenes
+        to: clientes.id_cliente
+        include: [nombre_completo, telefono]
+```
+
+Funciona tanto en el path JS (`DataSourceManager.js`) como en el path DuckDB.
+
+---
+
+**4. Aritmética en `formula:`**
+
+Además de `if()`, `formula:` ahora acepta expresiones aritméticas directas:
+
+```yaml
+expressions:
+  - name: saldo
+    formula: "total - sena_pagada"
+  - name: subtotal
+    formula: "precio * cantidad"
+```
+
+Los nombres de campo se resuelven en el contexto de la fila (datos del registro). Solo participan campos numéricos; la expresión se valida contra `/^[\d\s+\-*/.()]+$/` antes de `eval`. Campos no numéricos o ausentes producen cadena vacía.
+
+**Archivos modificados:** `ReportRenderer.js`
+
+---
+
+**5. Botón Imprimir / PDF en `report.html`**
+
+Un botón fijo "Imprimir / PDF" siempre visible en la esquina inferior derecha de `report.html`. Llama a `window.print()`. Se oculta automáticamente con `@media print` para no aparecer en la salida impresa ni en el PDF generado por el navegador.
+
+**Archivos modificados:** `report.html`, `css/styles.css`
+
+---
+
+**6. Selects en cascada — `filter-by` / `filter-field` en `<in-table>`**
+
+Un campo `type="select"` con `<in-table>` puede filtrar sus opciones en función del valor seleccionado en otro campo del formulario:
+
+```xml
+<!-- Campo padre -->
+<field id="id_cliente" label="Cliente" type="select">
+    <in-table table="clientes" key="id_cliente" display="nombre_completo"/>
+</field>
+
+<!-- Campo hijo — filtra por id_cliente -->
+<field id="id_equipo" label="Equipo" type="select">
+    <in-table table="equipos" key="id_equipo" display="marca_modelo"
+              filter-by="id_cliente" filter-field="id_cliente"/>
+</field>
+
+<!-- Campo nieto — filtra por id_equipo -->
+<field id="id_orden" label="Ticket" type="select" keyField="true">
+    <in-table table="ordenes" key="id_orden" display="problema_reportado"
+              filter-by="id_equipo" filter-field="id_equipo"/>
+</field>
+```
+
+| Atributo | Descripción |
+|---|---|
+| `filter-by` | ID del campo padre cuyo valor conduce el filtro |
+| `filter-field` | Columna en la tabla hija a comparar contra el valor padre (por defecto igual a `filter-by`) |
+
+Comportamiento:
+- Cambio de usuario en el padre (`sf:user-change`) → hijo se resetea y re-carga.
+- Carga programática de registro existente (evento `change`) → el filtro se actualiza pero el valor hijo se preserva.
+- Soporta N niveles (en el ejemplo: cliente → equipo → orden).
+
+**Archivos modificados:** `fieldRenderer/SelectField.js`, `ValidationCoordinator.js`
+
+---
+
+**7. Subformularios — `<subform>` en campos select**
+
+Un campo `type="select"` puede disparar navegación inline hacia un formulario secundario cuando el usuario elige un valor específico:
+
+```xml
+<field id="choose" label="ACCION" type="select" default="1">
+    <options>
+        <option value="1">EXISTENTE</option>
+        <option value="2">NUEVO</option>
+    </options>
+    <subform trigger-value="2" form="clientes_nuevo"/>
+</field>
+```
+
+| Atributo | Descripción |
+|---|---|
+| `trigger-value` | Valor de opción que dispara la navegación |
+| `form` | Nombre del archivo XML (sin `.xml`), relativo al directorio del formulario actual |
+
+Comportamiento:
+- Al seleccionar el valor disparador, el workspace se reemplaza con el subformulario.
+- Aparece un botón `← Volver` en la parte superior para retornar al formulario padre sin guardar.
+- Tras un guardado exitoso en el subformulario, el catálogo de lookup se invalida y el workspace vuelve al padre después de 1,5 segundos.
+- La opción disparadora se resetea a la primera opción (default) al volver al padre.
+
+**Archivos modificados:** `fieldRenderer/SelectField.js`, `Workspace.js`, `FormRenderer.js`
+
+---
+
+**8. `skip="true"` en campos select**
+
+Anteriormente, `skip="true"` en cualquier campo lo hacía completamente de solo lectura (incluyendo bloqueo del dropdown). A partir de esta versión, `skip="true"` sobre un campo `type="select"` (con `<in-table>` o `<options>`) permite al usuario operar el dropdown con normalidad, pero bloquea el ingreso de texto libre.
+
+Caso de uso típico: formulario padre en modo EXISTENTE donde `id_cliente` debe ser navegable via dropdown pero no ingresable manualmente.
+
+**Archivos modificados:** `fieldRenderer/SelectField.js`
+
+---
+
+**9. Layout vertical: `expand-to-label` automático**
+
+En contenedores `<container type="vertical">`, todos los inputs ahora se expanden para ocupar el ancho disponible del contenedor, independientemente del tamaño del label. Anteriormente, solo se expandían los campos cuyo label era más ancho que el input.
+
+En layout horizontal el comportamiento original se preserva: expansión solo cuando el label supera el ancho del input.
+
+**Archivos modificados:** `LayoutProcessor.js`
+
+---
+
 ## [2.5.3] — 2026-03-21
 
 ### Report engine — `rowTemplate` + comportamiento inline/block en markdown

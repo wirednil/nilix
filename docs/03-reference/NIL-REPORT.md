@@ -53,6 +53,8 @@ public: false                     # true = accesible sin login (ver §9)
 
 config:
   paginationMode: scroll          # Solo 'scroll' implementado
+  markdown: false                 # true = habilita Markdown en templates (ver §7.5)
+  outputFormat: web               # web | pdf | thermal (declarativo; ver nota abajo)
 
 fields: [...]                     # Definición de campos (§3)
 dataSources: {...}                # Fuentes de datos (§4)
@@ -63,6 +65,12 @@ meta:
   author: ""
   createdAt: ""
 ```
+
+> **`config.outputFormat`:** campo declarativo/informativo que indica el destino esperado del reporte. `web` (default) = visualización en browser. `pdf` = destino impresión/PDF. `thermal` = ticket de impresora térmica. El motor no altera su comportamiento en función de este valor actualmente; se usa como documentación del propósito del reporte y puede usarse en CSS (`@media print`) o en futuras versiones del motor.
+
+### Botón "Imprimir / PDF"
+
+`report.html` incluye un botón fijo "Imprimir / PDF" siempre visible en la esquina inferior derecha de la pantalla. Al pulsarlo, invoca `window.print()`, lo que abre el diálogo de impresión del navegador (también permite guardar como PDF). El botón se oculta automáticamente con `@media print` para no aparecer en la salida impresa ni en el PDF generado.
 
 ---
 
@@ -128,6 +136,28 @@ dataSources:
           - nombre                # Columna(s) a traer de la tabla join
 ```
 
+### Joins encadenados
+
+El campo `from:` de un join puede referenciar una columna traída por un join anterior, no solo campos de la tabla principal. El motor resuelve el `from:` buscando en el resultado acumulado de todos los joins previos en orden de declaración.
+
+```yaml
+dataSources:
+  orden:
+    table: ordenes
+    filter: "id_orden = :id_orden"
+    joins:
+      - from: id_equipo
+        to: equipos.id_equipo
+        include: [tipo, marca_modelo, numero_serie, id_cliente]
+      - from: id_cliente          # viene del join anterior (equipos), no de ordenes
+        to: clientes.id_cliente
+        include: [nombre_completo, telefono]
+```
+
+En el ejemplo, `ordenes` no tiene columna `id_cliente`; el valor lo aporta el primer join sobre `equipos`. El segundo join lo usa correctamente.
+
+> Funciona tanto en el path JS (`DataSourceManager.js`) como en el path DuckDB.
+
 ### 4.1 Sintaxis de `filter`
 
 Solo soporta comparaciones simples:
@@ -139,6 +169,38 @@ filter: "estado = 'Pendiente'"    # → WHERE estado = 'Pendiente'
 ```
 
 > **No implementado aún:** `IN`, `LIKE`, `>`, `<`, expresiones compuestas.
+
+### 4.2 Parámetros de URL en `filter`
+
+El `filter` puede contener marcadores de la forma `:nombre_param` que se sustituyen con valores recibidos por URL al cargar el reporte. Esto permite generar reportes filtrados por un registro específico, por ejemplo desde la directiva `<output>` de un formulario.
+
+**URL de ejemplo:**
+
+```
+report.html?file=comprobante_ingreso&id_orden=5
+```
+
+**YAML:**
+
+```yaml
+dataSources:
+  orden:
+    table: ordenes
+    filter: "id_orden = :id_orden"
+```
+
+En tiempo de carga, `:id_orden` se reemplaza con `5` → `WHERE id_orden = 5`.
+
+**Reglas de sustitución:**
+
+| Tipo de valor | Comportamiento |
+|---|---|
+| Numérico | Se inyecta directamente sin comillas |
+| String | Se valida contra lista blanca de caracteres permitidos y se entrecomilla con comillas simples |
+| Parámetro ausente | El motor lanza un error visible en `report.html` |
+| Caracteres inválidos en string | También producen error (protección contra inyección) |
+
+Los parámetros de URL pueden combinarse con cualquier dataSource del reporte. Un reporte puede recibir múltiples parámetros simultáneamente si el YAML los referencia.
 
 ---
 
@@ -370,16 +432,16 @@ El separador `||` divide la línea en dos partes: la izquierda queda alineada a 
 
 Implementado como `display: flex; justify-content: space-between` en `.report-lines-split`.
 
-### 7.4 Fórmulas — `formula: "if(...)"`
+### 7.4 Fórmulas — `formula:`
 
-Expresiones condicionales en cualquier zona:
+`formula:` admite dos variantes: expresiones condicionales `if()` y expresiones aritméticas directas.
+
+#### Condicional — `if(condición, valorSiTrue, valorSiFalse)`
 
 ```yaml
 - name: icono
   formula: "if(tipo == 'Ingreso', '↓', '↑')"
 ```
-
-**Sintaxis:** `if(condición, valorSiTrue, valorSiFalse)`
 
 **Condiciones soportadas directamente** (sin eval):
 ```
@@ -395,6 +457,20 @@ campo >= número        campo <= número
 - Nombre de campo del contexto: `monto_fmt`
 
 > **Nota:** condiciones compuestas (`&&`, `||`) usan `Function()` con `isConditionSafe` como guardia de seguridad.
+
+#### Aritmética directa
+
+`formula:` también acepta expresiones aritméticas simples entre campos del contexto:
+
+```yaml
+expressions:
+  - name: saldo
+    formula: "total - sena_pagada"
+  - name: subtotal
+    formula: "precio * cantidad"
+```
+
+Los nombres de campo se resuelven en el contexto de la fila (datos del registro). La expresión se valida contra `/^[\d\s+\-*/.()]+$/` antes de ser evaluada. Campos no numéricos o ausentes producen cadena vacía como resultado.
 
 ---
 
@@ -715,14 +791,15 @@ Con `public: true`, el reporte es accesible sin login usando el `public_token` d
 
 ## 11. Funcionalidades pendientes
 
-Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordenadas por impacto estimado:
+Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordenadas por impacto estimado.
+
+> **Implementado en v2.6.0:** parámetros URL en `filter` (`:param`), aritmética en `formula:`, joins encadenados, botón Imprimir/PDF.
 
 ### Alta prioridad
 
 | Feature | Descripción | Caso de uso |
 |---------|-------------|-------------|
 | **`runsum` / `runcount`** | Acumulados globales sin reset | Totales año-a-fecha, contadores de reporte |
-| **Filtros complejos** | `IN`, `LIKE`, `>`, `<`, `AND`, `OR` | Rango de fechas, múltiples estados |
 | **Funciones de fecha** | `day()`, `month()`, `year()` | Agrupar por mes/año sin campo extra en DB |
 
 ### Media prioridad
@@ -731,8 +808,8 @@ Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordena
 |---------|-------------|-------------|
 | **`if` compuesto** | Condiciones con `&&`, `||` en `formula:` | Mostrar alerta si `monto > 10000 && tipo == 'Egreso'` |
 | **`null zeros`** | No mostrar cero en campos vacíos | Reportes con campos opcionales |
-| **Parámetros JWT** | Inyectar `empresa_id` u otros en queries | Queries parametrizadas seguras |
 | **Export PDF** | `outputTo: pdf` funcional | Comprobantes imprimibles |
+| **Filtros complejos en `filter:`** | `IN`, `LIKE`, rangos, `AND`/`OR` | Rango de fechas, múltiples estados simultáneos |
 
 ### Baja prioridad / Limitaciones de diseño
 

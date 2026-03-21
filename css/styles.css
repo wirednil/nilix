@@ -373,6 +373,10 @@ ul.tree.root {
     width: 100%;
 }
 
+#active-content .form-vertical {
+    min-width: 80ch;
+}
+
 /* =========================================
    ESTILOS DEL FORMULARIO (V2 - Hierarchy)
    ========================================= */
@@ -523,7 +527,6 @@ ul.tree.root {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    min-width: 80ch;
 }
 
 /* Fila Vertical Estándar - Etiquetas ARRIBA del input (top-aligned) */

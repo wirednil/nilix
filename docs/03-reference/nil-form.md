@@ -255,6 +255,36 @@ Los mensajes se referencian desde `<field>` mediante el atributo `help`:
 <display-status>true</display-status>
 ```
 
+### Directiva `<output>` — Pipeline Formulario → Reporte
+
+Permite que el formulario abra automáticamente un reporte en una nueva pestaña del navegador tras un guardado exitoso. Se declara dentro del elemento `<form>`, antes de `<form-attributes>`:
+
+```xml
+<form id="orden" title="Orden de Servicio" database="ordenes" handler="orden_handler">
+    <output report="comprobante_ingreso" param="id_orden" on="create"/>
+    <output report="comprobante_entrega" param="id_orden" condition="estado == 'Entregado'"/>
+    <form-attributes>
+        ...
+    </form-attributes>
+    ...
+</form>
+```
+
+**Atributos de `<output>`:**
+
+| Atributo | Descripción |
+|---|---|
+| `report` | Nombre del archivo YAML del reporte, sin extensión `.yaml` |
+| `param` | Nombre del campo del registro guardado cuyo valor se pasa como parámetro URL al reporte |
+| `on` | `"create"` — solo al insertar un registro nuevo; `"save"` — en todo guardado (valor por defecto) |
+| `condition` | Expresión `campo == 'valor'` evaluada contra el dato guardado; si no se cumple, la directiva se ignora |
+
+Pueden declararse múltiples elementos `<output>` en el mismo formulario; cada uno se evalúa de forma independiente.
+
+**Fallback por bloqueador de popups:** si el navegador bloquea la apertura de la pestaña, aparece un enlace clickeable directamente en el formulario.
+
+**Output desde handler:** el handler puede disparar un reporte asignando `data.__output = { report: 'nombre', param: 'campo' }` en `beforeSave`. La salida indicada por el handler tiene prioridad sobre cualquier directiva `<output>` en el XML.
+
 ---
 
 ## 🚧 Pendiente en nil-form
@@ -264,7 +294,6 @@ Los mensajes se referencian desde `<field>` mediante el atributo `help`:
 - **Máscaras** (`mask`) → restricción de caracteres por posición (CUIT, CBU, teléfono). No implementado.
 - **Variables de ambiente en imagen** (`$usrname`) → valores dinámicos embebidos en el layout. No implementado como atributo de pantalla; disponible via handler o `is=`.
 - **Campos Agrupados** → validación cruzada al salir del grupo (`check after campo`). No implementado.
-- **Subformularios** → formulario modal al completar un campo, hasta 8 niveles anidados. No implementado.
 - **`autowrite`** → grabación automática al pasar por el campo de control. No implementado.
 - **Especificadores de formato en mensajes** (`%d`, `%s`, `%D`, etc.) → mensajes son cadenas estáticas; valores dinámicos disponibles via handler.
 
@@ -435,6 +464,8 @@ El campo se omite en el recorrido de ingreso de datos. También aplica a multifi
 <field id="interno" type="number" skip="true"/>
 ```
 
+> **En campos `type="select"`:** `skip="true"` permite al usuario operar el dropdown con normalidad (elegir una opción de la lista), pero bloquea el ingreso de texto libre. Esto es útil cuando el campo debe ser navegable pero no modificable manualmente; por ejemplo, un selector de cliente en un formulario donde el cliente ya fue pre-elegido vía cascada pero el operador puede cambiarlo por otro de la lista.
+
 ---
 
 ### Atributos para Campos Simples
@@ -555,6 +586,40 @@ Verifica que el valor ingresado exista en una tabla de la base de datos. Al soli
 </field>
 ```
 
+### Selects en Cascada — `filter-by` / `filter-field`
+
+Un campo `type="select"` con `<in-table>` puede filtrar su lista de opciones en función del valor elegido en otro campo del mismo formulario. Los atributos `filter-by` y `filter-field` se definen en el elemento `<in-table>` del campo hijo:
+
+```xml
+<!-- Campo padre -->
+<field id="id_cliente" label="Cliente" type="select">
+    <in-table table="clientes" key="id_cliente" display="nombre_completo"/>
+</field>
+
+<!-- Campo hijo — filtra por id_cliente -->
+<field id="id_equipo" label="Equipo" type="select">
+    <in-table table="equipos" key="id_equipo" display="marca_modelo"
+              filter-by="id_cliente" filter-field="id_cliente"/>
+</field>
+
+<!-- Campo nieto — filtra por id_equipo -->
+<field id="id_orden" label="Ticket" type="select" keyField="true">
+    <in-table table="ordenes" key="id_orden" display="problema_reportado"
+              filter-by="id_equipo" filter-field="id_equipo"/>
+</field>
+```
+
+| Atributo | Descripción |
+|---|---|
+| `filter-by` | ID del campo padre cuyo valor controla el filtro |
+| `filter-field` | Columna en la tabla hija que se compara contra el valor del padre. Si se omite, se asume el mismo valor que `filter-by` |
+
+**Comportamiento:**
+
+- Cuando el usuario cambia el valor del campo padre (evento `sf:user-change`), el campo hijo se resetea y recarga su lista filtrada.
+- Cuando el formulario carga un registro existente (llenado programático vía evento `change`), el filtro se actualiza pero el valor del hijo se preserva.
+- La cascada soporta N niveles de anidamiento (el ejemplo muestra 3 niveles: cliente → equipo → orden).
+
 ---
 
 ### Los Campos Descripción — `<copy>`
@@ -625,7 +690,7 @@ Ejemplo con agregados sobre un multifield:
 - **`autoenter`** → paso automático al completar el campo. No implementado.
 - **`in table` con índice compuesto** (`by indice (val,...)`) → `<in-table>` soporta clave simple; índices compuestos no implementados.
 - **Campos Agrupados** → validaciones cruzadas al salir del grupo. No implementado.
-- **Subformularios** → modal al completar un campo, hasta 8 niveles. No implementado.
+- **Subformularios** → `<subform>` en campos `type="select"` implementado (ver sección Subformularios). Anidamiento automático multi-nivel (>1 nivel) pendiente.
 - **`is descr(campo)`** / **`is help(tecla)`** / **`is num/date/time(expr)`** → funciones de conversión y descripción. No implementados.
 - **`autowrite`** → grabación automática al pasar por el campo de control. No implementado.
 - **Especificadores de formato en mensajes** (`%d`, `%s`, etc.) → mensajes son cadenas estáticas.
@@ -711,7 +776,7 @@ Si el handler devuelve un valor para el campo en `after()` o `beforeSave()`, ese
 - **`in table` con índice compuesto** (`by indice`) → `<in-table>` soporta clave simple únicamente.
 - **`on help in table` sin validación** → `<in-table>` siempre valida; variante solo-ayuda no implementada.
 - **Campos Agrupados** → validaciones cruzadas al salir del grupo. No implementado.
-- **Subformularios** → modal al completar un campo, hasta 8 niveles. No implementado.
+- **Subformularios** → `<subform>` en campos `type="select"` implementado (ver sección Subformularios). Anidamiento automático multi-nivel (>1 nivel) pendiente.
 - **`is descr(campo)`** / **`is help(tecla)`** / **`is num/date/time(expr)`** → funciones de conversión y descripción. No implementados.
 - **`autowrite`** → grabación automática al pasar por el campo de control. No implementado.
 - **Especificadores de formato en mensajes** (`%d`, `%s`, etc.) → mensajes son cadenas estáticas.
@@ -721,9 +786,39 @@ Si el handler devuelve un valor para el campo en `after()` o `beforeSave()`, ese
 
 ## Subformularios
 
-Los subformularios permiten desplegar un formulario secundario en forma dinámica al completar un campo, permitiendo cargar datos en él y luego retornar al formulario original. Pueden anidarse hasta ocho niveles.
+Los subformularios permiten desplegar un formulario secundario en forma dinámica al seleccionar un valor en un campo `type="select"`, cargar datos en él y luego retornar al formulario original.
 
-> ❌ **No implementado en nil-form v2.3.0.** Ver 🚧 Pendiente.
+### Sintaxis `<subform>`
+
+El elemento `<subform>` se anida dentro del `<field>` de tipo select:
+
+```xml
+<field id="choose" label="ACCION" type="select" default="1">
+    <options>
+        <option value="1">EXISTENTE</option>
+        <option value="2">NUEVO</option>
+    </options>
+    <subform trigger-value="2" form="clientes_nuevo"/>
+</field>
+```
+
+**Atributos de `<subform>`:**
+
+| Atributo | Descripción |
+|---|---|
+| `trigger-value` | Valor de opción que dispara la navegación al subformulario |
+| `form` | Nombre del archivo XML del subformulario (sin `.xml`), relativo al directorio del formulario actual |
+
+### Comportamiento
+
+- Cuando el usuario selecciona el valor indicado en `trigger-value`, el workspace se reemplaza con el subformulario especificado.
+- Aparece un botón `← Volver` en la parte superior del subformulario para retornar al formulario padre en cualquier momento sin guardar.
+- Tras un guardado exitoso en el subformulario, el catálogo de lookup del campo padre se invalida (para reflejar el nuevo registro) y el workspace vuelve automáticamente al formulario padre después de 1,5 segundos.
+- Al volver al padre, la opción disparadora se resetea a la primera opción (el `default`).
+
+### Caso de uso típico
+
+Selector EXISTENTE / NUEVO en un formulario: la opción EXISTENTE usa selects en cascada para elegir un registro ya cargado; la opción NUEVO navega a un formulario de alta rápida y, al guardar, regresa al padre con el nuevo registro disponible en el catálogo.
 
 ---
 
@@ -931,7 +1026,7 @@ Permitía usar un formulario como captura de parámetros para lanzar un proceso 
 - **`in table` con índice compuesto** (`by indice`) → `<in-table>` soporta clave simple únicamente.
 - **`on help in table` sin validación** → `<in-table>` siempre valida; variante solo-ayuda no implementada.
 - **Campos Agrupados** → validaciones cruzadas al salir del grupo (`check after campo`). No implementado.
-- **Subformularios** → formulario modal al completar un campo, hasta 8 niveles. No implementado.
+- **Subformularios** → `<subform>` en campos `type="select"` implementado (ver sección Subformularios). Anidamiento automático multi-nivel (>1 nivel) pendiente.
 - **`ignore [delete] [add] [insert]`** en multifield → control granular de operaciones por fila. No implementado.
 - **`skip when condición`** en multifield → no implementado.
 - **`is descr(campo)`** / **`is help(tecla)`** / **`is num/date/time(expr)`** → no implementados.
@@ -1115,7 +1210,7 @@ La interfaz completa del handler — incluyendo todas las funciones disponibles 
 - **`in table` con índice compuesto** (`by indice`) → `<in-table>` soporta clave simple únicamente.
 - **`on help in table` sin validación** → variante solo-ayuda sin validación. No implementado.
 - **Campos Agrupados** → como estructura XML declarativa con `check after campo`. No implementado.
-- **Subformularios** (automáticos y manuales) → formulario modal al completar un campo. No implementado.
+- **Subformularios** → `<subform>` en campos `type="select"` implementado (ver sección Subformularios). Anidamiento automático multi-nivel (>1 nivel) pendiente.
 - **`ignore [delete] [add] [insert]`** en multifield → control granular por operación. No implementado.
 - **`skip when condición`** en multifield → no implementado.
 - **`has [after|before] when expr`** → ejecución condicional declarativa de hooks. No implementado.
