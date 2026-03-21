@@ -98,11 +98,17 @@ export class ReportEngine {
         const groups = this.groupByCategory(data, breakFields);
         console.log(`📦 Grouped into ${groups.length} categories`);
 
+        // Pre-compute lookahead aggregates (scope: lookahead)
+        const lookaheadMap = this.precomputeGroupAggregates(groups, this.schema.zones);
+
+        // Pre-compute dataset aggregates (scope: dataset, optional filter)
+        const datasetMap = this.precomputeDatasetAggregates(data, this.schema.zones);
+
         // Render each group
         groups.forEach((group, idx) => {
             // Render separator (before-break zone)
             if (group.categoryValue !== null || idx === 0) {
-                this.renderCategorySeparator(container, group.records[0], breakFields, group.categoryValue);
+                this.renderCategorySeparator(container, group.records[0], breakFields, group.categoryValue, lookaheadMap);
             }
 
             // Render grid with records + populate accumulators
@@ -121,7 +127,7 @@ export class ReportEngine {
         });
 
         // Render footer
-        this.renderAfterReport(container);
+        this.renderAfterReport(container, datasetMap);
 
         return container;
     }
@@ -203,14 +209,14 @@ export class ReportEngine {
         });
     }
 
-    renderAfterReport(container) {
+    renderAfterReport(container, datasetMap = {}) {
         const afterReportZones = this.schema.zones.filter(z =>
             z.printCondition?.when === 'after' &&
             z.printCondition.triggers.some(t => t.type === 'report')
         );
 
         afterReportZones.forEach(zone => {
-            const element = this.renderer.renderZone(zone, {}, {
+            const element = this.renderer.renderZone(zone, { ...datasetMap }, {
                 accumulators: this.accumulators,
                 breakLevel: null
             });
@@ -220,7 +226,94 @@ export class ReportEngine {
         });
     }
 
-    renderCategorySeparator(container, record, breakFields, categoryValue) {
+    precomputeGroupAggregates(groups, zones) {
+        const lookaheadMap = new Map();
+
+        // Collect all lookahead expressions across all zones
+        const lookaheadExprs = [];
+        zones.forEach(zone => {
+            (zone.expressions || []).forEach(expr => {
+                if (expr.scope === 'lookahead' && expr.aggregate && expr.argument) {
+                    lookaheadExprs.push(expr);
+                }
+            });
+        });
+        if (lookaheadExprs.length === 0) return lookaheadMap;
+
+        groups.forEach(group => {
+            const aggs = {};
+            lookaheadExprs.forEach(expr => {
+                const values = group.records
+                    .map(r => parseFloat(r[expr.argument]))
+                    .filter(v => !isNaN(v));
+                let raw = 0;
+                switch (expr.aggregate) {
+                    case 'sum':   raw = values.reduce((a, b) => a + b, 0); break;
+                    case 'count': raw = values.length; break;
+                    case 'avg':   raw = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0; break;
+                    case 'min':   raw = values.length ? Math.min(...values) : 0; break;
+                    case 'max':   raw = values.length ? Math.max(...values) : 0; break;
+                }
+                aggs[`_lookahead_${expr.name}`] = raw;
+            });
+            lookaheadMap.set(group.categoryValue, aggs);
+        });
+
+        return lookaheadMap;
+    }
+
+    precomputeDatasetAggregates(data, zones) {
+        const map = {};
+        const datasetExprs = [];
+
+        zones.forEach(zone => {
+            (zone.expressions || []).forEach(expr => {
+                if (expr.scope === 'dataset' && expr.aggregate && expr.argument) {
+                    datasetExprs.push(expr);
+                }
+            });
+        });
+        if (datasetExprs.length === 0) return map;
+
+        datasetExprs.forEach(expr => {
+            const rows = expr.filter
+                ? data.filter(r => this._matchSimpleFilter(r, expr.filter))
+                : data;
+            const values = rows.map(r => parseFloat(r[expr.argument])).filter(v => !isNaN(v));
+            let raw = 0;
+            switch (expr.aggregate) {
+                case 'sum':   raw = values.reduce((a, b) => a + b, 0); break;
+                case 'count': raw = values.length; break;
+                case 'avg':   raw = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0; break;
+                case 'min':   raw = values.length ? Math.min(...values) : 0; break;
+                case 'max':   raw = values.length ? Math.max(...values) : 0; break;
+            }
+            map[`_dataset_${expr.name}`] = raw;
+        });
+
+        return map;
+    }
+
+    _matchSimpleFilter(record, filterExpr) {
+        const s = filterExpr.trim();
+        const mStr = s.match(/^(\w+)\s*==\s*'([^']*)'$/) || s.match(/^(\w+)\s*==\s*"([^"]*)"/);
+        if (mStr) return String(record[mStr[1]] ?? '') === mStr[2];
+        const mNum = s.match(/^(\w+)\s*(==|!=|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+        if (mNum) {
+            const l = parseFloat(record[mNum[1]]), r = parseFloat(mNum[3]);
+            switch (mNum[2]) {
+                case '==': return l === r;
+                case '!=': return l !== r;
+                case '>':  return l > r;
+                case '<':  return l < r;
+                case '>=': return l >= r;
+                case '<=': return l <= r;
+            }
+        }
+        return true;
+    }
+
+    renderCategorySeparator(container, record, breakFields, categoryValue, lookaheadMap = null) {
         const separatorZones = this.schema.zones.filter(z => 
             z.printCondition?.when === 'before' &&
             z.printCondition.triggers.some(t => t.type === 'field')
@@ -232,6 +325,11 @@ export class ReportEngine {
             if (categoryValue !== undefined) {
                 const breakField = breakFields[0];
                 context[breakField] = categoryValue;
+            }
+            // Inject pre-computed lookahead aggregates for this group
+            if (lookaheadMap) {
+                const groupAggs = lookaheadMap.get(categoryValue);
+                if (groupAggs) Object.assign(context, groupAggs);
             }
             
             const element = this.renderer.renderZone(zone, context);

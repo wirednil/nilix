@@ -1853,6 +1853,12 @@ select.field-error {
     padding: 0.5rem 0;
 }
 
+/* Lines layout — stacks vertically, no gap */
+.report-products-grid:has(.report-lines) {
+    grid-template-columns: 1fr;
+    gap: 0;
+}
+
 @media (max-width: 650px) {
     .report-products-grid {
         grid-template-columns: 1fr;
@@ -1901,6 +1907,61 @@ select.field-error {
     color: var(--help-icon-color);
     font-weight: bold;
     margin-top: 0.5rem;
+}
+
+/* Table layout zone */
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin: 0.25rem 0;
+}
+
+.report-table-th {
+    border-bottom: 2px solid var(--border-color);
+    padding: 0.3rem 0.5rem;
+    font-weight: bold;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.report-table-td {
+    padding: 0.2rem 0.5rem;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.report-table-row:last-child .report-table-td {
+    border-bottom: none;
+}
+
+/* Subtotal (after field break) */
+.report-subtotal {
+    margin: 0.5rem 0 1rem 0;
+    padding: 0.25rem 0;
+}
+
+.report-subtotal-line {
+    color: var(--text-color);
+    font-size: 0.95rem;
+    white-space: pre;
+}
+
+/* Lines — plain text zone (layout: lines) */
+.report-lines {
+    margin: 0.25rem 0;
+}
+
+.report-lines-line {
+    color: var(--text-color);
+    font-size: 0.95rem;
+    white-space: pre;
+}
+
+.report-lines-split {
+    display: flex;
+    justify-content: space-between;
+    white-space: pre;
 }
 
 /* Footer */

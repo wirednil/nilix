@@ -3,6 +3,7 @@
 
 En este capítulo se describen las capacidades de los reportes de IDEA-FIX, el lenguaje
 utilizado para su definición (RDL) y los utilitarios que permiten manejarlos.
+
 ## Introducción
 Los informes impresos (listados) son denominados en NILENGINE "reportes", terminología
 tomada de la palabra inglesa reports.
@@ -12,22 +13,14 @@ como:
 - Relación con Bases de Datos;
 - Funciones como sumatorias y promedios;
 - Cortes de control, y otros.
-Los reportes pueden diseñarse con cualquier editor, pero es altamente recomendable el uso de
-uno de los provistos por NILENGINE, ya que poseen ciertas características que facilitan mucho
-esta tarea; siendo algunas de ellas imprescindibles, como por ejemplo la posibilidad de
-escribir en español (vocales acentuadas, eñes, etc.) y carácteres gráficos.
-Para definir un reporte se utiliza el RDL, o Report Definition Language (Lenguaje de
-Definición de Reportes). El RDL permite dibujar la imagen del listado tal como se desea su
-impresión, en un modo llamado WYSIWYG (What You See Is What You Get: lo que ves es lo
-que obtienes), es decir que al ejecutar el programa, el listado se genera con el formato que se
-le ha diseñado.
-Cuando el archivo de definición del reporte está completo, se lo compila con rgen, el utilitario
-de NILENGINE para generación de reportes.
+Los reportes pueden diseñarse con cualquier editor, pero es altamente recomendable el uso de uno de los provistos por NILENGINE, ya que poseen ciertas características que facilitan mucho esta tarea; siendo algunas de ellas imprescindibles, como por ejemplo la posibilidad de escribir en español (vocales acentuadas, eñes, etc.) y carácteres gráficos.
+
+Para definir un reporte se utiliza el RDL, o Report Definition Language (Lenguaje de Definición de Reportes). El RDL permite dibujar la imagen del listado tal como se desea su impresión, en un modo llamado WYSIWYG (What You See Is What You Get: lo que ves es lo que obtienes), es decir que al ejecutar el programa, el listado se genera con el formato que se le ha diseñado.
+
+Cuando el archivo de definición del reporte está completo, se lo compila con rgen, el utilitario de NILENGINE para generación de reportes.
 
 ## Generando Reportes
-La especificación del reporte está contenida en un archivo con extensión ".rp", conocido como
-archivo fuente RDL. Este se procesa con el utilitario rgen de NILENGINE, para generar un
-archivo con extensión ".rpo".
+La especificación del reporte está contenida en un archivo con extensión ".rp", conocido como archivo fuente RDL. Este se procesa con el utilitario rgen de NILENGINE, para generar un archivo con extensión ".rpo".
 
 
 Figura 4.1 - Generación de Reportes
@@ -38,35 +31,20 @@ graph LR
     B -.-> D[arch.rpo]
 ```
 
-La figura anterior muestra este proceso de generación, incluyendo en forma optativa crear
-otro con extensión ".rph", este archivo contiene el reporte compilado. Este archivo es
-utilizado tanto por el utilitario doreport como por un programa de aplicación escrito en "C",
-en el momento de su ejecución.
-El archivo de cabecera ".rph" debe incluirse en los programas de aplicación en "C" que
-utilicen el reporte. Contiene valores de constantes simbólicas que representan los distintos
-campos, y otras constantes auxiliares necesarias para la compilación.
+La figura anterior muestra este proceso de generación, incluyendo en forma optativa crear otro con extensión ".rph", este archivo contiene el reporte compilado. Este archivo es utilizado tanto por el utilitario doreport como por un programa de aplicación escrito en "C", en el momento de su ejecución.
+
+El archivo de cabecera ".rph" debe incluirse en los programas de aplicación en "C" que utilicen el reporte. Contiene valores de constantes simbólicas que representan los distintos campos, y otras constantes auxiliares necesarias para la compilación.
 
 ## El Lenguaje RDL
 Un archivo de especificación RDL se divide en tres secciones.
-• La primera contiene la imagen del listado. En esta sección se dibuja el reporte, como se
-desea que éste aparezca en la salida. La imagen se compone de campos del listado que se
-llenan con la información provista por el usuario, y cadenas de carácteres constantes. Esta
-sección comienza al principio del archivo, y en ella se describen las distintas zonas que
-componen el listado.
-• La segunda sección se inicia con la palabra clave %report. Se compone de sentencias que
-terminan en punto y coma, dando información acerca de los requerimientos generales del
-listado, tales como longitud del papel, esquemas de base de datos a utilizar, márgenes, destino
-del reporte, etc.
-• La tercera sección comienza con la palabra clave %fields y define los nombres de los
-campos del listado y sus atributos.
+- La primera contiene la imagen del listado. En esta sección se dibuja el reporte, como se desea que éste aparezca en la salida. La imagen se compone de campos del listado que se
+llenan con la información provista por el usuario, y cadenas de carácteres constantes. Esta sección comienza al principio del archivo, y en ella se describen las distintas zonas que componen el listado.
+- La segunda sección se inicia con la palabra clave %report. Se compone de sentencias que terminan en punto y coma, dando información acerca de los requerimientos generales del listado, tales como longitud del papel, esquemas de base de datos a utilizar, márgenes, destino del reporte, etc.
+- La tercera sección comienza con la palabra clave %fields y define los nombres de los campos del listado y sus atributos.
 
 ## Imagen del Reporte
-La imagen del reporte se divide en zonas del reporte que son líneas de detalle. Una zona del
-listado tiene un nombre, y está formada por uno o más campos, o inclusive por ninguno. En el
-diseño es posible imponer condiciones para definir cuándo debe imprimirse una zona.
-La definición de una zona se inicia con un "%" seguida por su nombre, los nombres de los
-campos de la zona, y opcionalmente por la condición para imprimirla. La figura muestra el
-esqueleto de una especificación de reporte.
+La imagen del reporte se divide en zonas del reporte que son líneas de detalle. Una zona del listado tiene un nombre, y está formada por uno o más campos, o inclusive por ninguno. En el diseño es posible imponer condiciones para definir cuándo debe imprimirse una zona.
+La definición de una zona se inicia con un "%" seguida por su nombre, los nombres de los campos de la zona, y opcionalmente por la condición para imprimirla. La figura muestra el esqueleto de una especificación de reporte.
 
 Figura 4.2 - Estructura de un Reporte
 ```
@@ -83,12 +61,9 @@ nombre_campo: Atributos del campo
 . . . . . . .
 ```
 
-La salida del reporte se compone de páginas, cada una de las cuales se divide en zonas, tal
-como se las dibuja en el archivo de definición (.rp). Sobre el dibujo de la zona se especifican
-los campos que serán reemplazados por información.
-La zona tiene un nombre, y se indican uno o más parámetros que son los valores a reemplazar
-en los campos de la zona. Opcionalmente se puede especificar una condición que controla
-cuándo se imprimirá la zona.
+La salida del reporte se compone de páginas, cada una de las cuales se divide en zonas, tal como se las dibuja en el archivo de definición (.rp). Sobre el dibujo de la zona se especifican los campos que serán reemplazados por información.
+La zona tiene un nombre, y se indican uno o más parámetros que son los valores a reemplazar en los campos de la zona. Opcionalmente se puede especificar una condición que controla cuándo se imprimirá la zona.
+
 La sintaxis completa para definir una zona es:
 
 ```
@@ -97,12 +72,11 @@ La sintaxis completa para definir una zona es:
 
 donde:
 - **nombre**: es el nombre de la zona.
-- **expr**: es una expresión completa que puede contener llamados a función y campos combinados
-en expresiones aritméticas.
+- **expr**: es una expresión completa que puede contener llamados a función y campos combinados en expresiones aritméticas.
+
 ## Definiendo Expresiones
 Las expresiones definen los valores que se imprimirán en los campos correspondientes de la zona.
-También, una expresión puede ser identificada con un nombre, para ser referenciada
-directamente por su nombre luego en el reporte.
+También, una expresión puede ser identificada con un nombre, para ser referenciada directamente por su nombre luego en el reporte.
 Por ejemplo:
 
 ```
@@ -110,8 +84,7 @@ Por ejemplo:
 %zoneB ((runsum(b)+n1+n2)/800)
 ```
 
-El id de la expresión (b, en este caso), también puede ser usado para tener dos entradas
-distintas en la sección %fields, por ejemplo:
+El id de la expresión (b, en este caso), también puede ser usado para tener dos entradas distintas en la sección %fields, por ejemplo:
 
 ```
 %zoneA(a : c1, a : c2)
@@ -120,9 +93,8 @@ ________ _________
 c1: atributos para c1;
 c2: atributos para c2;
 ```
-Los valores que conforman una expresión puede ser un campo de un reporte, un función, una
-variable, una constante, o cualquier combinación de ellos. A continuación se presenta una
-explicación detallada de cada valor:
+Los valores que conforman una expresión puede ser un campo de un reporte, un función, una variable, una constante, o cualquier combinación de ellos. A continuación se presenta una explicación detallada de cada valor:
+
 ## Funciones:
 
 - **sum(param)**: Se imprimirá la suma de los valores que haya tomado param.
@@ -130,19 +102,13 @@ explicación detallada de cada valor:
 - **count(param)**: Se imprimirá la cantidad de los valores que haya tomado param.
 - **min(param)**: Se imprimirá el mínimo de los valores que haya tomado param.
 - **max(param)**: Se imprimirá el máximo de los valores que haya tomado param.
-- **runsum(param)**: Se imprimirá la suma de los valores que haya tomado el parámetro indicado,
-a lo largo de todo el reporte.
-- **runavg(param)**: Se imprimirá el promedio de los valores que haya tomado el parámetro
-indicado, a lo largo de todo el reporte.
-- **runcount(param)**: Se imprimirá la cantidad de valores que haya tomado el parámetro
-indicado, a lo largo de todo el reporte.
-- **runmin(param)**: Se imprimirá el mínimo de los valores que haya tomado el parámetro
-indicado, a lo largo de todo el reporte.
-- **runmax(param)**: Se imprimirá el máximo de los valores que haya tomado el parámetro
-indicado, a lo largo de todo el reporte.
-Las funciones runsum, runavg, runcount, runmin y runmax , se aplican cuando se desea
-evaluar los valores que obtuvo un determinado parámetro hasta el momento en que se la
-invoca.
+- **runsum(param)**: Se imprimirá la suma de los valores que haya tomado el parámetro indicado, a lo largo de todo el reporte.
+- **runavg(param)**: Se imprimirá el promedio de los valores que haya tomado el parámetro indicado, a lo largo de todo el reporte.
+- **runcount(param)**: Se imprimirá la cantidad de valores que haya tomado el parámetro indicado, a lo largo de todo el reporte.
+- **runmin(param)**: Se imprimirá el mínimo de los valores que haya tomado el parámetro indicado, a lo largo de todo el reporte.
+- **runmax(param)**: Se imprimirá el máximo de los valores que haya tomado el parámetro indicado, a lo largo de todo el reporte.
+
+Las funciones runsum, runavg, runcount, runmin y runmax , se aplican cuando se desea evaluar los valores que obtuvo un determinado parámetro hasta el momento en que se la invoca.
 
 Variables:
 - Variables:
@@ -153,38 +119,34 @@ Variables:
   - module: Contiene el nombre del módulo.
 - Constantes:
   - Puede ser cualquier constante numérica: 1, 2, . . ., 50, . . .738, . . .
-Para una mayor comprensión, tomaremos un nuevo ejemplo, que intenta abarcar la mayor
-cantidad de variantes posibles. Para ello utilizaremos las siguientes tablas de un esquema
-llamado personal:
+Para una mayor comprensión, tomaremos un nuevo ejemplo, que intenta abarcar la mayor cantidad de variantes posibles. Para ello utilizaremos las siguientes tablas de un esquema llamado personal:
 
 ```
 table emp descr "Legajos del personal" {
-empno num(4) not null
-primary key,
-nombre char(30)not null,
-cargo num(1)
-in cargos:descrip,
-jefe num(4) in emp:nombre,
-fingr date <=today,
-sueldo num(12,2),
-depto num(2) in depto:nombre
+    empno num(4) not null
+    primary key,
+    nombre char(30)not null,
+    cargo num(1)
+    in cargos:descrip,
+    jefe num(4) in emp:nombre,
+    fingr date <=today,
+    sueldo num(12,2),
+    depto num(2) in depto:nombre
 };
+
 table depto descr "Departamentos" {
-depno num(2) not null
-primary key,
-nombre char(20) not null
+    depno num(2) not null
+    primary key,
+    nombre char(20) not null
 };
 table cargos descr "Cargos de la Empresa" {
-cargo num(2) not null
-primary key,
-descrip char(20) not null
+    cargo num(2) not null
+    primary key,
+    descrip char(20) not null
 };
 ```
 
-Como ejemplo de utilización de funciones, remitimos al lector a la figura siguiente, en la cual
-se define un reporte utilizando las tablas del esquema que acabamos de definir. Pero antes, a
-los fines de un mejor aprovechamiento del espacio, dejamos ilustrada una consulta por iql,
-consistente en el "query":
+Como ejemplo de utilización de funciones, remitimos al lector a la figura siguiente, en la cual se define un reporte utilizando las tablas del esquema que acabamos de definir. Pero antes, a los fines de un mejor aprovechamiento del espacio, dejamos ilustrada una consulta por sql, consistente en el "query":
 
 ```
 use personal;
@@ -193,8 +155,7 @@ from ~emp, depto
 where emp.depto = depto.depno
 output to report ~personal;
 ```
-Aquí se han representado en bastardilla los nombres y operandos variables que debe ingresar
-el programador.
+Aquí se han representado en bastardilla los nombres y operandos variables que debe ingresar el programador.
 
 Figura 4.3 - Reporte con Funciones
 ```
@@ -462,11 +423,11 @@ Los valores por defecto son:
 
 ```
 output to {
-archivo
-| printer
-| pipe comando
-| terminal
-| stdout
+    archivo
+    | printer
+    | pipe comando
+    | terminal
+    | stdout
 }
 ```
 
@@ -521,7 +482,7 @@ En cambio:
 ```
 %report
 use personal;
-input from pipe "iql -b -c
+input from pipe "sql -b -c
 select depto, nombre, sueldo, fingr
 from emp, depto
 where emp.depto = depto.depno
@@ -553,11 +514,9 @@ campo: opciones;
 La especificación de opciones está formada por una lista de sentencias separadas por comas,
 que pueden ser:
 
-<campo_tabla> Los atributos inherentes al campo en la especificación en la tabla de campos
-de la base de datos a la que se hace referencia. Es factible especificar atributos adicionales o
-derivados de otros ya existentes.
-mask <cadena> Realiza una operación de máscara como el atributo mask definido en el
-Capítulo II, (Descripción de Sentencias DDS - CREATE TABLE). Como ser:
+`<campo_tabla>` Los atributos inherentes al campo en la especificación en la tabla de campos de la base de datos a la que se hace referencia. Es factible especificar atributos adicionales o derivados de otros ya existentes.
+
+`mask <cadena>` Realiza una operación de máscara como el atributo mask definido en el Capítulo II, (Descripción de Sentencias DDS - CREATE TABLE). Como ser:
 
 ```
 %zoneX(a)
@@ -567,31 +526,33 @@ a: mask ($MASK != null ? $MASK : "NNNN");
 ```
 
 Nótese que esta expresión no puede contener referencias a expresiones definidas en una zona.
-null zeros Aplicable solamente sobre campos numéricos. Si el campo tiene valor "0", se
-dejará en blanco (" ") en lugar de imprimirlo.
-Se explican a continuación las distintas sintaxis posibles, aplicables en cada caso a los
-anteriores ítems.
-<campo_tabla> La forma de especificarlo puede ser:
 
+`null zeros` Aplicable solamente sobre campos numéricos. Si el campo tiene valor "0", se dejará en blanco (" ") en lugar de imprimirlo.
+
+Se explican a continuación las distintas sintaxis posibles, aplicables en cada caso a los anteriores ítems.
+`<campo_tabla>` La forma de especificarlo puede ser:
+```
     esquema.tabla.campo
+```
 
-Esta es una especificación completa y definida. Se refiere a un campo de una tabla de un
-esquema. Las restantes definiciones implican un cierto grado de ambigüedad.
-
+Esta es una especificación completa y definida. Se refiere a un campo de una tabla de un esquema. Las restantes definiciones implican un cierto grado de ambigüedad.
+```
     tabla.campo
+```
 
 La tabla debe pertenecer a uno de los esquemas activos, establecidos en la sentencia use. Se
 utiliza la primera de ellas que concuerde con el nombre tabla.
-
+```
     tabla.
+```
 
 Valen las consideraciones efectuadas para el caso anterior con respecto a tabla. El campo
 usado es aquel con el mismo nombre que el del campo de la pantalla.
-<cadena> Una cadena es cualquier conjunto de caracteres encerrado entre comillas dobles
+`<cadena>` Una cadena es cualquier conjunto de caracteres encerrado entre comillas dobles
 (character string).
-
+```
 "Hola, mundo!"
-
+```
 <valor> Un valor puede ser cualquiera de los tipos válidos para las columnas de las tablas,
 que son: numeric, character string, date, time, float o bool.
 Las variables especiales today y hour corresponden a la fecha y hora corriente. Cualquiera sea
@@ -729,7 +690,7 @@ Figura 4.9 - Listado Simple
 El listado se compila con el utilitario rgen:
     $ rgen emplo.rp
 Una vez que el listado fue compilado, se lo puede correr con doreport. Pero se le debe
-preparar una entrada en ASCII. Es fácil de lograr con la sentencia SELECT del iql. Para eso
+preparar una entrada en ASCII. Es fácil de lograr con la sentencia SELECT del sql. Para eso
 se prepara un archivo llamado list.sql con los comandos que siguen:
 
     use personal;
@@ -746,9 +707,9 @@ before dnum, y se imprime el encabezamiento. La estructura del registro tiene lo
 el orden que los espera el listado, en el orden especificado en la sección fields.
 El listado se obtiene con los siguientes comandos:
 
-    $ iql list.sql | doreport emplo
+    $ sql list.sql | doreport emplo
 
-En primer lugar se invoca al utilitario iql, pasándole como parámetro un archivo que contiene
+En primer lugar se invoca al utilitario sql, pasándole como parámetro un archivo que contiene
 sentencias DMS (Data Manipulation Statements). Mediante el símbolo "|" (pipe) se indica que
 la salida que se obtenga del comando se tome como entrada del proceso que le sigue. En
 nuestro caso, los resultados arrojados al ejecutarse las sentencias incluidas en el archivo
@@ -786,7 +747,7 @@ Total del Personal: 8 Empleados
 ```
 Figura 4.10 - Listado de Salida
 
-Otra opción, es incluir en la sentencia de iql, a qué report se debe direccionar la salida:
+Otra opción, es incluir en la sentencia de sql, a qué report se debe direccionar la salida:
 
 ```
 use personal;
@@ -801,14 +762,14 @@ output to report "emplo";
 Nótese que el nombre del reporte no necesita llevar la extensión ".rp", dado que será asumida
 por el sistema. Con este cambio, el listado será producido por el comando:
 
-    $ iql list.sql
+    $ sql list.sql
 
 
 ## Usando Reportes
 - Mediante el utilitario "doreport" de NILENGINE.
 - Desde un programa de aplicación en lenguaje "C", mediante rutinas de manejo de reportes,
 provistas por la biblioteca de NILENGINE.
-- Direccionando la salida de una sentencia SELECT de IQL.
+- Direccionando la salida de una sentencia SELECT de sql.
 Se verá a continuación cuales son los métodos existentes.
 
 ## DOREPORT
@@ -861,7 +822,7 @@ con \$1, \$2, etc..
 
 ## Interfaz C
 Las distintas aplicaciones con reportes pueden ser desarrolladas mediante la aplicación del
-utilitario "doreport" y con las instrucciones del ``iql'', al cual se ha hecho referencia en este
+utilitario "doreport" y con las instrucciones del ``sql'', al cual se ha hecho referencia en este
 mismo capítulo.
 En caso de que algún requerimiento no pueda ser satisfecho con las herramientas antes
 mencionadas, puede recurrirse a la Interfaz de Programación (ver Capítulo 1, de Referencia
@@ -908,7 +869,7 @@ fingr : emp.;
 ```
 Figura 4.12 - Especificación de Reporte
 
-Se puede obtener mediante el acceso a los datos pertinentes con las sentencias del iql o el
+Se puede obtener mediante el acceso a los datos pertinentes con las sentencias del sql o el
 doreport, utilizando a éste último como formateador.
 
 

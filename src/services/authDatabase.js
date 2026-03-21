@@ -40,6 +40,18 @@ async function initAuthDatabase() {
         )
     `);
 
+    // Ensure usuario_permisos table exists (added in v2.4.x — migration-safe)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS usuario_permisos (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            empresa_id INTEGER NOT NULL REFERENCES empresas(id),
+            target     TEXT    NOT NULL,
+            perms      TEXT    NOT NULL,
+            UNIQUE(usuario_id, target)
+        )
+    `);
+
     // Ensure permisos column exists on usuarios (migration-safe for existing DBs)
     try { db.run(`ALTER TABLE usuarios ADD COLUMN permisos TEXT NOT NULL DEFAULT 'RADU'`); } catch { /* already exists */ }
     // Prune expired tokens on startup

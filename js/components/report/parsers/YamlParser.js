@@ -289,10 +289,13 @@ export class YamlParser {
                 field: e.field,
                 value: e.value,
                 expression: e.expression,
+                formula: e.formula || null,
                 type: e.type,
                 format: e.format,
                 aggregate: e.aggregate,
-                argument: e.argument
+                argument: e.argument,
+                scope: e.scope || null,
+                filter: e.filter || null
             })) : [],
             printCondition: z.condition ? {
                 when: z.condition.when,
@@ -300,6 +303,7 @@ export class YamlParser {
             } : null,
             ifCondition: z.ifCondition || null,
             template: this.buildTemplate(z.template),
+            columns: Array.isArray(z.columns) ? z.columns : null,
             noPrint: z.noPrint === true
         }));
     }

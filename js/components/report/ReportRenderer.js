@@ -36,6 +36,10 @@ export class ReportRenderer {
                 return this.renderSubtotalZone(zone, context, options.accumulators, options.breakLevel);
             case 'card':
                 return this.renderCardZone(zone, context);
+            case 'lines':
+                return this.renderLinesZone(zone, context, options.accumulators, options.breakLevel);
+            case 'table':
+                return this.renderTableZone(zone, context);
             case 'detail':
             default:
                 return this.renderDetailZone(zone, context);
@@ -43,7 +47,11 @@ export class ReportRenderer {
     }
 
     determineZoneType(zone) {
-        if (!zone.printCondition) return 'detail';
+        if (!zone.printCondition) {
+            if (zone.layout === 'lines') return 'lines';
+            if (zone.layout === 'table') return 'table';
+            return 'detail';
+        }
 
         const triggers = zone.printCondition.triggers;
         const hasReportTrigger = triggers.some(t => t.type === 'report');
@@ -52,21 +60,26 @@ export class ReportRenderer {
 
         if (hasReportTrigger && zone.printCondition.when === 'before') {
             if (zone.layout === 'horizontal-scroll') return 'nav';
+            if (zone.layout === 'lines') return 'lines';
             return 'header';
         }
         
         if (hasReportTrigger && zone.printCondition.when === 'after') {
+            if (zone.layout === 'lines') return 'lines';
             return 'footer';
         }
 
         if (hasFieldTrigger && zone.printCondition.when === 'before') {
+            if (zone.layout === 'lines') return 'lines';
             return 'separator';
         }
 
         if (hasFieldTrigger && zone.printCondition.when === 'after') {
+            if (zone.layout === 'lines') return 'lines';
             return 'subtotal';
         }
 
+        if (zone.layout === 'lines') return 'lines';
         return 'detail';
     }
 
@@ -229,6 +242,89 @@ export class ReportRenderer {
         return card;
     }
 
+    renderTableZone(zone, context) {
+        const evaluatedContext = this.evaluateExpressions(zone.expressions, context);
+        const columns = zone.columns || [];
+
+        const table = document.createElement('table');
+        table.className = 'report-table';
+        table.dataset.zone = zone.name;
+
+        if (columns.length > 0) {
+            const thead = document.createElement('thead');
+            const tr = document.createElement('tr');
+            columns.forEach(col => {
+                const th = document.createElement('th');
+                th.className = 'report-table-th';
+                th.style.textAlign = col.align || 'left';
+                if (col.width) th.style.width = col.width;
+                th.textContent = col.label || col.field || '';
+                tr.appendChild(th);
+            });
+            thead.appendChild(tr);
+            table.appendChild(thead);
+        }
+
+        const tbody = document.createElement('tbody');
+        const contexts = Array.isArray(context) ? context : [context];
+        contexts.forEach(row => {
+            const rowCtx = this.evaluateExpressions(zone.expressions, row);
+            const tr = document.createElement('tr');
+            tr.className = 'report-table-row';
+            columns.forEach(col => {
+                const td = document.createElement('td');
+                td.className = 'report-table-td';
+                td.style.textAlign = col.align || 'left';
+                const fieldName = col.field;
+                let val = rowCtx[fieldName] ?? row[fieldName] ?? '';
+                if (col.format) val = this.evaluator.formatValue(val, col.format);
+                td.textContent = String(val);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        return table;
+    }
+
+    renderLinesZone(zone, context, accumulators = null, breakLevel = null) {
+        const evaluatedContext = this.evaluateExpressions(zone.expressions, context, accumulators, breakLevel);
+
+        const el = document.createElement('div');
+        el.className = 'report-lines';
+        el.dataset.zone = zone.name;
+
+        zone.template.forEach(line => {
+            const p = document.createElement('div');
+            p.className = 'report-lines-line';
+
+            if (line.includes('||')) {
+                const splitIdx = line.indexOf('||');
+                const left  = this.evaluator.evaluate(line.slice(0, splitIdx), evaluatedContext);
+                const right = this.evaluator.evaluate(line.slice(splitIdx + 2).trim(), evaluatedContext);
+                p.classList.add('report-lines-split');
+                const spanL = document.createElement('span');
+                spanL.textContent = left;
+                const spanR = document.createElement('span');
+                spanR.textContent = right;
+                p.appendChild(spanL);
+                p.appendChild(spanR);
+            } else {
+                const evaluated = this.evaluator.evaluate(line, evaluatedContext);
+                if (evaluated.trim() === '') {
+                    p.innerHTML = '&nbsp;';
+                } else {
+                    p.textContent = evaluated;
+                }
+            }
+
+            el.appendChild(p);
+        });
+
+        return el;
+    }
+
     renderDetailZone(zone, context) {
         return this.renderCardZone(zone, context);
     }
@@ -236,17 +332,32 @@ export class ReportRenderer {
     evaluateExpressions(expressions, context, accumulators = null, breakLevel = null) {
         const ctx = Array.isArray(context) ? (context[0] ?? {}) : context;
         const result = { ...ctx };
+        // rawValues holds pre-format values so formulas can reference prior
+        // expressions numerically (e.g. if(balance_dia > 0, ...))
+        const rawValues = { ...ctx };
 
         expressions.forEach(expr => {
+            let val;
             if (expr.value !== undefined) {
-                result[expr.name] = expr.value;
+                val = expr.value;
+            } else if (expr.formula) {
+                val = this.evaluator.evaluateFormula(expr.formula, rawValues);
+            } else if (expr.scope === 'lookahead') {
+                val = ctx[`_lookahead_${expr.name}`] ?? 0;
+            } else if (expr.scope === 'dataset') {
+                val = ctx[`_dataset_${expr.name}`] ?? 0;
             } else if (expr.aggregate && accumulators) {
-                result[expr.name] = accumulators.evaluate(expr.aggregate, expr.argument, breakLevel);
+                val = accumulators.evaluate(expr.aggregate, expr.argument, breakLevel);
             } else if (expr.field) {
-                result[expr.name] = ctx[expr.field];
+                val = ctx[expr.field];
             } else if (expr.expression) {
-                result[expr.name] = this.evaluator.evaluate(expr.expression, ctx);
+                val = this.evaluator.evaluate(expr.expression, ctx);
             }
+            rawValues[expr.name] = val;
+            if (expr.format && val !== undefined && val !== null) {
+                val = this.evaluator.formatValue(val, expr.format);
+            }
+            result[expr.name] = val;
         });
 
         return result;

@@ -72,7 +72,9 @@ export class ExpressionEvaluator {
         
         if (format === 'currency') {
             const num = parseFloat(value);
-            return isNaN(num) ? '' : `$${num.toFixed(2)}`;
+            if (isNaN(num)) return '';
+            const abs = Math.abs(num).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return num < 0 ? `-$${abs}` : `$${abs}`;
         }
 
         if (format === 'upper') {
@@ -86,9 +88,22 @@ export class ExpressionEvaluator {
         if (format === 'date') {
             try {
                 const d = new Date(value);
-                return d.toLocaleDateString();
+                if (isNaN(d.getTime())) return String(value);
+                return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
             } catch {
-                return value;
+                return String(value);
+            }
+        }
+
+        if (format === 'dayname') {
+            try {
+                const d = new Date(value);
+                if (isNaN(d.getTime())) return String(value);
+                const weekday = d.toLocaleDateString('es-AR', { weekday: 'long', timeZone: 'UTC' });
+                const date    = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+                return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${date}`;
+            } catch {
+                return String(value);
             }
         }
 
@@ -110,6 +125,86 @@ export class ExpressionEvaluator {
         const fieldName = expr.argument;
 
         return accumulators.evaluate(func, fieldName, breakLevel);
+    }
+
+    // ── Formula: if(condition, trueVal, falseVal) ────────────────────────────
+
+    evaluateFormula(formula, context) {
+        const f = formula.trim();
+        const ifMatch = f.match(/^if\((.+)\)$/is);
+        if (ifMatch) {
+            const parts = this._splitArgs(ifMatch[1]);
+            if (parts.length === 3) {
+                const [condStr, trueStr, falseStr] = parts;
+                const result = this._evalCond(condStr.trim(), context);
+                return result
+                    ? this._resolveVal(trueStr.trim(), context)
+                    : this._resolveVal(falseStr.trim(), context);
+            }
+        }
+        return '';
+    }
+
+    _splitArgs(str) {
+        const parts = [];
+        let depth = 0, inQuote = false, quoteChar = '', current = '';
+        for (const ch of str) {
+            if (inQuote) {
+                current += ch;
+                if (ch === quoteChar) inQuote = false;
+            } else if (ch === "'" || ch === '"') {
+                inQuote = true; quoteChar = ch; current += ch;
+            } else if (ch === '(') { depth++; current += ch;
+            } else if (ch === ')') { depth--; current += ch;
+            } else if (ch === ',' && depth === 0) {
+                parts.push(current); current = '';
+            } else { current += ch; }
+        }
+        if (current) parts.push(current);
+        return parts;
+    }
+
+    _evalCond(condStr, context) {
+        const s = condStr.trim();
+
+        // Direct comparison parser: fieldName op 'value' | fieldName op value
+        // Supports: ==  !=  >=  <=  >  <
+        const m = s.match(/^(\w+)\s*(===?|!==?|>=|<=|>|<)\s*(['"])(.*?)\3$/) ||
+                  s.match(/^(\w+)\s*(===?|!==?|>=|<=|>|<)\s*(-?\d+(?:\.\d+)?)$/);
+        if (m) {
+            const fieldVal = String(context[m[1]] ?? '');
+            const op       = m[2].replace('===', '==').replace('!==', '!=');
+            const cmpVal   = m[4] ?? m[3];   // string group or numeric group
+            const numL = parseFloat(fieldVal), numR = parseFloat(cmpVal);
+            switch (op) {
+                case '==': return fieldVal === cmpVal;
+                case '!=': return fieldVal !== cmpVal;
+                case '>':  return numL > numR;
+                case '<':  return numL < numR;
+                case '>=': return numL >= numR;
+                case '<=': return numL <= numR;
+            }
+        }
+
+        // Fallback: safe Function-based eval (for compound conditions)
+        if (!this.isConditionSafe(s)) return false;
+        let expr = s;
+        for (const [key, value] of Object.entries(context)) {
+            if (this.isSafeIdentifier(key)) {
+                expr = expr.replace(new RegExp(`\\b${this.escapeRegex(key)}\\b`, 'g'), JSON.stringify(value));
+            }
+        }
+        try { return new Function(`return (${expr})`)(); } catch { return false; }
+    }
+
+    _resolveVal(valStr, context) {
+        if ((valStr.startsWith("'") && valStr.endsWith("'")) ||
+            (valStr.startsWith('"') && valStr.endsWith('"'))) {
+            return valStr.slice(1, -1);
+        }
+        if (context[valStr] !== undefined) return context[valStr];
+        const n = parseFloat(valStr);
+        return isNaN(n) ? valStr : n;
     }
 
     evaluateCondition(condition, context) {

@@ -7,6 +7,132 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.5.1] — 2026-03-21
+
+### Report engine — Nivel 2 features
+
+**Context chaining en expresiones (`rawValues`)**
+
+Las fórmulas ahora pueden referenciar expresiones previas de la misma zona con su valor numérico (pre-format). Antes, una expresión `balance_dia` formateada como `$15.000,00` llegaba al `if()` como string → `parseFloat('$15.000,00') = NaN` → comparación fallaba siempre.
+
+Fix en `ReportRenderer.evaluateExpressions`: se mantiene un objeto `rawValues` paralelo que acumula valores **sin formato**. Las fórmulas reciben `rawValues` en lugar del contexto original.
+
+```yaml
+- name: balance_dia
+  aggregate: sum
+  argument: monto
+  scope: lookahead
+  format: currency           # balance_dia en result = "$15.000,00"
+- name: indicador
+  formula: "if(balance_dia > 0, '✓', '⚠')"  # recibe 15000 (raw) → funciona
+```
+
+**`scope: dataset` + `filter:` en expresiones de agregado**
+
+Nueva modalidad de agregación que computa sobre todo el dataset en un pase previo (`precomputeDatasetAggregates`), con filtro opcional por expresión. No usa `AccumulatorManager` — no hay riesgo de interferir con la lógica de cortes existente.
+
+```yaml
+- name: total_ingresos
+  aggregate: sum
+  argument: monto
+  scope: dataset
+  filter: "tipo == 'Ingreso'"   # solo filas donde tipo == Ingreso
+  format: currency
+
+- name: indicador_mes
+  formula: "if(balance_neto > 0, '✓ Superávit', '⚠ Déficit')"
+```
+
+`filter:` soporta: `campo == 'valor'` y `campo op número` (`==`, `!=`, `>`, `<`, `>=`, `<=`).
+
+Disponible en zonas `condition: { when: after, on: report }`. Los valores se inyectan en el contexto de esas zonas antes de evaluar expresiones.
+
+**`||` — alineación derecha en `layout: lines`**
+
+Separador en template que divide la línea en dos spans con `display: flex; justify-content: space-between`:
+
+```yaml
+template:
+  - "  {concepto}  {monto_fmt} || [{metodo}]"
+# → "  Cobro orden — iPhone  $15.000,00        [Transferencia]"
+```
+
+El texto a la izquierda de `||` queda alineado a la izquierda; el de la derecha, al extremo derecho del contenedor. Funciona solo en zonas `layout: lines`.
+
+**Archivos modificados:**
+- `js/components/report/ReportRenderer.js` — `evaluateExpressions`: `rawValues`; `renderLinesZone`: split `||`
+- `js/components/report/ReportEngine.js` — `precomputeDatasetAggregates`, `_matchSimpleFilter`, `render()`, `renderAfterReport(datasetMap)`
+- `js/components/report/parsers/YamlParser.js` — `filter:` en schema de expresiones
+- `css/styles.css` — `.report-lines-split`
+
+---
+
+## [2.5.0] — 2026-03-20
+
+### Report engine — Nivel 1 features
+
+Cuatro capacidades nuevas en el motor de reportes:
+
+**`format: dayname`** — Formatea una fecha como nombre de día + fecha larga en español:
+```yaml
+- name: fecha_completa
+  field: fecha
+  format: dayname   # → "Jueves 05/03/2026"
+```
+
+**`formula: "if(cond, trueVal, falseVal)"`** — Expresiones condicionales en zonas de detalle y separadores:
+```yaml
+- name: icono
+  formula: "if(tipo == 'Ingreso', '↓', '↑')"
+```
+- Parser directo para comparaciones simples (`campo op 'valor'` o `campo op número`) — sin `Function()`.
+- Soporta `==`, `!=`, `>`, `<`, `>=`, `<=`.
+- Fallback `Function()`-based para condiciones compuestas (con `isConditionSafe` como guardia).
+
+**`scope: lookahead`** — Agrega el valor de un grupo **antes** de renderizar su encabezado (`when: before`):
+```yaml
+- name: balance_dia
+  aggregate: sum
+  argument: monto
+  scope: lookahead
+  format: currency
+```
+- `ReportEngine.precomputeGroupAggregates()` hace un pase previo sobre los grupos ya detectados por `groupByCategory`.
+- Los valores se inyectan en el contexto bajo la clave `_lookahead_{exprName}` antes de renderizar la zona `before`.
+
+**`layout: table`** — Zona en formato tabla HTML con cabecera y columnas configurables:
+```yaml
+- name: resumen
+  layout: table
+  condition: { when: after, on: report }
+  columns:
+    - { field: tipo,     label: "Tipo",   width: "20%", align: left }
+    - { field: monto_fmt, label: "Monto", width: "80%", align: right }
+```
+
+**Archivos modificados:**
+- `js/components/report/ExpressionEvaluator.js` — `evaluateFormula`, `_splitArgs`, `_evalCond`, `_resolveVal`; `format: dayname`
+- `js/components/report/ReportRenderer.js` — `renderLinesZone`, `renderTableZone`; `determineZoneType` respeta `layout` antes de retornar `'detail'`
+- `js/components/report/ReportEngine.js` — `precomputeGroupAggregates`; `render()` inyecta lookaheadMap en `renderCategorySeparator`
+- `js/components/report/parsers/YamlParser.js` — `formula`, `scope` en expresiones; `columns` en zonas
+- `css/styles.css` — `.report-lines`, `.report-table`, `.report-table-th`, `.report-table-td`
+
+---
+
+## [2.4.9] — 2026-03-20
+
+### Report engine — correcciones
+
+- **`evaluateExpressions` no aplicaba `format`**: el valor de `expr.format` se guardaba en el schema pero nunca se aplicaba al valor resultante. Ahora `formatValue` se llama tras resolver cualquier tipo de expresión (`field`, `aggregate`, `formula`).
+- **`layout: lines`**: nueva variante de zona que renderiza texto plano en `<div class="report-lines">` sin card-borders ni grilla. Agregado a `determineZoneType`, `renderLinesZone`, y CSS.
+- **`.report-subtotal` invisible**: la clase existía en el renderer JS pero no tenía reglas CSS — los subtotales se renderizaban sin estilos. Agregado bloque CSS.
+- **`.report-products-grid` side-by-side**: `grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))` causaba que zonas `layout: lines` se mostraran en columnas. Fix: selector `:has(.report-lines)` fuerza `grid-template-columns: 1fr`.
+- **Currency `es-AR`**: formato `currency` migrado de `toFixed(2)` a `toLocaleString('es-AR', {minimumFractionDigits: 2})`. Negativos como `-$X.XXX,XX`.
+- **Date `timeZone: UTC`**: fechas de DuckDB llegan como epoch ms; `new Date(value)` sin `timeZone: 'UTC'` desfasaba un día. Forzado `timeZone: 'UTC'` en formatos `date` y `dayname`.
+- **`dayname` en inglés**: el formato usaba `navigator.language` para el weekday, que retornaba `en-US` en el browser. Hardcodeado `'es-AR'` para weekday y fecha.
+
+---
+
 ## [2.4.8] — 2026-03-20
 
 ### OpenAPI spec (T1.5)
