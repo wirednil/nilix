@@ -7,6 +7,154 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.6.1] — 2026-03-25
+
+### Fixed — nil-form
+
+**`ValidationCoordinator` — after hooks al cargar registro**
+
+`loadRecord` ahora llama `callAfter` para todos los campos del registro después de `fillForm`. Antes, los `after` hooks (ej. visibilidad de campos por estado) solo se disparaban al cambiar un campo manualmente; al abrir un registro existente, los campos quedaban en el estado por defecto en lugar de reflejar el estado guardado.
+
+```js
+// después de fillForm(record):
+if (this._handlerBridge) {
+    for (const [fieldId, val] of Object.entries(record)) {
+        if (val != null && val !== '') {
+            await this._handlerBridge.callAfter(fieldId, val);
+        }
+    }
+}
+```
+
+**Archivos modificados:** `js/components/form/ValidationCoordinator.js`
+
+---
+
+**`recordService.insert` — PK auto-generada en resultado**
+
+Después de un INSERT exitoso, el servicio consulta `last_insert_rowid()` e inyecta la PK generada en el objeto `data` retornado. Antes, si la PK venía como `null` (nuevo registro), el resultado devolvía `id = null`, rompiendo los `<output>` y `__output` del handler que necesitaban el ID real para abrir comprobantes.
+
+```js
+const pkCol = schemaService.getPrimaryKey(tableName);
+if (pkCol && filteredData[pkCol] == null) {
+    const rowidRows = db.exec('SELECT last_insert_rowid()');
+    const rowid = rowidRows[0]?.values[0]?.[0];
+    if (rowid != null) filteredData[pkCol] = rowid;
+}
+```
+
+**Archivos modificados:** `src/services/recordService.js`
+
+---
+
+### Added — nil-form
+
+**`<button>` tag en layout XML**
+
+`LayoutProcessor` soporta el tag `<button>` con `action="print-report"`. Al hacer click, lee el valor del campo `param` desde el DOM y abre el reporte en nueva pestaña. Útil para botones de reimpresión en formularios.
+
+```xml
+<button action="print-report" report="comprobante_ingreso" param="id_orden" label="Reimprimir Ingreso"/>
+```
+
+Si el campo `param` está vacío (formulario sin registro cargado), el click no hace nada.
+
+**Archivos modificados:** `js/components/form/LayoutProcessor.js`
+
+---
+
+**`inherit` en subforms**
+
+El atributo `inherit` en `<subform>` propaga valores del formulario padre al subformulario al momento de abrirlo. Acepta una lista de IDs separados por coma.
+
+```xml
+<subform trigger-value="2" form="equipo_nuevo" inherit="id_cliente"/>
+```
+
+Los valores se aplican después del render del subformulario (`setTimeout 0`) y disparan `change` para activar lookups dependientes.
+
+**Archivos modificados:** `js/components/form/LayoutProcessor.js`
+
+---
+
+### Changed — nil-form
+
+**`setupIsExpression` — delegación de eventos a nivel form**
+
+Reemplaza el approach anterior de listeners por dependencias individuales (que fallaba cuando `getValueDependencies` devolvía array vacío). Ahora un único listener en `formEl` reacciona a cualquier `input`, `change` o `multifield-populated`. Más robusto y elimina la necesidad de parsear dependencias para los listeners.
+
+```js
+// Antes: listener por cada campo dependiente (roto si deps vacío)
+// Ahora:
+formEl.addEventListener('input',  recompute, { signal });
+formEl.addEventListener('change', recompute, { signal });
+formEl.addEventListener('multifield-populated', recompute, { signal });
+```
+
+**Archivos modificados:** `js/components/form/LayoutProcessor.js`
+
+---
+
+### Changed — nil-report
+
+**`ExpressionEngine.evaluateArithmetic` — recursive descent parser (CSP-safe)**
+
+Reemplaza la implementación anterior (split por operador, sin precedencia) con un parser recursivo completo. El cambio fue forzado por la política CSP `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'` que bloquea `new Function` y `eval`.
+
+Soporta: `+`, `-`, `*`, `/`, paréntesis anidados, unario negativo. Precedencia correcta (`*` antes de `+`).
+
+```js
+// Antes: split por '+' / '-' / '*' / '/' — sin precedencia, roto con expresiones mixtas
+// Ahora: _parseExpr → _parseTerm → _parseFactor (recursive descent)
+//        "2 + 3 * 4" → 14  (antes podía dar 20)
+```
+
+**Archivos modificados:** `js/utils/ExpressionEngine.js`
+
+---
+
+**`DataSourceManager` — DuckDB deshabilitado por defecto + fallback ante errores**
+
+`useDuckDB` pasa a `false` en el constructor. DuckDB 1.29.0 WASM tiene un bug interno (`RuntimeError: unreachable`) al insertar datos en tablas Arrow. El path JS cubre todos los casos actuales con datasets pequeños.
+
+Adicionalmente, el bloque `loadWithDuckDB` ahora está envuelto en try/catch: si falla, loguea advertencia, desactiva DuckDB para la sesión y reintenta con JS.
+
+**Archivos modificados:** `js/components/report/DataSourceManager.js`
+
+---
+
+**`DuckDBAdapter` — bundle MVP forzado + polyfill `_setThrew`**
+
+Eliminada la detección de bundle EH (`WebAssembly.suspend`): siempre se usa MVP para máxima compatibilidad. El bundle EH requiere soporte completo de WASM Exception Handling que no está disponible en todos los entornos.
+
+Agregado polyfill `var _setThrew = function(a, b) {}` al inicio del worker blob, necesario porque duckdb-wasm 1.29.0 genera stubs `invoke_*` de Emscripten que llaman a `_setThrew` pero no la incluyen cuando se compila con excepciones WASM.
+
+**Archivos modificados:** `js/components/report/DuckDBAdapter.js`
+
+---
+
+### Fixed — css
+
+**`#active-content .form-vertical` — selector de especificidad para formularios embebidos**
+
+Agrega `#active-content .form-vertical` como alias del selector existente `.form-vertical` en el breakpoint responsive. Sin este selector, formularios renderizados dentro del contenedor `#active-content` no heredaban el `width: 100%; min-width: 0` en mobile.
+
+**Archivos modificados:** `css/styles.css`
+
+---
+
+### Added — scripts
+
+**`scripts/csp-demo.js` — demostración de ausencia de CSP reporting**
+
+Script de diagnóstico que prueba la visibilidad del servidor ante violaciones CSP. Verifica si el header CSP incluye `report-uri`, simula payloads reales de violación (inline script, script externo, eval bloqueado, clickjacking) y ejecuta una ráfaga de 20 reportes concurrentes para medir cuántos son recibidos vs. descartados.
+
+Uso: `node scripts/csp-demo.js` (requiere servidor corriendo en `localhost:3000`).
+
+**Archivos nuevos:** `scripts/csp-demo.js`
+
+---
+
 ## [2.6.0] — 2026-03-21
 
 ### Pipeline Form → Report (`<output>`), reportes parametrizados, joins encadenados, aritmética en fórmulas, botón imprimir, selects en cascada, subformularios, `skip` en selects, layout vertical expand

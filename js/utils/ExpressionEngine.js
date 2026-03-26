@@ -148,43 +148,69 @@ class ExpressionEngine {
      * @private
      */
     static evaluateArithmetic(expr, context) {
-        // Soportar operaciones básicas: +, -, *, /
         expr = expr.trim();
 
-        // Multiplicación
-        if (expr.includes('*')) {
-            const parts = expr.split('*').map(p => p.trim());
-            return parts.reduce((acc, part) => acc * this.resolveValue(part, context), 1);
+        // Replace variable names with their numeric values
+        const resolved = expr.replace(/[a-zA-Z_]\w*/g, token => {
+            const val = parseFloat(context[token]);
+            return isNaN(val) ? '0' : String(val);
+        });
+
+        // Safety check — only digits, spaces, and arithmetic operators
+        if (!/^[\d\s+\-*/.()]+$/.test(resolved)) {
+            console.warn('⚠️ ExpressionEngine: expresión aritmética inválida:', expr);
+            return 0;
         }
 
-        // División
-        if (expr.includes('/')) {
-            const parts = expr.split('/').map(p => p.trim());
-            let result = this.resolveValue(parts[0], context);
-            for (let i = 1; i < parts.length; i++) {
-                result /= this.resolveValue(parts[i], context);
-            }
+        // Recursive descent parser — no eval/new Function (CSP-safe)
+        try {
+            const state = { src: resolved.replace(/\s+/g, ''), pos: 0 };
+            return ExpressionEngine._parseExpr(state);
+        } catch {
+            return 0;
+        }
+    }
+
+    static _parseExpr(state) {
+        let result = ExpressionEngine._parseTerm(state);
+        while (state.pos < state.src.length) {
+            const op = state.src[state.pos];
+            if (op !== '+' && op !== '-') break;
+            state.pos++;
+            const right = ExpressionEngine._parseTerm(state);
+            result = op === '+' ? result + right : result - right;
+        }
+        return result;
+    }
+
+    static _parseTerm(state) {
+        let result = ExpressionEngine._parseFactor(state);
+        while (state.pos < state.src.length) {
+            const op = state.src[state.pos];
+            if (op !== '*' && op !== '/') break;
+            state.pos++;
+            const right = ExpressionEngine._parseFactor(state);
+            result = op === '*' ? result * right : (right !== 0 ? result / right : 0);
+        }
+        return result;
+    }
+
+    static _parseFactor(state) {
+        if (state.src[state.pos] === '(') {
+            state.pos++;
+            const result = ExpressionEngine._parseExpr(state);
+            if (state.src[state.pos] === ')') state.pos++;
             return result;
         }
-
-        // Suma
-        if (expr.includes('+')) {
-            const parts = expr.split('+').map(p => p.trim());
-            return parts.reduce((acc, part) => acc + this.resolveValue(part, context), 0);
+        if (state.src[state.pos] === '-') {
+            state.pos++;
+            return -ExpressionEngine._parseFactor(state);
         }
-
-        // Resta (cuidado con fechas: "today - 90")
-        if (expr.includes('-')) {
-            const parts = expr.split('-').map(p => p.trim());
-            let result = this.resolveValue(parts[0], context);
-            for (let i = 1; i < parts.length; i++) {
-                result -= this.resolveValue(parts[i], context);
-            }
-            return result;
+        const start = state.pos;
+        while (state.pos < state.src.length && /[\d.]/.test(state.src[state.pos])) {
+            state.pos++;
         }
-
-        // Sin operación, resolver valor directo
-        return this.resolveValue(expr, context);
+        return parseFloat(state.src.slice(start, state.pos)) || 0;
     }
 
     /**

@@ -38,6 +38,9 @@ export class LayoutProcessor {
             case 'FIELD':
                 this.renderField(xmlNode, parentContainer);
                 break;
+            case 'BUTTON':
+                this.renderButton(xmlNode, parentContainer);
+                break;
             default:
                 console.warn(`⚠️ Nodo desconocido: ${tagName}`);
         }
@@ -101,6 +104,34 @@ export class LayoutProcessor {
         }, 0);
     }
 
+    renderButton(btnNode, parentContainer) {
+        const action = btnNode.getAttribute('action');
+        const label  = btnNode.getAttribute('label') || btnNode.textContent.trim() || 'Acción';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'form-action-btn';
+        btn.textContent = label;
+
+        if (action === 'print-report') {
+            const report = btnNode.getAttribute('report');
+            const param  = btnNode.getAttribute('param');
+            btn.addEventListener('click', () => {
+                const formEl = btn.closest('form') || this.ctx.container?.querySelector('form');
+                const paramEl = formEl?.querySelector(`[name="${param}"], #${param}`);
+                const paramValue = paramEl?.value ?? this.ctx.currentKey ?? '';
+                if (!paramValue) {
+                    console.warn(`[LayoutProcessor] print-report: param "${param}" vacío`);
+                    return;
+                }
+                const url = `/report.html?file=${encodeURIComponent(report)}&${encodeURIComponent(param)}=${encodeURIComponent(paramValue)}`;
+                window.open(url, '_blank');
+            });
+        }
+
+        parentContainer.appendChild(btn);
+    }
+
     /**
      * Configura un campo virtual cuyo valor se computa desde una expresión is=
      * @param {HTMLInputElement} el - El elemento input del campo
@@ -117,7 +148,12 @@ export class LayoutProcessor {
 
         const recompute = () => {
             try {
-                const result = ExpressionEngine.evaluateValue(expr, formEl);
+                const context = {};
+                formEl.querySelectorAll('input[name], select[name], textarea[name]').forEach(field => {
+                    if (field === el) return;
+                    context[field.name] = parseFloat(field.value) || 0;
+                });
+                const result = ExpressionEngine.evaluateArithmetic(expr, context);
                 if (typeof result === 'number') {
                     el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
                 } else {
@@ -128,26 +164,9 @@ export class LayoutProcessor {
             }
         };
 
-        const deps = ExpressionEngine.getValueDependencies(expr);
-
-        deps.forEach(dep => {
-            if (dep.type === 'field') {
-                const depEl = formEl.querySelector(`#${dep.fieldId}`);
-                if (depEl) {
-                    depEl.addEventListener('change', recompute, { signal });
-                    depEl.addEventListener('input', recompute, { signal });
-                }
-            } else if (dep.type === 'aggregate') {
-                // Escucha cambios en celdas de multifield via delegación en el form
-                formEl.addEventListener('change', (e) => {
-                    if (e.target.name && e.target.name.includes(`_${dep.colId}_`)) {
-                        recompute();
-                    }
-                }, { signal });
-                // También escucha el evento custom cuando se carga populateRows
-                formEl.addEventListener('multifield-populated', recompute, { signal });
-            }
-        });
+        formEl.addEventListener('input',  recompute, { signal });
+        formEl.addEventListener('change', recompute, { signal });
+        formEl.addEventListener('multifield-populated', recompute, { signal });
 
         // Cálculo inicial
         recompute();
@@ -225,7 +244,8 @@ export class LayoutProcessor {
             const subformConfig = subformEl ? {
                 triggerValue: subformEl.getAttribute('trigger-value'),
                 form: subformEl.getAttribute('form'),
-                onSave: subformEl.getAttribute('on-save') || null
+                onSave: subformEl.getAttribute('on-save') || null,
+                inherit: subformEl.getAttribute('inherit') || null
             } : null;
 
             return {
@@ -262,6 +282,16 @@ export class LayoutProcessor {
 
         el.addEventListener('change', async () => {
             if (el.value !== subformConfig.triggerValue) return;
+
+            // Recolectar valores a heredar del form padre
+            const inheritedValues = {};
+            if (subformConfig.inherit) {
+                const parentForm = el.closest('form') || this.ctx.container;
+                subformConfig.inherit.split(',').forEach(fieldId => {
+                    const parentField = parentForm?.querySelector(`#${fieldId.trim()}`);
+                    if (parentField?.value) inheritedValues[fieldId.trim()] = parentField.value;
+                });
+            }
 
             const formPath = this.ctx.formPath || '';
             const baseDir = formPath.replace(/\/[^/]+$/, '');
@@ -315,6 +345,19 @@ export class LayoutProcessor {
             const subContainer = document.createElement('div');
             workspaceContainer.appendChild(subContainer);
             new FormRenderer().render(subContainer, xmlString, { formPath: subformPath });
+
+            // Aplicar valores heredados después de que los campos se registren (setTimeout 0)
+            if (Object.keys(inheritedValues).length > 0) {
+                setTimeout(() => {
+                    Object.entries(inheritedValues).forEach(([fieldId, value]) => {
+                        const field = subContainer.querySelector(`#${fieldId}`);
+                        if (field) {
+                            field.value = value;
+                            field.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    });
+                }, 0);
+            }
 
             // Al guardar: invalidar catálogo y volver al padre tras el feedback
             subContainer.addEventListener('sf:record-saved', async () => {

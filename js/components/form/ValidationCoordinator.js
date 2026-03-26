@@ -104,6 +104,15 @@ export class ValidationCoordinator {
             if (record) {
                 this.ctx.currentKey = value; // set BEFORE fillForm to prevent change-loop
                 this.fillForm(record);
+                // Fire after hooks post-load so handlers can set field visibility
+                // based on the loaded record state (e.g. disableFields by estado)
+                if (this._handlerBridge) {
+                    for (const [fieldId, val] of Object.entries(record)) {
+                        if (val != null && val !== '') {
+                            await this._handlerBridge.callAfter(fieldId, val);
+                        }
+                    }
+                }
             }
         } catch {
             // 404 = registro no existe → modo INSERT, no es un error

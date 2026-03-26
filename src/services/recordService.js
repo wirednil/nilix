@@ -87,9 +87,17 @@ function insert(tableName, data, empresaId) {
         stmt.bind(values);
         stmt.step();
         stmt.free();
-        
+
+        // Inject auto-generated PK back into result data
+        const pkCol = schemaService.getPrimaryKey(tableName);
+        if (pkCol && filteredData[pkCol] == null) {
+            const rowidRows = db.exec('SELECT last_insert_rowid()');
+            const rowid = rowidRows[0]?.values[0]?.[0];
+            if (rowid != null) filteredData[pkCol] = rowid;
+        }
+
         saveDatabase();
-        
+
         return { success: true, data: filteredData };
     } catch (error) {
         const err = new Error(`Insert failed: ${error.message}`);

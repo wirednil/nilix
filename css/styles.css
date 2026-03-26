@@ -1686,7 +1686,8 @@ select.field-error {
         max-width: 100% !important;
     }
     
-    .form-vertical {
+    .form-vertical,
+    #active-content .form-vertical {
         width: 100%;
         min-width: 0;
     }

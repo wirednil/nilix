@@ -42,14 +42,16 @@ export class DuckDBAdapter {
                 `https://esm.sh/@duckdb/duckdb-wasm@${DUCKDB_VERSION}?deps=@apache-arrow/ts@17.0.0`
             );
             
-            const useEH = typeof WebAssembly?.suspend === 'function';
-            const bundle = useEH ? DUCKDB_BUNDLES.eh : DUCKDB_BUNDLES.mvp;
-            
-            console.log(`📦 Using ${useEH ? 'EH' : 'MVP'} bundle...`);
+            // Use MVP bundle — universal compatibility (EH requires full WASM Exception Handling support)
+            const bundle = DUCKDB_BUNDLES.mvp;
+
+            console.log(`📦 Using MVP bundle...`);
             console.log(`📦 Worker: ${bundle.mainWorker}`);
             
+            // Polyfill _setThrew before loading the worker — missing in duckdb-wasm 1.29.0
+            // (Emscripten invoke_* stubs call it but it's not defined when compiled with WASM exceptions)
             const workerBlob = new Blob(
-                [`importScripts("${bundle.mainWorker}");`],
+                [`var _setThrew = function(a, b) {}; importScripts("${bundle.mainWorker}");`],
                 { type: 'application/javascript' }
             );
             const workerUrl = URL.createObjectURL(workerBlob);

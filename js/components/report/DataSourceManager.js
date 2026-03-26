@@ -15,7 +15,7 @@ export class DataSourceManager {
         this.cache = new Map();
         this.duckdb = null;
         this.queryBuilder = new QueryBuilder();
-        this.useDuckDB = true;
+        this.useDuckDB = false;
         this.publicMode = false;
         this.publicReportName = null;
         this.params = {};
@@ -90,7 +90,13 @@ export class DataSourceManager {
         let data;
         
         if (this.useDuckDB && this.duckdb) {
-            data = await this.loadWithDuckDB(dataSource, fields);
+            try {
+                data = await this.loadWithDuckDB(dataSource, fields);
+            } catch (err) {
+                console.warn('⚠️ DuckDB query failed, falling back to JS:', err.message);
+                this.useDuckDB = false;
+                data = await this.loadWithJS(dataSource, fields);
+            }
         } else {
             data = await this.loadWithJS(dataSource, fields);
         }
