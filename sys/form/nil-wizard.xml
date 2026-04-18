@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="nil-wizard" title="Usuarios Sistema" database="auth" table="usuarios" handler="@auth:nil-wizard">
+
+    <form-attributes>
+        <window border="single"/>
+        <display-status/>
+        <confirm>delete</confirm>
+    </form-attributes>
+
+    <layout>
+
+        <border label="[ BUSCAR ]">
+            <container type="horizontal">
+                <field id="id" label="ID" type="select" keyField="true" size="6">
+                    <in-table url="/api/nil/usuarios" key="id" display="usuario">
+                        <copy from="usuario"         to="usuario_nav"/>
+                        <copy from="nombre"          to="nombre"/>
+                        <copy from="usuario"         to="usuario"/>
+                        <copy from="email"           to="email"/>
+                        <copy from="rol"             to="rol"/>
+                        <copy from="permisos"        to="permisos"/>
+                        <copy from="activo"          to="activo"/>
+                        <copy from="estado"          to="estado"/>
+                        <copy from="failed_attempts" to="failed_attempts"/>
+                        <copy from="force_change"    to="force_change"/>
+                        <copy from="never_exp"       to="never_exp"/>
+                        <copy from="exp_days"        to="exp_days"/>
+                        <copy from="pass_from"       to="pass_from"/>
+                        <copy from="pass_to"         to="pass_to"/>
+                        <copy from="warn_days"       to="warn_days"/>
+                        <copy from="warn_date"       to="warn_date"/>
+                        <copy from="allow_change"    to="allow_change"/>
+                    </in-table>
+                </field>
+                <field id="usuario_nav" label="Usuario" type="text" skip="true" size="25"/>
+            </container>
+        </border>
+
+        
+        <border label="[ IDENTIDAD ]">
+            <field id="nombre"  label="Nombre completo" type="text" size="40">
+                <validation><required>true</required></validation>
+            </field>
+            <field id="email"   label="Email"           type="text" size="40"/>
+            <field id="usuario" label="ID de usuario"   type="text" size="20">
+                <validation><required>true</required></validation>
+            </field>
+        </border>
+
+        <border label="[ ROL Y PERMISOS ]">
+            <container type="horizontal">
+                <field id="rol" label="Rol" type="select" size="12">
+                    <options>
+                        <option value="wizard">Wizard</option>
+                        <option value="admin">Admin</option>
+                        <option value="auditor">Auditor</option>
+                    </options>
+                </field>
+                <field id="permisos" label="Permisos" type="text" size="6" skip="true" display-only="true"/>
+            </container>
+        </border>
+
+        <border label="[ CONTRASEÑA ]">
+            <field id="password" label="Contraseña (vacío = no cambiar)" type="password" size="30"/>
+            <container type="horizontal">
+                <field id="force_change" label="Forzar cambio en próximo login" type="checkbox" default="0"/>
+                <field id="allow_change" label="Permite cambio" type="select" size="12" default="always">
+                    <options>
+                        <option value="always">Siempre</option>
+                        <option value="expiration">Al vencer</option>
+                        <option value="never">Nunca</option>
+                    </options>
+                </field>
+            </container>
+        </border>
+
+        <border label="[ EXPIRACIÓN ]">
+            <field id="never_exp" label="Nunca expira" type="checkbox" default="1"/>
+            <container type="horizontal">
+                <field id="exp_days"  label="Vigencia (días)"   type="number" size="6"  display-only="true">
+                    <validation><min>1</min></validation>
+                </field>
+                <field id="pass_from" label="Válida desde"      type="date"   size="12" display-only="true" default="today"/>
+                <field id="pass_to"   label="Válida hasta"      type="date"   size="12" display-only="true"/>
+            </container>
+            <container type="horizontal">
+                <field id="warn_days" label="Avisar (días antes)" type="number" size="6"  display-only="true">
+                    <validation>
+                        <min>0</min>
+                        <check>this &lt; exp_days</check>
+                        <message>Los días de aviso deben ser menores a la vigencia</message>
+                    </validation>
+                </field>
+                <field id="warn_date" label="Fecha de aviso"      type="date"   size="12" display-only="true"/>
+            </container>
+        </border>
+
+        <border label="[ ESTADO ]">
+            <container type="horizontal">
+                <field id="activo"          label="Activo"            type="checkbox" default="1"/>
+                <field id="estado"          label="Estado"            type="text" size="20" display-only="true"/>
+                <field id="failed_attempts" label="Intentos fallidos" type="number"  size="5"  display-only="true"/>
+            </container>
+        </border>
+
+    </layout>
+
+</form>

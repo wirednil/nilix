@@ -82,6 +82,9 @@ class FormRenderer {
         windowDiv.appendChild(formEl);
         container.appendChild(windowDiv);
 
+        // Pre-fill from load= URL (settings forms without keyField)
+        if (ctx.formLoad) validationCoord.initLoad();
+
         // Sync tableConfig back (may have been set by extractFieldConfig)
         this.tableConfig = ctx.tableConfig;
 

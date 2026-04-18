@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Nilix — Sistema</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <header id="global-header">
+        <div class="header-left">
+            <button id="sidebar-toggle" class="hamburger-btn" aria-label="Toggle sidebar">
+                <span></span><span></span><span></span>
+            </button>
+            <h1 class="header-title">NILIX / SISTEMA</h1>
+        </div>
+        <div class="header-right">
+            <button id="theme-btn" class="theme-toggle" aria-label="Cambiar tema" title="Cambiar tema"></button>
+        </div>
+    </header>
+
+    <div id="os-interface">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <span>SISTEMA</span>
+            </div>
+            <div id="file-tree"></div>
+            <div class="sidebar-footer">
+                <span id="nil-sys-user"></span>
+            </div>
+        </aside>
+
+        <main id="workspace">
+            <div id="active-content"></div>
+        </main>
+    </div>
+
+    <script type="module" src="js/nil-sys.js"></script>
+</body>
+</html>

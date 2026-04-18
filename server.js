@@ -69,6 +69,9 @@ const authRoutes = require('./src/routes/authRoutes');
 const publicReportRoutes = require('./src/routes/publicReportRoutes');
 const cspReportRoutes = require('./src/routes/cspReportRoutes');
 const usersRoutes = require('./src/routes/usersRoutes');
+const adminRoutes  = require('./src/routes/adminRoutes');
+const nilRoutes    = require('./src/routes/nilRoutes');
+const setupRoutes  = require('./src/routes/setupRoutes');
 const logRoutes    = require('./src/routes/logRoutes');
 const healthRoutes = require('./src/routes/healthRoutes');
 const verifyToken  = require('./src/middleware/verifyToken');
@@ -113,6 +116,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
 app.use('/api/health', healthRoutes);                                    // public — health check, sin rate limit (monitoring)
+app.use('/api/setup', publicLimiter, setupRoutes);                       // public — first-run wizard (locked after first empresa)
 app.use('/api/auth', publicLimiter, authRoutes);                         // public — login ya tiene su propio limiter interno
 app.use('/api/public/report-data', publicLimiter, publicReportRoutes);  // public — report data for public YAMLs
 app.use('/api/security/csp-report', publicLimiter, cspReportRoutes);   // public — CSP violation reports (browsers no mandan cookies)
@@ -144,11 +148,31 @@ app.use('/api', apiLimiter);                             // límite general para
 app.use('/api', apiRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/nil',   nilRoutes);
 app.use('/api/log', logRoutes);
+// ─── HTML surface routes ──────────────────────────────────────────────────────
+app.get('/nil-setup', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'nil-setup.html'));
+});
+app.get('/nil-sys', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'nil-sys.html'));
+});
+app.get('/nil-login', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'nil-login.html'));
+});
+
+// Backward-compat: old bookmarks / hard-coded links
+app.get('/login.html', (_req, res) => {
+    res.redirect(301, '/nil-login');
+});
+
 // App reports take priority over built-in reports
 if (process.env.NIL_APP_DIR) {
     app.use('/reports', express.static(path.join(process.env.NIL_APP_DIR, 'reports')));
 }
+// Nil-sys reports (sys/report/) — lower priority than app reports
+app.use('/reports', express.static(path.join(__dirname, 'sys/report')));
 app.use(express.static(__dirname));
 
 // Global error handler — catches unhandled errors from middleware and routes

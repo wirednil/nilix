@@ -64,11 +64,23 @@ export class LayoutProcessor {
     }
 
     renderBorder(borderNode, parentContainer) {
-        const borderBox = createElement('div', 'border-box');
-        parentContainer.appendChild(borderBox);
-
+        const label = borderNode.getAttribute('label');
+        let container;
+        if (label) {
+            const fieldset = document.createElement('fieldset');
+            fieldset.className = 'border-box';
+            const legend = document.createElement('legend');
+            legend.textContent = label;
+            fieldset.appendChild(legend);
+            parentContainer.appendChild(fieldset);
+            container = fieldset;
+        } else {
+            const borderBox = createElement('div', 'border-box');
+            parentContainer.appendChild(borderBox);
+            container = borderBox;
+        }
         Array.from(borderNode.children).forEach(child => {
-            this.processNode(child, borderBox);
+            this.processNode(child, container);
         });
     }
 
@@ -202,7 +214,8 @@ export class LayoutProcessor {
                 const filterField = inTableEl.getAttribute('filter-field') || filterBy;
 
                 lookupConfig = {
-                    table: inTableEl.getAttribute('table'),
+                    table: inTableEl.getAttribute('table') || null,
+                    url:   inTableEl.getAttribute('url')   || null,
                     key: inTableEl.getAttribute('key'),
                     displayField: inTableEl.getAttribute('display') || inTableEl.getAttribute('key'),
                     copyFields: [],
@@ -220,7 +233,7 @@ export class LayoutProcessor {
 
                 if (!this.ctx.tableConfig) {
                     this.ctx.tableConfig = {
-                        table: lookupConfig.table,
+                        table: lookupConfig.table,  // null when url= is used
                         keyField: lookupConfig.key
                     };
                 } else if (isKeyField) {

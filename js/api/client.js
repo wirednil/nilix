@@ -42,6 +42,26 @@ async function getMenu() {
     }
 }
 
+async function getAdminMenu() {
+    try {
+        const response = await authFetch('/api/admin/menu');
+        if (!response.ok) return [];
+        return await response.json();
+    } catch {
+        return [];
+    }
+}
+
+async function getNilMenu() {
+    try {
+        const response = await authFetch('/api/nil/menu');
+        if (!response.ok) return [];
+        return await response.json();
+    } catch {
+        return [];
+    }
+}
+
 async function getFile(absolutePath) {
     console.log(`🌐 GET File: Solicitando ${absolutePath}...`);
     try {
@@ -79,4 +99,4 @@ async function logout() {
     window.location.href = '/login.html';
 }
 
-export { authFetch, getMenu, getFile, getTree, logout };
+export { authFetch, getMenu, getAdminMenu, getNilMenu, getFile, getTree, logout };

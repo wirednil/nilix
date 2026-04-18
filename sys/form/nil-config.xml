@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="empresa_config"
+      title="Configuración del Sistema"
+      action="/api/admin/empresa"
+      load="/api/admin/empresa">
+
+  <layout>
+
+    <border label="DATOS DE LA EMPRESA">
+      <container type="horizontal">
+        <field id="nombre"   label="Nombre"   type="text" required="true" size="40"/>
+        <field id="cuit"     label="CUIT"     type="text" size="15"/>
+      </container>
+      <container type="horizontal">
+        <field id="email"    label="Email"    type="text" size="40"/>
+        <field id="telefono" label="Teléfono" type="text" size="20"/>
+      </container>
+      <field id="direccion"  label="Dirección" type="text" size="60"/>
+      <field id="horario"    label="Horario"   type="text" size="60"/>
+    </border>
+
+    <border label="SEGURIDAD">
+      <container type="horizontal">
+        <field id="max_intentos_fallidos" label="Intentos antes de bloqueo" type="text" size="5"/>
+        <field id="min_largo_password"    label="Largo mínimo contraseña"   type="text" size="5"/>
+        <field id="expiry_sesion"         label="Expiración de sesión"      type="text" size="8"/>
+      </container>
+    </border>
+
+    <border label="AUDITORÍA">
+      <container type="horizontal">
+        <field id="audit_activo" label="Registrar auditoría" type="checkbox"/>
+        <field id="audit_mode"   label="Registrar"           type="select" size="20">
+          <option value="todo">Todo</option>
+          <option value="escrituras">Solo escrituras</option>
+          <option value="errores">Solo errores</option>
+        </field>
+      </container>
+    </border>
+
+    <border label="REPORTES">
+      <field id="titulo_reporte"     label="Título"     type="text" size="60"/>
+      <field id="subtitulo_reporte"  label="Subtítulo"  type="text" size="60"/>
+      <field id="pie_reporte"        label="Pie"        type="text" size="60"/>
+    </border>
+
+  </layout>
+
+</form>

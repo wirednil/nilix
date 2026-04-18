@@ -30,7 +30,12 @@
             // If already logged in, skip login page
             try {
                 const check = await fetch('/api/auth/check');
-                if (check.ok) { window.location.href = '/'; return; }
+                if (check.ok) {
+                    const session = await check.json();
+                    const SYSTEM_ROLES = ['wizard', 'admin', 'auditor'];
+                    window.location.href = SYSTEM_ROLES.includes(session.rol) ? '/nil-sys' : '/';
+                    return;
+                }
             } catch { /* no hay sesión, mostrar login */ }
             localStorage.removeItem('nil_token'); // limpieza de migración
 

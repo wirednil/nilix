@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<menu>
+
+  <!-- WIZARD — solo rol wizard (RADU) -->
+  <option type="separator" label="WIZARD"/>
+  <option type="form"   label="Usuarios sistema"
+          target="form/nil-wizard.xml"
+          permissions="RADU"/>
+
+  <!-- ADMINISTRACIÓN — wizard + admin (RAU) -->
+  <option type="separator" label="ADMINISTRACIÓN"/>
+  <option type="form"   label="Configuración"
+          target="form/nil-config.xml"
+          permissions="RAU"/>
+  <option type="form"   label="Usuarios app"
+          target="form/nil-users.xml"
+          permissions="RAU"/>
+
+  <!-- AUDITORÍA — todos los roles de sistema (R) -->
+  <option type="separator" label="AUDITORÍA"/>
+  <option type="report" label="Audit Log"
+          target="report/nil-audit.yaml"
+          permissions="R"/>
+  <option type="report" label="Usuarios"
+          target="report/nil-users.yaml"
+          permissions="R"/>
+
+</menu>

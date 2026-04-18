@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="nil-users" title="Usuarios App" database="auth" table="usuarios" handler="@auth:nil-users">
+
+    <form-attributes>
+        <window border="single"/>
+        <display-status/>
+        <confirm>delete</confirm>
+    </form-attributes>
+
+    <layout>
+
+        <border label="[ BUSCAR ]">
+            <container type="horizontal">
+                <field id="id" label="ID" type="select" keyField="true" size="6">
+                    <in-table url="/api/nil/operadores" key="id" display="usuario">
+                        <copy from="usuario"         to="usuario_nav"/>
+                        <copy from="nombre"          to="nombre"/>
+                        <copy from="usuario"         to="usuario"/>
+                        <copy from="email"           to="email"/>
+                        <copy from="permisos"        to="permisos"/>
+                        <copy from="activo"          to="activo"/>
+                        <copy from="empresa_id"      to="empresa_id"/>
+                        <copy from="empresa_nombre"  to="empresa_nombre"/>
+                        <copy from="failed_attempts" to="failed_attempts"/>
+                        <copy from="last_login"      to="last_login"/>
+                        <copy from="created_at"      to="created_at"/>
+                    </in-table>
+                </field>
+                <field id="usuario_nav" label="Usuario" type="text" skip="true" size="25"/>
+            </container>
+        </border>
+
+        <border label="[ EMPRESA ]">
+            <container type="horizontal">
+                <field id="empresa_id"     label="ID empresa" type="text" skip="true" size="6"/>
+                <field id="empresa_nombre" label="Empresa"    type="text" skip="true" size="35"/>
+            </container>
+        </border>
+
+        <border label="[ IDENTIDAD ]">
+            <container type="horizontal">
+                <field id="nombre"  label="Nombre"  type="text" size="40">
+                    <validation><required>true</required></validation>
+                </field>
+                <field id="usuario" label="ID de usuario" type="text" size="20">
+                    <validation><required>true</required></validation>
+                </field>
+            </container>
+            <field id="email" label="Email" type="text" size="40"/>
+        </border>
+
+        <border label="[ PERMISOS ]">
+            <field id="permisos" label="Permisos" type="select" size="10">
+                <options>
+                    <option value="RADU">RADU (Admin app)</option>
+                    <option value="RAU">RAU</option>
+                    <option value="RA">RA</option>
+                    <option value="R">R (Solo lectura)</option>
+                </options>
+            </field>
+        </border>
+
+        <border label="[ CONTRASEÑA ]">
+            <field id="password" label="Contraseña (vacío = no cambiar)" type="password" size="30"/>
+        </border>
+
+        <border label="[ ESTADO ]">
+            <container type="horizontal">
+                <field id="activo"          label="Activo"            type="checkbox" default="1"/>
+                <field id="failed_attempts" label="Intentos fallidos" type="text" skip="true" size="6"/>
+            </container>
+            <field id="last_login"  label="Último login" type="text" skip="true" size="20"/>
+            <field id="created_at"  label="Creado"       type="text" skip="true" size="20"/>
+        </border>
+
+    </layout>
+
+</form>

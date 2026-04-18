@@ -78,17 +78,23 @@ class Workspace {
     }
 
     async showYamlInfo(fullPath) {
-        const fileName = fullPath.split('/').pop().replace(/\.(yaml|yml)$/, '');
+        // Preserve subdirectory structure relative to /reports/ (e.g. 'admin/usuarios')
+        const reportsIdx = fullPath.lastIndexOf('/reports/');
+        const fileName = reportsIdx !== -1
+            ? fullPath.slice(reportsIdx + '/reports/'.length).replace(/\.(yaml|yml)$/, '')
+            : fullPath.split('/').pop().replace(/\.(yaml|yml)$/, '');
 
         // Resolver IP real de red (para QR útil fuera de localhost)
-        let baseUrl = window.location.origin;
+        const localOrigin = window.location.origin;
+        let networkOrigin = localOrigin;
         try {
             const info = await fetch('/api/server-info').then(r => r.json());
-            if (info.host) baseUrl = info.host;
+            if (info.host) networkOrigin = info.host;
         } catch { /* fallback a origin */ }
 
         const empresaParam = this.empresa != null ? `&t=${this.empresa}` : '';
-        const publicUrl = `${baseUrl}/report.html?file=${fileName}${empresaParam}`;
+        const localUrl   = `${localOrigin}/report.html?file=${fileName}${empresaParam}`;
+        const publicUrl  = `${networkOrigin}/report.html?file=${fileName}${empresaParam}`;
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}&format=png&margin=10`;
 
         const infoDiv = document.createElement('div');
@@ -106,7 +112,7 @@ class Workspace {
                 </div>
                 <div class="report-copy-log"></div>
                 <div class="report-actions">
-                    <a href="${publicUrl}" target="_blank" class="report-link">
+                    <a href="${localUrl}" target="_blank" class="report-link">
                         [ ABRIR ]
                     </a>
                 </div>

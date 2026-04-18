@@ -1,0 +1,49 @@
+name: Usuarios del sistema
+config:
+  paginationMode: scroll
+  markdown: true
+
+fields:
+  - name: id
+    type: numeric
+  - name: nombre
+    type: string
+  - name: usuario
+    type: string
+  - name: email
+    type: string
+  - name: rol
+    type: string
+  - name: activo
+    type: numeric
+  - name: created_at
+    type: string
+
+dataSources:
+  usuarios:
+    url: /api/admin/usuarios
+
+zones:
+  - name: header
+    condition: { when: before, on: report }
+    template:
+      - "## Usuarios"
+      - ""
+
+  - name: tabla
+    layout: lines
+    condition: { when: before, on: report }
+    dataSource: usuarios
+    expressions:
+      - { name: id,         field: id }
+      - { name: nombre,     field: nombre }
+      - { name: usuario,    field: usuario }
+      - { name: email,      field: email }
+      - { name: rol,        field: rol }
+      - { name: activo,     field: activo }
+      - { name: created_at, field: created_at }
+    template:
+      - "| ID | Usuario | Nombre | Email | Rol | Activo | Creado |"
+      - "|---:|:--------|:-------|:------|:-----|:------:|:-------|"
+    rowTemplate:
+      - "| {id} | `{usuario}` | {nombre} | {email} | {rol} | {activo} | {created_at} |"

@@ -92,6 +92,22 @@ export class HandlerBridge {
         }
     }
 
+    async callAfterLoad(record) {
+        if (!this.ctx.tableConfig?.handler) return;
+        try {
+            const response = await authFetch(`/api/handler/${this.ctx.tableConfig.handler}/after-load`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ record })
+            });
+            if (!response.ok) return;
+            const { result } = await response.json();
+            if (result) this._applyResult(result);
+        } catch (error) {
+            logger.error('HandlerBridge', `callAfterLoad handler=${this.ctx.tableConfig?.handler}`, error);
+        }
+    }
+
     getFormData() {
         const formEl = this.ctx.container?.querySelector('form');
         if (!formEl) return {};

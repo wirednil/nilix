@@ -8,6 +8,10 @@
  */
 
 const logger = require('../services/logger');
+const { insertAuditLog } = require('../services/authDatabase');
+
+// Paths that should not be stored in audit_log (noisy or would cause loops)
+const SKIP_STORE = ['/api/health', '/api/log', '/api/auth/check'];
 
 function auditLog(req, res, next) {
     const start = Date.now();
@@ -28,6 +32,19 @@ function auditLog(req, res, next) {
 
         const logFn = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
         logger[logFn]({ usuario, empresa, method, path, status, ms }, '[AUDIT]');
+
+        // Persist to audit_log table (skip noisy / loopback paths)
+        if (req.usuarioId && !SKIP_STORE.some(p => req.originalUrl.startsWith(p))) {
+            insertAuditLog({
+                usuarioId: req.usuarioId,
+                empresaId: req.empresaId ?? null,
+                method,
+                path,
+                status,
+                ms,
+                ip: req.ip || req.socket?.remoteAddress || null
+            });
+        }
     });
 
     next();

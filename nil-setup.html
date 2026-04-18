@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nilix — Configuración inicial</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #setup-container {
+            width: 100%;
+            max-width: 480px;
+            padding: 1rem;
+        }
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.82rem;
+        }
+        .step-indicator .sep { opacity: 0.4; }
+        .step-lbl {
+            padding: 0.15rem 0.5rem;
+            border: 1px solid currentColor;
+            opacity: 0.35;
+        }
+        .step-lbl.active { opacity: 1; font-weight: bold; }
+        .step-lbl.done   { opacity: 0.35; text-decoration: line-through; }
+
+        .setup-step { display: none; }
+        .setup-step.visible { display: block; }
+
+        .field-row { margin-bottom: 0.9rem; }
+        .field-row label { display: block; font-size: 0.82rem; margin-bottom: 0.25rem; opacity: 0.7; }
+        .field-row input  { width: 100%; box-sizing: border-box; }
+
+        .nav-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+        .err { color: var(--err-color, #c00); font-size: 0.82rem; margin-top: 0.6rem; min-height: 1.1em; }
+
+        .success-box { text-align: center; padding: 1.5rem 0; }
+        .success-mark { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+<div id="setup-container">
+    <h2>Nilix — Configuración inicial</h2>
+
+    <div class="step-indicator">
+        <span class="step-lbl active" id="ind-1">1. Empresa</span>
+        <span class="sep">→</span>
+        <span class="step-lbl" id="ind-2">2. Administrador</span>
+        <span class="sep">→</span>
+        <span class="step-lbl" id="ind-3">3. Listo</span>
+    </div>
+
+    <!-- Step 1: Empresa -->
+    <div class="setup-step visible" id="step-1">
+        <h3>Datos de la empresa</h3>
+        <div class="field-row">
+            <label for="empresa_nombre">Nombre *</label>
+            <input type="text" id="empresa_nombre" maxlength="100" autocomplete="off">
+        </div>
+        <div class="field-row">
+            <label for="empresa_cuit">CUIT</label>
+            <input type="text" id="empresa_cuit" maxlength="20" autocomplete="off">
+        </div>
+        <div class="err" id="err-1"></div>
+        <div class="nav-row">
+            <button id="btn-next-1">Siguiente →</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Admin -->
+    <div class="setup-step" id="step-2">
+        <h3>Usuario administrador</h3>
+        <div class="field-row">
+            <label for="admin_nombre">Nombre completo</label>
+            <input type="text" id="admin_nombre" maxlength="80" autocomplete="off">
+        </div>
+        <div class="field-row">
+            <label for="admin_usuario">Usuario *</label>
+            <input type="text" id="admin_usuario" maxlength="30" autocomplete="off">
+        </div>
+        <div class="field-row">
+            <label for="admin_password">Contraseña * (mín. 8 caracteres)</label>
+            <input type="password" id="admin_password" autocomplete="new-password">
+        </div>
+        <div class="field-row">
+            <label for="admin_confirm">Confirmar contraseña *</label>
+            <input type="password" id="admin_confirm" autocomplete="new-password">
+        </div>
+        <div class="err" id="err-2"></div>
+        <div class="nav-row">
+            <button id="btn-prev-2">← Anterior</button>
+            <button id="btn-submit">Finalizar</button>
+        </div>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div class="setup-step" id="step-3">
+        <div class="success-box">
+            <div class="success-mark">✓</div>
+            <h3>Sistema configurado</h3>
+            <p>Empresa y usuario administrador creados.<br>Ya podés ingresar al sistema.</p>
+            <div class="nav-row" style="justify-content:center; margin-top:1.5rem">
+                <a href="/nil-login"><button>Ir al login →</button></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(async () => {
+    // Redirect if setup already done or user is logged in
+    try {
+        const [statusRes, authRes] = await Promise.all([
+            fetch('/api/setup/status'),
+            fetch('/api/auth/check')
+        ]);
+        if (authRes.ok)               { window.location.href = '/';         return; }
+        const { needed } = await statusRes.json();
+        if (!needed)                  { window.location.href = '/nil-login'; return; }
+    } catch { /* show wizard */ }
+
+    const state = {};
+
+    function showStep(n) {
+        document.querySelectorAll('.setup-step').forEach(el => el.classList.remove('visible'));
+        document.getElementById('step-' + n).classList.add('visible');
+        for (let i = 1; i <= 3; i++) {
+            const ind = document.getElementById('ind-' + i);
+            ind.classList.remove('active', 'done');
+            if (i === n) ind.classList.add('active');
+            if (i < n)  ind.classList.add('done');
+        }
+    }
+
+    // Step 1 → Step 2
+    document.getElementById('btn-next-1').addEventListener('click', () => {
+        const nombre = document.getElementById('empresa_nombre').value.trim();
+        const errEl  = document.getElementById('err-1');
+        if (!nombre) { errEl.textContent = 'El nombre de la empresa es requerido.'; return; }
+        errEl.textContent = '';
+        state.empresa_nombre = nombre;
+        state.empresa_cuit   = document.getElementById('empresa_cuit').value.trim();
+        showStep(2);
+        document.getElementById('admin_nombre').focus();
+    });
+
+    // Step 2 → Step 1
+    document.getElementById('btn-prev-2').addEventListener('click', () => showStep(1));
+
+    // Submit
+    document.getElementById('btn-submit').addEventListener('click', async () => {
+        const usuario  = document.getElementById('admin_usuario').value.trim();
+        const password = document.getElementById('admin_password').value;
+        const confirm  = document.getElementById('admin_confirm').value;
+        const errEl    = document.getElementById('err-2');
+
+        if (!/^[a-zA-Z0-9_-]{3,30}$/.test(usuario)) {
+            errEl.textContent = 'Usuario inválido (3-30 caracteres: letras, números, _ -)'; return;
+        }
+        if (password.length < 8) {
+            errEl.textContent = 'La contraseña debe tener al menos 8 caracteres.'; return;
+        }
+        if (password !== confirm) {
+            errEl.textContent = 'Las contraseñas no coinciden.'; return;
+        }
+        errEl.textContent = '';
+
+        const btn = document.getElementById('btn-submit');
+        btn.disabled    = true;
+        btn.textContent = 'Configurando...';
+
+        try {
+            const res = await fetch('/api/setup/init', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...state,
+                    admin_nombre:    document.getElementById('admin_nombre').value.trim(),
+                    admin_usuario:   usuario,
+                    admin_password:  password
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                errEl.textContent = data.error || 'Error al configurar.';
+                btn.disabled    = false;
+                btn.textContent = 'Finalizar';
+                return;
+            }
+            showStep(3);
+        } catch {
+            errEl.textContent = 'Error de conexión.';
+            btn.disabled    = false;
+            btn.textContent = 'Finalizar';
+        }
+    });
+
+    // Enter key support
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const step1 = document.getElementById('step-1');
+        const step2 = document.getElementById('step-2');
+        if (step1.classList.contains('visible')) document.getElementById('btn-next-1').click();
+        if (step2.classList.contains('visible')) document.getElementById('btn-submit').click();
+    });
+})();
+</script>
+</body>
+</html>

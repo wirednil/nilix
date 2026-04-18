@@ -1,0 +1,49 @@
+name: Audit Log
+config:
+  paginationMode: scroll
+  markdown: true
+
+fields:
+  - name: ts
+    type: string
+  - name: usuario_id
+    type: numeric
+  - name: method
+    type: string
+  - name: path
+    type: string
+  - name: status
+    type: numeric
+  - name: ms
+    type: numeric
+  - name: ip
+    type: string
+
+dataSources:
+  log:
+    url: /api/admin/audit-log?limit=500
+
+zones:
+  - name: header
+    condition: { when: before, on: report }
+    template:
+      - "## Audit Log"
+      - ""
+
+  - name: tabla
+    layout: lines
+    condition: { when: before, on: report }
+    dataSource: log
+    expressions:
+      - { name: ts,         field: ts }
+      - { name: usuario_id, field: usuario_id }
+      - { name: method,     field: method }
+      - { name: path,       field: path }
+      - { name: status,     field: status }
+      - { name: ms,         field: ms }
+      - { name: ip,         field: ip }
+    template:
+      - "| Timestamp | UID | Método | Path | Status | ms | IP |"
+      - "|:----------|----:|:------:|:-----|-------:|---:|:---|"
+    rowTemplate:
+      - "| {ts} | {usuario_id} | `{method}` | {path} | {status} | {ms} | {ip} |"

@@ -9,6 +9,7 @@ const router = express.Router();
 const handlerController = require('../controllers/handlerController');
 
 router.post('/:handler/after', handlerController.after);
+router.post('/:handler/after-load', handlerController.afterLoad);
 router.post('/:handler/after-field', handlerController.afterField);
 router.post('/:handler/before', handlerController.before);
 
