@@ -8,19 +8,21 @@ import xmlParser from '../xmlParser/index.js';
 export class FormContext {
     constructor(formNode, messagesNode, layoutNode) {
         this.title = formNode.getAttribute('title');
-        this.database = formNode.getAttribute('database');
+        this.database = formNode.getAttribute('database') || 'app';
         this.formAction = formNode.getAttribute('action') || null;  // e.g. /api/auth/login
-        this.formId = this.database || 'default-form';
+        this.formLoad   = formNode.getAttribute('load')   || null;  // GET URL to pre-fill fields on open
+        this.formId = formNode.getAttribute('table') || formNode.getAttribute('id') || 'default-form';
         this.messages = xmlParser.extractMessages(messagesNode);
         this.layoutNode = layoutNode;
 
         const _handler = formNode.getAttribute('handler');
         const handler = (_handler && _handler !== 'none') ? _handler : null;
         const crudMode = formNode.getAttribute('crud-mode') || null;
+        const table    = formNode.getAttribute('table') || null;
         const keyField = this._findKeyField(layoutNode);
 
-        this.tableConfig = (this.database || handler)
-            ? { table: this.database, keyField, handler, crudMode }
+        this.tableConfig = (table || handler)
+            ? { table, db: this.database, keyField, handler, crudMode }
             : null;
 
         this.outputDirectives = this._parseOutputDirectives(formNode);

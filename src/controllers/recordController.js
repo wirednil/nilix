@@ -15,15 +15,21 @@ const { getTablePermissions } = require('../services/menuService');
 const authRecordService = require('../services/authRecordService');
 const { loadAuthHandler } = require('../services/authHandlerService');
 
-// ─── @auth: prefix routing ────────────────────────────────────────────────────
-// Forms with database="@auth:tableName" route CRUD to auth.db instead of app DB.
-// Example: database="@auth:usuarios" → users are stored in auth.db, tenant-scoped.
+// ─── DB routing ───────────────────────────────────────────────────────────────
+// Route segment :db selects the database instance.
+//   app  → NIL_DB_FILE  (getDatabase)
+//   auth → NIL_AUTH_DB  (getAuthDatabase)
 
-function resolveTable(rawTable) {
-    if (typeof rawTable === 'string' && rawTable.startsWith('@auth:')) {
-        return { isAuth: true, tableName: rawTable.slice(6) };
-    }
-    return { isAuth: false, tableName: rawTable };
+// Roles with global access to auth.db (no tenant scope).
+const GLOBAL_AUTH_ROLES = new Set(['wizard']);
+
+function resolveDb(req) {
+    return {
+        isAuth: req.params.db === 'auth',
+        tableName: req.params.table,
+        // null = global access (no empresa_id filter in authRecordService)
+        authEmpresaId: GLOBAL_AUTH_ROLES.has(req.rol) ? null : req.empresaId
+    };
 }
 
 function assertTableAllowed(table, res) {
@@ -46,14 +52,14 @@ function assertOperationAllowed(table, operation, res) {
 
 function getRecord(req, res) {
     try {
-        const { isAuth, tableName } = resolveTable(req.params.table);
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
         if (isAuth) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
             }
             const { keyField, id } = req.query;
             if (!keyField || !id) return res.status(400).json({ error: { code: 'MISSING_PARAMS', message: 'keyField and id are required' } });
-            const record = authRecordService.findById(tableName, keyField, id, req.empresaId);
+            const record = authRecordService.findById(tableName, keyField, id, authEmpresaId);
             if (!record) return res.status(404).json({ error: { code: 'RECORD_NOT_FOUND', message: `Record not found` } });
             return res.json({ data: record });
         }
@@ -102,7 +108,7 @@ function getRecord(req, res) {
 
 async function createRecord(req, res) {
     try {
-        const { isAuth, tableName } = resolveTable(req.params.table);
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
         if (isAuth) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
@@ -111,9 +117,9 @@ async function createRecord(req, res) {
             if (!data) return res.status(400).json({ error: { code: 'MISSING_DATA', message: 'data is required' } });
             if (handlerName?.startsWith('@auth:')) {
                 const authHandler = loadAuthHandler(handlerName);
-                if (authHandler?.beforeSave) authHandler.beforeSave(data, req.empresaId);
+                if (authHandler?.beforeSave) authHandler.beforeSave(data, authEmpresaId);
             }
-            const result = await authRecordService.upsert(tableName, keyField ?? 'id', data, req.empresaId, req.usuarioId);
+            const result = await authRecordService.upsert(tableName, keyField ?? 'id', data, authEmpresaId, req.usuarioId);
             return res.status(201).json({ data: result });
         }
         const { table } = req.params;
@@ -200,7 +206,7 @@ async function createRecord(req, res) {
 
 async function upsertRecord(req, res) {
     try {
-        const { isAuth, tableName } = resolveTable(req.params.table);
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
         if (isAuth) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
@@ -209,9 +215,9 @@ async function upsertRecord(req, res) {
             if (!keyField || !data) return res.status(400).json({ error: { code: 'MISSING_PARAMS', message: 'keyField and data are required' } });
             if (handlerName?.startsWith('@auth:')) {
                 const authHandler = loadAuthHandler(handlerName);
-                if (authHandler?.beforeSave) authHandler.beforeSave(data, req.empresaId);
+                if (authHandler?.beforeSave) authHandler.beforeSave(data, authEmpresaId);
             }
-            const result = await authRecordService.upsert(tableName, keyField, data, req.empresaId, req.usuarioId);
+            const result = await authRecordService.upsert(tableName, keyField, data, authEmpresaId, req.usuarioId);
             return result.updated
                 ? res.json({ data: result, updated: true })
                 : res.status(201).json({ data: result, created: true });
@@ -307,8 +313,24 @@ async function upsertRecord(req, res) {
     }
 }
 
-function updateRecord(req, res) {
+async function updateRecord(req, res) {
     try {
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
+        if (isAuth) {
+            if (!authRecordService.tableAllowed(tableName)) {
+                return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
+            }
+            const { id } = req.params;
+            const { keyField, data, handler: handlerName } = req.body ?? {};
+            if (!keyField || !data) return res.status(400).json({ error: { code: 'MISSING_PARAMS', message: 'keyField and data are required' } });
+            if (handlerName) {
+                const authHandler = loadAuthHandler(handlerName);
+                if (authHandler?.beforeSave) authHandler.beforeSave(data, authEmpresaId);
+            }
+            data[keyField] = data[keyField] || id;
+            const result = await authRecordService.upsert(tableName, keyField, data, authEmpresaId, req.usuarioId);
+            return res.json({ data: result, updated: true });
+        }
         const { table, id } = req.params;
         if (!assertTableAllowed(table, res)) return;
         if (!assertOperationAllowed(table, 'canUpdate', res)) return;
@@ -386,7 +408,7 @@ function updateRecord(req, res) {
 
 function deleteRecord(req, res) {
     try {
-        const { isAuth, tableName } = resolveTable(req.params.table);
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
         if (isAuth) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
@@ -394,7 +416,7 @@ function deleteRecord(req, res) {
             const { id } = req.params;
             const { keyField } = req.body || req.query;
             if (!keyField) return res.status(400).json({ error: { code: 'MISSING_KEYFIELD', message: 'keyField is required' } });
-            authRecordService.remove(tableName, keyField, id, req.empresaId);
+            authRecordService.remove(tableName, keyField, id, authEmpresaId);
             return res.status(204).send();
         }
         const { table, id } = req.params;
@@ -450,14 +472,14 @@ function deleteRecord(req, res) {
 
 function navigateRecord(req, res) {
     try {
-        const { isAuth, tableName } = resolveTable(req.params.table);
+        const { isAuth, tableName, authEmpresaId } = resolveDb(req);
         if (isAuth) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
             }
             const { keyField, current, dir } = req.query;
             if (!keyField || !current || !dir) return res.status(400).json({ error: { code: 'MISSING_PARAMS', message: 'keyField, current and dir are required' } });
-            const record = authRecordService.navigate(tableName, keyField, current, dir, req.empresaId);
+            const record = authRecordService.navigate(tableName, keyField, current, dir, authEmpresaId);
             if (!record) return res.status(404).json({ error: { code: 'BOUNDARY_REACHED', message: `No ${dir} record found` } });
             return res.json({ data: record });
         }

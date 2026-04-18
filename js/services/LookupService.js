@@ -60,6 +60,12 @@ class LookupService {
         return TableCache.set(tableName, data, data.ttl);
     }
     
+    static async getCatalogFromUrl(url) {
+        const response = await authFetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch catalog from: ${url}`);
+        return await response.json();  // expects { rows: [...] }
+    }
+
     static async loadRecord(tableName, keyField, id) {
         const response = await authFetch(
             `${RECORDS_API}/${tableName}?keyField=${encodeURIComponent(keyField)}&id=${encodeURIComponent(id)}`

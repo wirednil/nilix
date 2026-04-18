@@ -192,8 +192,8 @@
                 try {
                     const checkRes = await fetch('/api/auth/check');
                     const check = checkRes.ok ? await checkRes.json() : { ok: false };
-                    if (!check.ok) { window.location.href = '/login.html'; return; }
-                } catch { window.location.href = '/login.html'; return; }
+                    if (!check.ok) { window.location.href = '/nil-login'; return; }
+                } catch { window.location.href = '/nil-login'; return; }
             }
 
             const engine = new ReportEngine();

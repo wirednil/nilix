@@ -16,7 +16,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { initAuthDatabase, getAuthDatabase, saveAuthDatabase } = require('./authDatabase');
+const { initAuthDatabase, getAuthDatabase, saveAuthDatabase, getNilConfigValue } = require('./authDatabase');
 const logger = require('./logger');
 
 // ─── Internal error codes (server logs only — never sent to client) ──────────
@@ -34,7 +34,8 @@ const MSG_BAD_CREDENTIALS = 'Usuario o contraseña incorrectos';
 const MSG_BLOCKED          = 'Cuenta bloqueada. Contacte al administrador';
 const MSG_INTERNAL         = 'Error interno del servidor';
 
-const MAX_FAILED_ATTEMPTS = 5;
+const MAX_FAILED_ATTEMPTS_DEFAULT = 5;
+const MIN_PASSWORD_LENGTH_DEFAULT = 8;
 
 // ─── Input validators ────────────────────────────────────────────────────────
 
@@ -43,15 +44,19 @@ const MAX_FAILED_ATTEMPTS = 5;
  * Matches the same constraint enforced by the DB UNIQUE index.
  */
 function isValidUsuario(usuario) {
-    return typeof usuario === 'string' && /^[a-zA-Z0-9_]{3,30}$/.test(usuario);
+    return typeof usuario === 'string' && /^[a-zA-Z0-9_-]{3,30}$/.test(usuario);
 }
 
 /**
  * Minimum 8 characters. Complexity rules can be tightened here without
  * touching any other layer.
  */
-function isValidPassword(password) {
-    return typeof password === 'string' && password.length >= 8;
+function isValidPassword(password, empresaId = null) {
+    if (typeof password !== 'string') return false;
+    const minLen = empresaId
+        ? parseInt(getNilConfigValue(empresaId, 'min_largo_password', MIN_PASSWORD_LENGTH_DEFAULT), 10) || MIN_PASSWORD_LENGTH_DEFAULT
+        : MIN_PASSWORD_LENGTH_DEFAULT;
+    return password.length >= minLen;
 }
 
 // ─── DB helpers ──────────────────────────────────────────────────────────────
@@ -96,7 +101,7 @@ function resetFailedAttempts(db, id) {
 async function login(usuario, password) {
 
     // 1. Validate input format — reject before touching DB
-    if (!isValidUsuario(usuario) || !isValidPassword(password)) {
+    if (!isValidUsuario(usuario) || !isValidPassword(password, null)) {
         return {
             ok: false,
             errorCode: LoginError.INVALID_INPUT,
@@ -110,7 +115,7 @@ async function login(usuario, password) {
     try {
         db = await initAuthDatabase();
         rows = db.exec(
-            `SELECT id, empresa_id, nombre, usuario, password_hash, rol, activo, failed_attempts
+            `SELECT id, empresa_id, nombre, usuario, password_hash, rol, activo, failed_attempts, permisos
              FROM usuarios WHERE usuario = ? LIMIT 1`,
             [usuario]
         );
@@ -124,8 +129,12 @@ async function login(usuario, password) {
         return { ok: false, errorCode: LoginError.USER_NOT_FOUND, error: MSG_BAD_CREDENTIALS };
     }
 
-    const [id, empresa_id, nombre, usr, password_hash, rol, activo, failed_attempts] =
+    const [id, empresa_id, nombre, usr, password_hash, rol, activo, failed_attempts, permisos] =
         rows[0].values[0];
+
+    const MAX_FAILED_ATTEMPTS = parseInt(
+        getNilConfigValue(empresa_id, 'max_intentos_fallidos', MAX_FAILED_ATTEMPTS_DEFAULT), 10
+    ) || MAX_FAILED_ATTEMPTS_DEFAULT;
 
     // Get empresa public_token for public URLs
     let publicToken = null;
@@ -153,14 +162,16 @@ async function login(usuario, password) {
         };
     }
 
-    // 6. Success — reset counter, sign JWT
+    // 6. Success — reset counter, record last login, sign JWT
     resetFailedAttempts(db, id);
+    db.run("UPDATE usuarios SET last_login = datetime('now','localtime') WHERE id = ?", [id]);
+    saveAuthDatabase();
 
     const secret = process.env.NIL_JWT_SECRET;
     const expiry = process.env.NIL_JWT_EXPIRY || '8h';
     const jti = crypto.randomUUID();
     const token = jwt.sign(
-        { usuarioId: id, empresaId: empresa_id, nombre, usuario: usr, rol, publicToken, jti },
+        { usuarioId: id, empresaId: empresa_id, nombre, usuario: usr, rol, permisos: permisos ?? 'RADU', publicToken, jti },
         secret,
         { expiresIn: expiry }
     );

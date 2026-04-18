@@ -5,7 +5,7 @@
  *
  * Accessible tables: usuarios, usuario_permisos
  *   - Always scoped to empresaId (tenant isolation)
- *   - Sensitive columns (password_hash, failed_attempts) never returned
+ *   - Sensitive columns (password_hash) never returned
  *   - usuarios: password field auto-hashed; delete = soft (activo=0)
  */
 
@@ -18,7 +18,7 @@ const SALT_ROUNDS = 10;
 const ALLOWED = new Set(['usuarios', 'usuario_permisos']);
 
 // Columns excluded from all responses
-const HIDDEN = new Set(['password_hash', 'failed_attempts']);
+const HIDDEN = new Set(['password_hash']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,12 +46,14 @@ function getColumns(db, tableName) {
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
+// empresaId=null → global access (no tenant scope).
+// Determined by the caller based on the user's rol from the JWT.
+
 function findById(tableName, keyField, id, empresaId) {
     const db = getAuthDatabase();
-    const rows = db.exec(
-        `SELECT * FROM ${tableName} WHERE ${keyField} = ? AND empresa_id = ? LIMIT 1`,
-        [id, empresaId]
-    );
+    const rows = empresaId === null
+        ? db.exec(`SELECT * FROM ${tableName} WHERE ${keyField} = ? LIMIT 1`, [id])
+        : db.exec(`SELECT * FROM ${tableName} WHERE ${keyField} = ? AND empresa_id = ? LIMIT 1`, [id, empresaId]);
     if (!rows.length || !rows[0].values.length) return null;
     return stripHidden(rowToObject(rows[0].columns, rows[0].values[0]));
 }
@@ -69,8 +71,8 @@ async function upsert(tableName, keyField, data, empresaId, requestUserId = null
     let insertData = { ...data };
 
     if (tableName === 'usuarios') {
-        // Enforce tenant
-        insertData.empresa_id = empresaId;
+        // Enforce tenant — null = global access, don't overwrite empresa_id from data
+        if (empresaId !== null) insertData.empresa_id = empresaId;
 
         // Hash password if provided, skip if empty
         if (insertData.password) {
@@ -82,14 +84,6 @@ async function upsert(tableName, keyField, data, empresaId, requestUserId = null
             insertData.password_hash = await bcrypt.hash(String(insertData.password), SALT_ROUNDS);
         }
         delete insertData.password;
-
-        // Never trust client for these fields
-        delete insertData.failed_attempts;
-
-        // Normalize rol
-        if (insertData.rol && !['admin', 'operador'].includes(insertData.rol)) {
-            insertData.rol = 'operador';
-        }
 
         // Prevent self-deactivation
         const keyValue = insertData[keyField];
@@ -126,26 +120,41 @@ async function upsert(tableName, keyField, data, empresaId, requestUserId = null
             validCols.includes(f) &&
             f !== keyField &&
             f !== 'empresa_id' &&
+            f !== 'created_at' &&   // creation timestamp — never mutated by form updates
             insertData[f] !== undefined &&
             // Skip password_hash if no new password was supplied
             !(f === 'password_hash' && !insertData.password_hash)
         );
 
+        const logger = require('./logger');
+        logger.info({
+            fn: 'authRecordService.upsert',
+            tableName, keyField, keyValue, empresaId,
+            activo: insertData.activo,
+            failed_attempts: insertData.failed_attempts,
+            fields
+        }, '[AUTH_RECORD] UPDATE');
+
         if (fields.length > 0) {
             const setParts = fields.map(f => `${f} = ?`);
             if (hasUpdatedAt) setParts.push(`updated_at = datetime('now')`);
-            const values = [...fields.map(f => insertData[f]), keyValue, empresaId];
-            db.run(
-                `UPDATE ${tableName} SET ${setParts.join(', ')} WHERE ${keyField} = ? AND empresa_id = ?`,
-                values
-            );
+            const whereClause = empresaId === null
+                ? `${keyField} = ?`
+                : `${keyField} = ? AND empresa_id = ?`;
+            const values = empresaId === null
+                ? [...fields.map(f => insertData[f]), keyValue]
+                : [...fields.map(f => insertData[f]), keyValue, empresaId];
+            db.run(`UPDATE ${tableName} SET ${setParts.join(', ')} WHERE ${whereClause}`, values);
         }
+
+        const afterState = findById(tableName, keyField, keyValue, empresaId);
+        logger.info({ fn: 'authRecordService.upsert.result', activo: afterState?.activo, failed_attempts: afterState?.failed_attempts }, '[AUTH_RECORD] UPDATE result');
 
         saveAuthDatabase();
         return { ...findById(tableName, keyField, keyValue, empresaId), updated: true };
     } else {
-        // INSERT — enforce empresa_id
-        if (!insertData.empresa_id) insertData.empresa_id = empresaId;
+        // INSERT — enforce empresa_id unless global access (null)
+        if (empresaId !== null && !insertData.empresa_id) insertData.empresa_id = empresaId;
 
         const fields = Object.keys(insertData).filter(f =>
             validCols.includes(f) &&
@@ -170,10 +179,13 @@ function navigate(tableName, keyField, currentKey, dir, empresaId) {
     const db = getAuthDatabase();
     const op    = dir === 'next' ? '>' : '<';
     const order = dir === 'next' ? 'ASC' : 'DESC';
-    const rows = db.exec(
-        `SELECT * FROM ${tableName} WHERE ${keyField} ${op} ? AND empresa_id = ? ORDER BY ${keyField} ${order} LIMIT 1`,
-        [currentKey, empresaId]
-    );
+    const rows = empresaId === null
+        ? db.exec(
+            `SELECT * FROM ${tableName} WHERE ${keyField} ${op} ? ORDER BY ${keyField} ${order} LIMIT 1`,
+            [currentKey])
+        : db.exec(
+            `SELECT * FROM ${tableName} WHERE ${keyField} ${op} ? AND empresa_id = ? ORDER BY ${keyField} ${order} LIMIT 1`,
+            [currentKey, empresaId]);
     if (!rows.length || !rows[0].values.length) return null;
     return stripHidden(rowToObject(rows[0].columns, rows[0].values[0]));
 }
@@ -189,15 +201,13 @@ function remove(tableName, keyField, id, empresaId) {
 
     // Soft delete for usuarios (preserve history, revoke access)
     if (tableName === 'usuarios') {
-        db.run(
-            `UPDATE usuarios SET activo = 0, updated_at = datetime('now') WHERE ${keyField} = ? AND empresa_id = ?`,
-            [id, empresaId]
-        );
+        const whereClause = empresaId === null ? `${keyField} = ?` : `${keyField} = ? AND empresa_id = ?`;
+        const params = empresaId === null ? [id] : [id, empresaId];
+        db.run(`UPDATE usuarios SET activo = 0, updated_at = datetime('now') WHERE ${whereClause}`, params);
     } else {
-        db.run(
-            `DELETE FROM ${tableName} WHERE ${keyField} = ? AND empresa_id = ?`,
-            [id, empresaId]
-        );
+        const whereClause = empresaId === null ? `${keyField} = ?` : `${keyField} = ? AND empresa_id = ?`;
+        const params = empresaId === null ? [id] : [id, empresaId];
+        db.run(`DELETE FROM ${tableName} WHERE ${whereClause}`, params);
     }
     saveAuthDatabase();
     return true;

@@ -82,13 +82,21 @@ export class DataSourceManager {
 
     async loadDataSource(dataSource, fields) {
         const cacheKey = dataSource.name;
-        
+
         if (this.cache.has(cacheKey)) {
             return this.cache.get(cacheKey);
         }
 
+        // Custom URL source — fetches from an arbitrary authenticated endpoint
+        if (dataSource.url) {
+            const data = await this.fetchFromUrl(dataSource.url);
+            this.cache.set(cacheKey, data);
+            console.log(`✅ DataSource "${dataSource.name}" (url) loaded: ${data.length} records`);
+            return data;
+        }
+
         let data;
-        
+
         if (this.useDuckDB && this.duckdb) {
             try {
                 data = await this.loadWithDuckDB(dataSource, fields);
@@ -159,6 +167,20 @@ export class DataSourceManager {
         data = this.applyOrderBy(data, dataSource.orderBy, fields);
 
         return data;
+    }
+
+    async fetchFromUrl(url) {
+        try {
+            const response = await authFetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const result = await response.json();
+            const data = result.rows || result.data || (Array.isArray(result) ? result : []);
+            if (!Array.isArray(data)) return [];
+            return data;
+        } catch (err) {
+            console.error(`Error fetching ${url}:`, err);
+            return [];
+        }
     }
 
     async fetchTable(tableName) {

@@ -1,8 +1,19 @@
+'use strict';
+
 /**
  * @file nil-users.js
- * @description Auth handler for the nil-users form.
- * Permissions are stored as a single RADU string in usuarios.permisos.
- * No special after/beforeSave logic needed — standard CRUD handles it.
+ * @description Handler for sys/form/nil-users.xml (operadores management).
+ *   Loaded via @auth:nil-users prefix — runs on auth.db.
+ *
+ * Responsibilities:
+ *   - beforeSave: enforce rol='operador', normalize activo boolean
  */
 
-module.exports = {};
+function beforeSave(data) {
+    // Always operador — admin cannot escalate via this form
+    data.rol = 'operador';
+
+    if (data.activo !== undefined) data.activo = data.activo ? 1 : 0;
+}
+
+module.exports = { beforeSave };

@@ -97,21 +97,18 @@ export class ValidationCoordinator {
      * Si el registro no existe (404), no hace nada — el form queda vacío para INSERT.
      */
     async loadRecord(value) {
-        const { table, keyField } = this.ctx.tableConfig;
+        const { table, keyField, db = 'app' } = this.ctx.tableConfig;
+        if (!table) return;  // url-based form — navigation via dropdown only
         try {
             const { default: RecordService } = await import('../../services/RecordService.js');
-            const record = await RecordService.load(table, keyField, value);
+            const record = await RecordService.load(table, keyField, value, db);
             if (record) {
                 this.ctx.currentKey = value; // set BEFORE fillForm to prevent change-loop
                 this.fillForm(record);
-                // Fire after hooks post-load so handlers can set field visibility
-                // based on the loaded record state (e.g. disableFields by estado)
+                // Single batched request: server runs after() for all fields and returns
+                // aggregated enableFields/disableFields — avoids N individual requests
                 if (this._handlerBridge) {
-                    for (const [fieldId, val] of Object.entries(record)) {
-                        if (val != null && val !== '') {
-                            await this._handlerBridge.callAfter(fieldId, val);
-                        }
-                    }
+                    await this._handlerBridge.callAfterLoad(record);
                 }
             }
         } catch {
@@ -121,15 +118,30 @@ export class ValidationCoordinator {
 
     async navigateToAdjacent(dir) {
         if (!this.ctx.currentKey || !this.ctx.tableConfig) return;
-        const { table, keyField } = this.ctx.tableConfig;
+        const { table, keyField, db = 'app' } = this.ctx.tableConfig;
         const { default: RecordService } = await import('../../services/RecordService.js');
-        const record = await RecordService.navigate(table, keyField, this.ctx.currentKey, dir);
+        const record = await RecordService.navigate(table, keyField, this.ctx.currentKey, dir, db);
         if (!record) return; // boundary — noop silencioso
         this.ctx.currentKey = record[keyField]; // set before fillForm
         this.fillForm(record);
         if (this._handlerBridge) {
             await this._handlerBridge.callAfter(keyField, record[keyField]);
         }
+    }
+
+    /**
+     * Si el form tiene atributo load=URL, lo fetcha y pre-rellena los campos.
+     * Llamar después de que el DOM esté construido.
+     */
+    async initLoad() {
+        if (!this.ctx.formLoad) return;
+        try {
+            const { authFetch } = await import('../../api/client.js');
+            const res = await authFetch(this.ctx.formLoad);
+            if (!res.ok) return;
+            const data = await res.json();
+            this.fillForm(data);
+        } catch { /* silent — form opens empty if endpoint fails */ }
     }
 
     /**
@@ -162,7 +174,11 @@ export class ValidationCoordinator {
         Object.entries(copies).forEach(([fieldId, value]) => {
             const field = this.ctx.getField(fieldId) || this.ctx.container?.querySelector(`#${fieldId}`);
             if (field) {
-                field.value = value;
+                if (field.type === 'checkbox') {
+                    field.checked = value === 1 || value === true || value === '1';
+                } else {
+                    field.value = value;
+                }
                 field.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });

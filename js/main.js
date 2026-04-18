@@ -1,6 +1,6 @@
 console.log("🚀 MAIN.JS: Iniciando carga de módulos...");
 
-import { getMenu } from './api/client.js';
+import { getMenu, getAdminMenu } from './api/client.js';
 import { init as initTheme, toggle as toggleTheme, isDark } from './services/themeService.js';
 import FileExplorer from './components/FileExplorer.js';
 import Workspace from './components/Workspace.js';
@@ -23,10 +23,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     let session = null;
     try {
         const checkRes = await fetch('/api/auth/check');
-        if (!checkRes.ok) { window.location.href = '/login.html'; return; }
+        if (!checkRes.ok) { window.location.href = '/nil-login'; return; }
         session = await checkRes.json();
-        if (!session.ok) { window.location.href = '/login.html'; return; }
-    } catch { window.location.href = '/login.html'; return; }
+        if (!session.ok) { window.location.href = '/nil-login'; return; }
+        // Usuarios de sistema no deben usar la app — redirigir a nil-sys
+        if (['wizard', 'admin', 'auditor'].includes(session.rol)) {
+            window.location.href = '/nil-sys';
+            return;
+        }
+    } catch { window.location.href = '/nil-login'; return; }
     localStorage.removeItem('nil_token'); // limpieza de migración
 
     // 0. Theme Toggle Global
@@ -136,12 +141,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 4. Cargar Menú
         console.log("📡 Solicitando menú al servidor...");
-        const menu = await getMenu();
 
-        if (menu) {
-            console.log("✅ Menú recibido:", menu);
-            fileExplorer.render(menu);
-            logger.info('main', `Menú cargado (${Array.isArray(menu) ? menu.length : '?'} items)`);
+        let allMenuItems = [];
+
+        const menu = await getMenu();
+        allMenuItems = menu ?? [];
+        if (session?.rol === 'admin') {
+            const adminItems = await getAdminMenu();
+            if (adminItems?.length) allMenuItems = [...allMenuItems, ...adminItems];
+        }
+
+        if (allMenuItems.length) {
+            console.log("✅ Menú recibido:", allMenuItems);
+            fileExplorer.render(allMenuItems);
+            logger.info('main', `Menú cargado (${allMenuItems.length} items)`);
         } else {
             logger.error('main', 'getMenu devolvió null — menú no disponible');
             treeContainer.innerHTML = "Error cargando menú.";

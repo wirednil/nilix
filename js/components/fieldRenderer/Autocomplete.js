@@ -82,10 +82,11 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         
         if (lookupConfig) {
             try {
-                const catalog = await LookupService.getCatalog(lookupConfig.table);
+                const catalog = lookupConfig.url
+                    ? await LookupService.getCatalogFromUrl(lookupConfig.url)
+                    : await LookupService.getCatalog(lookupConfig.table);
                 catalogData = catalog?.rows || [];
                 catalogLoadTime = Date.now();
-                // console.log(`🔍 Autocomplete loadCatalog: ${lookupConfig.table}, rows=${catalogData.length}`, catalogData);
                 return catalogData;
             } catch (error) {
                 console.error(`Error loading catalog: ${error.message}`);
@@ -188,9 +189,14 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             lookupConfig.copyFields.forEach(copy => {
                 const targetField = container.querySelector(`#${copy.to}`);
                 if (targetField && rowData[copy.from] !== undefined) {
-                    targetField.value = rowData[copy.from];
-                    targetField.readOnly = true;
-                    targetField.classList.add('readonly-field');
+                    if (targetField.type === 'checkbox') {
+                        const v = rowData[copy.from];
+                        targetField.checked = v === 1 || v === true || v === '1';
+                    } else {
+                        targetField.value = rowData[copy.from];
+                        targetField.readOnly = true;
+                        targetField.classList.add('readonly-field');
+                    }
                     targetField.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             });
@@ -207,14 +213,27 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     
     async function loadAndCopyRecord(keyValue) {
         if (!lookupConfig || !lookupConfig.isKeyField) return null;
-        
-        const row = await LookupService.loadRecord(lookupConfig.table, lookupConfig.key, keyValue);
+
+        let row;
+        if (lookupConfig.url) {
+            // url-based: find the row in the already-fetched catalog data
+            await loadCatalog();
+            const keyField = getKeyField();
+            row = (catalogData || []).find(r => String(r[keyField]) === String(keyValue)) ?? null;
+        } else {
+            row = await LookupService.loadRecord(lookupConfig.table, lookupConfig.key, keyValue);
+        }
         
         if (row && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
             lookupConfig.copyFields.forEach(copy => {
                 const targetField = container.querySelector(`#${copy.to}`);
                 if (targetField && row[copy.from] !== undefined) {
-                    targetField.value = row[copy.from];
+                    if (targetField.type === 'checkbox') {
+                        const v = row[copy.from];
+                        targetField.checked = v === 1 || v === true || v === '1';
+                    } else {
+                        targetField.value = row[copy.from];
+                    }
                     targetField.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             });
@@ -302,7 +321,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                 } else {
                     loadCatalog().then(() => {
                         const keyField = getKeyField();
-                        const match = catalogData.find(row => 
+                        const match = (catalogData || []).find(row =>
                             String(row[keyField]) === currentValue
                         );
                         

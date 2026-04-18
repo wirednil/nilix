@@ -43,6 +43,7 @@ function verifyToken(req, res, next) {
         req.empresaId = payload.empresaId;
         req.usuarioId = payload.usuarioId;
         req.rol       = payload.rol;
+        req.permisos  = payload.permisos ?? 'RADU';
         req.jti       = payload.jti;
 
         // ─── Rolling sessions ────────────────────────────────────────────────
@@ -63,6 +64,7 @@ function verifyToken(req, res, next) {
                     nombre:      payload.nombre,
                     usuario:     payload.usuario,
                     rol:         payload.rol,
+                    permisos:    payload.permisos ?? 'RADU',
                     publicToken: payload.publicToken,
                     jti:         newJti
                 },

@@ -10,9 +10,9 @@ import { authFetch } from '../api/client.js';
 import LookupService from './LookupService.js';
 
 class RecordService {
-    static async load(table, keyField, id) {
+    static async load(table, keyField, id, db = 'app') {
         const response = await authFetch(
-            `${API_BASE}/${table}?keyField=${encodeURIComponent(keyField)}&id=${encodeURIComponent(id)}`
+            `${API_BASE}/${db}/${table}?keyField=${encodeURIComponent(keyField)}&id=${encodeURIComponent(id)}`
         );
         
         if (!response.ok) {
@@ -25,17 +25,18 @@ class RecordService {
     }
     
     static async create(table, keyField, data, options = {}) {
-        const response = await authFetch(`${API_BASE}/${table}`, {
+        const { db = 'app', ...rest } = options;
+        const response = await authFetch(`${API_BASE}/${db}/${table}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                keyField, 
+            body: JSON.stringify({
+                keyField,
                 data,
-                handler: options.handler,
-                crudMode: options.crudMode
+                handler: rest.handler,
+                crudMode: rest.crudMode
             })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error?.message || `Failed to create record`);
@@ -52,17 +53,18 @@ class RecordService {
     }
     
     static async upsert(table, keyField, id, data, options = {}) {
-        const response = await authFetch(`${API_BASE}/${table}/${encodeURIComponent(id)}`, {
+        const { db = 'app', ...rest } = options;
+        const response = await authFetch(`${API_BASE}/${db}/${table}/${encodeURIComponent(id)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                keyField, 
+            body: JSON.stringify({
+                keyField,
                 data,
-                handler: options.handler,
-                crudMode: options.crudMode
+                handler: rest.handler,
+                crudMode: rest.crudMode
             })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error?.message || `Failed to save record`);
@@ -75,17 +77,18 @@ class RecordService {
     }
     
     static async update(table, keyField, id, data, options = {}) {
-        const response = await authFetch(`${API_BASE}/${table}/${encodeURIComponent(id)}`, {
+        const { db = 'app', ...rest } = options;
+        const response = await authFetch(`${API_BASE}/${db}/${table}/${encodeURIComponent(id)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                keyField, 
+            body: JSON.stringify({
+                keyField,
                 data,
-                handler: options.handler,
-                crudMode: options.crudMode
+                handler: rest.handler,
+                crudMode: rest.crudMode
             })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error?.message || `Failed to update record`);
@@ -97,13 +100,14 @@ class RecordService {
     }
     
     static async delete(table, keyField, id, options = {}) {
-        const response = await authFetch(`${API_BASE}/${table}/${encodeURIComponent(id)}`, {
+        const { db = 'app', ...rest } = options;
+        const response = await authFetch(`${API_BASE}/${db}/${table}/${encodeURIComponent(id)}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                keyField, 
-                handler: options.handler,
-                crudMode: options.crudMode
+            body: JSON.stringify({
+                keyField,
+                handler: rest.handler,
+                crudMode: rest.crudMode
             })
         });
         
@@ -125,8 +129,8 @@ class RecordService {
         }
     }
     
-    static async navigate(table, keyField, currentKey, dir) {
-        const url = `${API_BASE}/${table}/navigate?keyField=${encodeURIComponent(keyField)}&current=${encodeURIComponent(currentKey)}&dir=${encodeURIComponent(dir)}`;
+    static async navigate(table, keyField, currentKey, dir, db = 'app') {
+        const url = `${API_BASE}/${db}/${table}/navigate?keyField=${encodeURIComponent(keyField)}&current=${encodeURIComponent(currentKey)}&dir=${encodeURIComponent(dir)}`;
         const response = await authFetch(url);
         if (response.status === 404) return null;
         if (!response.ok) throw new Error(`Navigate failed: ${response.status}`);

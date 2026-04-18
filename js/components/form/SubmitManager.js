@@ -22,7 +22,7 @@ export class SubmitManager {
         const radu = new RADU(this.ctx.permissions);
         const { nav, resetBtn, submitBtn } = uiComponents.createActionButtons();
 
-        if (this.ctx.tableConfig?.keyField) {
+        if (this.ctx.tableConfig?.keyField && this.ctx.tableConfig?.table) {
             const antBtn = document.createElement('button');
             antBtn.type = 'button';
             antBtn.textContent = '< ANT';
@@ -80,11 +80,17 @@ export class SubmitManager {
 
             for (let [key, value] of formData.entries()) {
                 if (formEl.querySelector(`#${key}`)?.type === 'checkbox') {
-                    data[key] = value === 'on';
+                    // FormData only includes a checkbox when it IS checked — value is irrelevant
+                    data[key] = true;
                 } else {
                     data[key] = value;
                 }
             }
+
+            // FormData omits unchecked checkboxes — explicitly include them as false
+            formEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                if (!(cb.name in data)) data[cb.name] = false;
+            });
 
             // ── Custom action (e.g. login) ────────────────────────────────
             if (this.ctx.formAction) {
@@ -111,8 +117,9 @@ export class SubmitManager {
                         this.ctx.tableConfig.keyField,
                         data,
                         {
-                            handler: this.ctx.tableConfig.handler,
-                            crudMode: this.ctx.tableConfig.crudMode
+                            handler:  this.ctx.tableConfig.handler,
+                            crudMode: this.ctx.tableConfig.crudMode,
+                            db:       this.ctx.tableConfig.db ?? 'app'
                         }
                     );
                     logger.info('SubmitManager', `Guardado ok tabla=${this.ctx.tableConfig.table} id=${data[this.ctx.tableConfig.keyField] ?? '?'} created=${result.created}`);
@@ -201,9 +208,22 @@ export class SubmitManager {
         submitBtn.disabled = true;
         submitBtn.textContent = '...';
 
+        // Detect create vs update: if a keyField value exists → PUT /:id
+        const keyField = this.ctx.tableConfig?.keyField;
+        const keyValue = keyField ? data[keyField] : null;
+        const isCrud   = !!keyField;
+
+        let method = 'POST';
+        let url    = action;
+        if (isCrud && keyValue) {
+            method = 'PUT';
+            url    = `${action}/${encodeURIComponent(keyValue)}`;
+        }
+
         try {
-            const res = await fetch(action, {
-                method: 'POST',
+            const { authFetch } = await import('../../api/client.js');
+            const res = await authFetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
@@ -217,8 +237,33 @@ export class SubmitManager {
                 return;
             }
 
-            // Success — cookie set by server, redirect to app
-            window.location.href = '/';
+            // CRUD response (has data property) → show feedback, stay on form
+            if (json.data) {
+                this.showSubmitFeedback(submitBtn, {
+                    id: json.data[keyField],
+                    created: json.created,
+                    updated: json.updated
+                });
+                formEl.dispatchEvent(new CustomEvent('sf:record-saved', {
+                    bubbles: true,
+                    detail: { data: json.data, created: !!json.created }
+                }));
+                setTimeout(() => {
+                    this.resetSubmitButton(submitBtn);
+                    submitBtn.disabled = false;
+                }, 2000);
+                return;
+            }
+
+            // Login response → redirect based on rol
+            const SYSTEM_ROLES = ['wizard', 'admin', 'auditor'];
+            try {
+                const check = await fetch('/api/auth/check');
+                const s = check.ok ? await check.json() : null;
+                window.location.href = SYSTEM_ROLES.includes(s?.rol) ? '/nil-sys' : '/';
+            } catch {
+                window.location.href = '/';
+            }
 
         } catch (err) {
             this._showFormError(formEl, 'Error de conexión con el servidor');
