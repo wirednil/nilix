@@ -263,6 +263,7 @@ export class YamlParser {
             if (!d) continue;
             result[name] = {
                 name,
+                url: d.url || null,
                 table: d.table || name,
                 orderBy: Array.isArray(d.orderBy) ? d.orderBy : (d.orderBy ? [d.orderBy] : []),
                 filter: d.filter || null,

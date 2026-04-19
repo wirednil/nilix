@@ -11,8 +11,15 @@ const logger = require('../services/logger');
 
 const SALT_ROUNDS = 10;
 
+const VALID_ROLES   = ['wizard', 'admin', 'auditor', 'operador'];
+const ROLE_PERMISOS = { wizard: 'RADU', admin: 'RAU', auditor: 'R', operador: 'RADU' };
+
 function isValidUsuario(u) {
-    return typeof u === 'string' && /^[a-zA-Z0-9_]{3,30}$/.test(u);
+    return typeof u === 'string' && /^[a-zA-Z0-9_-]{3,30}$/.test(u);
+}
+
+function isReservedUsuario(u) {
+    return typeof u === 'string' && /^nil-/i.test(u);
 }
 
 /**
@@ -76,22 +83,26 @@ const createUser = async (req, res) => {
         return res.status(400).json({ error: 'nombre, usuario y password son requeridos' });
     }
     if (!isValidUsuario(usuario)) {
-        return res.status(400).json({ error: 'usuario: solo letras, números y _ (3-30 caracteres)' });
+        return res.status(400).json({ error: 'usuario: solo letras, números, _ y - (3-30 caracteres)' });
+    }
+    if (isReservedUsuario(usuario)) {
+        return res.status(400).json({ error: 'Nombre de usuario reservado (nil-)' });
     }
     if (typeof password !== 'string' || password.length < 8) {
         return res.status(400).json({ error: 'password debe tener al menos 8 caracteres' });
     }
 
-    const rolFinal = (rol === 'admin' || rol === 'operador') ? rol : 'operador';
+    const rolFinal    = VALID_ROLES.includes(rol) ? rol : 'operador';
+    const permisosFinal = ROLE_PERMISOS[rolFinal];
 
     try {
         const db = getAuthDatabase();
         const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
         db.run(
-            `INSERT INTO usuarios (empresa_id, nombre, usuario, email, password_hash, rol)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [req.empresaId, nombre.trim(), usuario.trim(), email ?? null, hash, rolFinal]
+            `INSERT INTO usuarios (empresa_id, nombre, usuario, email, password_hash, rol, permisos)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [req.empresaId, nombre.trim(), usuario.trim(), email ?? null, hash, rolFinal, permisosFinal]
         );
 
         const newId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
@@ -141,8 +152,9 @@ const updateUser = async (req, res) => {
 
         if (nombre !== undefined) { updates.push('nombre = ?'); params.push(nombre.trim()); }
         if (email  !== undefined) { updates.push('email = ?');  params.push(email); }
-        if (rol !== undefined && (rol === 'admin' || rol === 'operador')) {
-            updates.push('rol = ?'); params.push(rol);
+        if (rol !== undefined && VALID_ROLES.includes(rol)) {
+            updates.push('rol = ?');      params.push(rol);
+            updates.push('permisos = ?'); params.push(ROLE_PERMISOS[rol]);
         }
         if (activo !== undefined) {
             updates.push('activo = ?'); params.push(activo ? 1 : 0);

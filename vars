@@ -1,0 +1,22 @@
+# Source this from the nilix root to set up the development environment:
+#   . ./vars
+#
+# Sets:
+#   NILSRC    — absolute path to this nilix installation
+#   scaffold  — shell function (node utils/scaffold.js)
+#   nil-start — shell function (node utils/nil-start.js)
+#   nil-setup — shell function (node utils/nil-setup.js)
+
+NILSRC="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+export NILSRC
+
+scaffold()  { node "$NILSRC/utils/scaffold.js"  "$@"; }
+nil-start() { node "$NILSRC/utils/nil-start.js" "$@"; }
+nil-setup() { node "$NILSRC/utils/nil-setup.js" "$@"; }
+
+export -f scaffold
+export -f nil-start
+export -f nil-setup
+
+echo "NILSRC=$NILSRC"
+echo "Functions available: scaffold  nil-start  nil-setup"
