@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<form id="items" title="Ítems" database="items" handler="none">
+<form id="items" title="Ítems" database="app" table="items" handler="none">
 
     <form-attributes>
         <window border="single"/>

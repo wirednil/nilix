@@ -59,6 +59,7 @@ Validación independiente del estado real del proyecto contra el plan.
 
 | # | Hallazgo | Ubicación | Recomendación |
 |---|----------|-----------|---------------|
+| 10 | `server.js` no valida que `NIL_JWT_SECRET` no sea el placeholder al arrancar | `server.js` | Si alguien saltea `setup.js` y hace `cp .env.example .env` manual, el servidor arranca con secret conocido públicamente. Fase 3: agregar fail-fast en startup que detecte el placeholder y haga `process.exit(1)` con instrucciones. |
 | 7 | ~~CSP sin reporting~~ | ~~`server.js:54-73`~~ | ✅ Resuelto en v2.4.6 — `report-uri` + `POST /api/security/csp-report` |
 | 8 | ~~Sin containerización~~ | — | ✅ Resuelto en v2.4.7 — `Dockerfile` multi-stage + `docker-compose.yml` |
 | 9 | ~~Sin OpenAPI spec~~ | — | ✅ Resuelto en v2.4.8 — `docs/api/openapi.yaml`, 19 operaciones, validado en CI |
@@ -76,6 +77,7 @@ Validación independiente del estado real del proyecto contra el plan.
 | RADU server-side | `recordController.js:36-44` |
 | Tenant isolation en ScopedDb | `scopedDb.js:30-79` |
 | Path traversal protection en handlers | `handlerService.js:21-28` (regex) |
+| JWT secret auto-generado en setup | `scripts/setup.js` — detecta placeholder `CHANGE_THIS...` y reemplaza con `crypto.randomBytes(32)` |
 | `uncaughtException` / `unhandledRejection` | `server.js:172-181` |
 | Health check con 503 si DB falla | `healthRoutes.js:37-43` |
 | CORS warning si no configurado | `server.js:75-78` |

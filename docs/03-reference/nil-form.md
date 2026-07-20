@@ -49,7 +49,7 @@ para la web. El XML describe la estructura de la pantalla tal como se la desea: 
 previa; el XML se interpreta en tiempo de ejecución.
 
 ```xml
-<form id="producto" title="Productos" database="demo_productos" handler="producto_handler">
+<form id="producto" title="Productos" database="app" table="demo_productos" handler="producto_handler">
     <form-attributes>
         <use>demo_productos</use>
         <window border="single"/>
@@ -62,6 +62,36 @@ previa; el XML se interpreta en tiempo de ejecución.
         </container>
     </layout>
 </form>
+```
+
+### Atributos del elemento `<form>`
+
+| Atributo | Obligatorio | Descripción |
+|---|---|---|
+| `id` | sí | Identificador único del formulario |
+| `title` | no | Título mostrado en la ventana |
+| `database` | no | Alias de la base de datos: `app` (por defecto) o `auth` |
+| `table` | no | Tabla principal para operaciones CRUD |
+| `handler` | no | Nombre del handler de lógica de negocio. `none` = CRUD puro sin handler |
+| `action` | no | URL custom para submit (reemplaza el pipeline CRUD estándar) |
+| `crud-mode` | no | Modo CRUD forzado: `insert-only`, `update-only` |
+
+**`database`** resuelve qué archivo `.db` usa el formulario:
+- `app` → `NIL_DB_FILE` (base de datos de la empresa, por defecto)
+- `auth` → `NIL_AUTH_DB` (base de usuarios del sistema)
+
+**`table`** define la tabla sobre la que opera el CRUD estándar. Si se omite, el formulario no tiene operaciones CRUD propias (útil para formularios de acción con `action=`).
+
+Ejemplo:
+```xml
+<!-- Form de app (empresa) -->
+<form id="clientes" title="Clientes" database="app" table="clientes" handler="cliente_handler">
+
+<!-- Form del sistema (auth.db) -->
+<form id="nil-wizard" title="Usuarios Sistema" database="auth" table="usuarios" handler="@auth:nil-wizard">
+
+<!-- Form de acción pura (login), sin CRUD -->
+<form id="login" title="Login" action="/api/auth/login">
 ```
 
 ---
@@ -90,7 +120,7 @@ Un archivo de formulario en nil-form se divide en dos secciones:
 - La segunda (elemento `<layout>`), define los campos y su disposición en pantalla.
 
 ```xml
-<form id="cliente" title="Clientes" database="clientes" handler="cliente_handler">
+<form id="cliente" title="Clientes" database="app" table="clientes" handler="cliente_handler">
     <form-attributes>
         <use>clientes</use>
         <window border="single"/>
@@ -123,7 +153,22 @@ La imagen de la pantalla se define mediante contenedores y campos dentro de `<la
 </layout>
 ```
 
+**`<border label="texto">`** — sección con título visible
+
+Cuando `<border>` incluye el atributo `label`, se renderiza como `<fieldset><legend>` en lugar de un `<div>`. Esto muestra un título en el borde del grupo de campos:
+
+```xml
+<border label="[ IDENTIDAD ]">
+    <field id="nombre"  label="Nombre"  type="text" size="40"/>
+    <field id="usuario" label="Usuario" type="text" size="20"/>
+</border>
+```
+
+Sin `label`, `<border>` es un `<div class="border-box">` sin título (comportamiento anterior, compatible).
+
 Los campos se procesan en el orden en que aparecen en el XML, de arriba hacia abajo y de izquierda a derecha dentro de cada contenedor.
+
+> **`<layout>` es vertical por defecto.** Los hijos directos de `<layout>` se apilan verticalmente sin necesidad de envolver todo en un `<container type="vertical">` raíz. Ese contenedor es implícito.
 
 ### Tipos de Campo
 
@@ -172,7 +217,7 @@ Para campos con decimales, se usa `<validation>` con `<min>` y `<max>`, o la exp
 Continuando con el ejemplo de biblioteca, el formulario de manejo de datos de la tabla `libros` en nil-form se define así:
 
 ```xml
-<form id="libros" title="Libros" database="libros" handler="none">
+<form id="libros" title="Libros" database="app" table="libros" handler="none">
     <form-attributes>
         <use>libros</use>
         <window border="single"/>
@@ -209,10 +254,13 @@ No aplica en nil-form. La separación y alineación entre campos se controla med
 
 Esta sección es opcional y especifica características generales del formulario. Equivale a la antigua sección `%form` del lenguaje FDL original. Se admiten los siguientes elementos:
 
-**`<use>`** — Especifica la tabla principal de la base de datos a usar:
+**`<use>`** *(legacy)* — Concepto del FDL original; se conserva por compatibilidad con documentación de referencia. En nil-form, la tabla principal se declara mediante el atributo `table=` en el elemento `<form>` en lugar de esta directiva. El motor ignora `<use>` si `table=` está presente en `<form>`:
 
 ```xml
+<!-- FDL original (legacy) -->
 <use>libros</use>
+
+<!-- nil-form (actual) — declarar en <form table="libros"> en su lugar -->
 ```
 
 **`<ignore>`** — Operaciones deshabilitadas para el formulario. En nil-form se gestiona mediante permisos RADU en el menú (`permissions="R"`, `"RA"`, `"RADU"`, etc.):
@@ -260,7 +308,7 @@ Los mensajes se referencian desde `<field>` mediante el atributo `help`:
 Permite que el formulario abra automáticamente un reporte en una nueva pestaña del navegador tras un guardado exitoso. Se declara dentro del elemento `<form>`, antes de `<form-attributes>`:
 
 ```xml
-<form id="orden" title="Orden de Servicio" database="ordenes" handler="orden_handler">
+<form id="orden" title="Orden de Servicio" database="app" table="ordenes" handler="orden_handler">
     <output report="comprobante_ingreso" param="id_orden" on="create"/>
     <output report="comprobante_entrega" param="id_orden" condition="estado == 'Entregado'"/>
     <form-attributes>
@@ -345,7 +393,7 @@ El color de fondo es gestionado globalmente por el tema CSS de nil-form (phospho
 Ejemplo completo de `<form-attributes>` con todas las cláusulas activas:
 
 ```xml
-<form id="libros" title="Libros de la Biblioteca" database="libros" handler="none">
+<form id="libros" title="Libros de la Biblioteca" database="app" table="libros" handler="none">
     <form-attributes>
         <use>libros</use>
         <confirm>end, update</confirm>
@@ -585,6 +633,21 @@ Verifica que el valor ingresado exista en una tabla de la base de datos. Al soli
     <in-table table="autores" key="id" display="nombre"/>
 </field>
 ```
+
+**`<in-table url=...>` — catálogo desde endpoint**
+
+En lugar de `table=`, se puede usar `url=` para cargar el catálogo desde un endpoint autenticado. El endpoint debe devolver `{ rows: [...] }`. No requiere tabla en la DB de la app; útil para catálogos del motor (usuarios, empresas):
+
+```xml
+<field id="id" label="Usuario" type="select" keyField="true">
+    <in-table url="/api/nil/operadores" key="id" display="usuario">
+        <copy from="nombre"   to="nombre"/>
+        <copy from="empresa_nombre" to="empresa_nombre"/>
+    </in-table>
+</field>
+```
+
+`table=` y `url=` son mutuamente excluyentes. Si se usan los dos, `url=` tiene prioridad.
 
 ### Selects en Cascada — `filter-by` / `filter-field`
 
@@ -933,7 +996,7 @@ Los botones `[ < ANT ]` / `[ SIG > ]` navegan al registro anterior/siguiente en 
 Ejemplo completo — Formulario de Libros con zona de clave:
 
 ```xml
-<form id="libros" title="Libros" database="libros" handler="none">
+<form id="libros" title="Libros" database="app" table="libros" handler="none">
     <form-attributes>
         <use>libros</use>
         <window border="single"/>
@@ -983,7 +1046,7 @@ Las validaciones se aplican en tiempo de ejecución. Para probar sin handler, us
 `genfm` generaba un archivo FDL a partir de una tabla de base de datos. En nil-form, un formulario de CRUD puro sin lógica custom se obtiene con `handler="none"`:
 
 ```xml
-<form id="autores" title="Autores" database="autores" handler="none">
+<form id="autores" title="Autores" database="app" table="autores" handler="none">
     ...
 </form>
 ```
@@ -1043,7 +1106,7 @@ En lugar de la interfaz C del FDL original, nil-form expone una **interfaz de ha
 Los handlers se ubican en `$NIL_APP_DIR/apps/` y se referencian desde el formulario con el atributo `handler=`:
 
 ```xml
-<form id="libros" title="Libros" database="libros" handler="libros_handler">
+<form id="libros" title="Libros" database="app" table="libros" handler="libros_handler">
 ```
 
 ```javascript

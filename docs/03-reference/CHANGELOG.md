@@ -7,6 +7,190 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.7.0] — 2026-04-18
+
+### Changed — nil-form: separación `database` / `table`
+
+El atributo `database` en `<form>` ahora identifica la **base de datos** (alias), no la tabla.
+La tabla se declara con el nuevo atributo `table`. Esto elimina la ambigüedad del diseño anterior donde `database="clientes"` hacía las dos cosas a la vez.
+
+```xml
+<!-- antes -->
+<form database="clientes" handler="cliente_handler">
+
+<!-- ahora -->
+<form database="app" table="clientes" handler="cliente_handler">
+```
+
+Alias disponibles:
+- `app` → `NIL_DB_FILE` (base de la empresa, valor por defecto)
+- `auth` → `NIL_AUTH_DB` (base de usuarios del sistema)
+
+**Impacto en rutas:** `GET /api/records/:table` → `GET /api/records/:db/:table`
+
+**Archivos modificados:** `FormContext.js`, `RecordService.js`, `ValidationCoordinator.js`, `SubmitManager.js`, `recordRoutes.js`, `recordController.js`, todos los `.xml` de formularios.
+
+---
+
+### Added — nil-sys: pipeline estándar para usuarios sistema
+
+El CRUD de usuarios del sistema (`wizard`/`admin`/`auditor`) ahora usa el pipeline estándar del motor en lugar de endpoints custom:
+
+```xml
+<form database="auth" table="usuarios" handler="@auth:nil-wizard">
+```
+
+Resuelve a `/api/records/auth/usuarios` → `authRecordService` → `auth.db`.
+
+- `nilSysController` reducido a endpoints de catálogo para `<in-table url=...>`
+- Handler `src/handlers/auth/nil-wizard.js` creado con `after()` y `beforeSave()`
+- `authRecordService`: role normalization eliminada (responsabilidad del handler); `failed_attempts` visible en responses
+
+### Added — nil-sys: schema extendido de `usuarios`
+
+Nuevas columnas en `auth.db.usuarios` (migraciones en `authDatabase.js`):
+`estado`, `force_change`, `never_exp`, `exp_days`, `pass_from`, `pass_to`,
+`warn_date`, `warn_days`, `allow_change`, `creator_id`, `modifier_id`
+
+### Added — nil-sys: `empresa_id = 0` reservado para usuarios sistema
+
+Los usuarios `wizard`/`admin`/`auditor` tienen `empresa_id = 0`.
+Este valor es reservado (AUTOINCREMENT empieza en 1) y nunca corresponde a una empresa real.
+Permite que wizard acceda a operadores de todos los tenants sin colisión de datos.
+
+### Added — `sys/` — directorio unificado para nil-sys
+
+Nuevo directorio `sys/` con estructura `form/` y `report/`:
+- `sys/nil-sys.xml` — menú del sistema
+- `sys/form/nil-wizard.xml`, `nil-users.xml`, `nil-config.xml`
+- `sys/report/nil-audit.yaml`, `nil-users.yaml`
+
+### Added — nil-sys: páginas del sistema
+
+Tres páginas HTML dedicadas reemplazan `login.html`:
+- `nil-login.html` — login público (sin autenticación)
+- `nil-sys.html` — shell del sistema para wizard/admin/auditor
+- `nil-setup.html` — wizard de primer arranque (crea primera empresa + usuario)
+
+El endpoint `GET /api/setup/status` devuelve `{ needed: true }` si `auth.db` no tiene empresas. Ambas rutas de setup son públicas (montadas antes de `verifyToken`).
+
+### Added — nil-sys: roles y rutas administrativas
+
+- `src/routes/nilRoutes.js` — `/api/nil/menu`, `/api/nil/usuarios`, `/api/nil/operadores`
+- `src/routes/adminRoutes.js` — `/api/admin/menu`, `/api/admin/audit-log`, `/api/admin/usuarios`, `/api/admin/empresa` (requiere `rol=admin`)
+- `src/routes/setupRoutes.js` — `/api/setup/status`, `/api/setup/init` (públicas, bloqueadas tras primer uso)
+- `src/controllers/adminController.js` — getAdminMenu, getAuditLog, getUsuarios, getEmpresa, updateEmpresa
+- `js/nil-sys.js` — frontend del shell: auth guard, tema, sidebar, menú vía `getNilMenu()`
+
+### Added — nil-form: `<in-table url=...>`
+
+`<in-table>` acepta el atributo `url=` para cargar el catálogo desde un endpoint autenticado arbitrario en lugar de una tabla DB:
+
+```xml
+<field id="id" type="select" keyField="true">
+    <in-table url="/api/nil/operadores" key="id" display="usuario">
+        <copy from="nombre" to="nombre"/>
+    </in-table>
+</field>
+```
+
+El endpoint debe devolver `{ rows: [...] }`. No requiere `table=`. Usado por los formularios del sistema (`database="auth"`) para poblar selectores con catálogos controlados por el motor.
+
+**Archivos:** `LayoutProcessor.js`, `LookupService.getCatalogFromUrl`, `Autocomplete.js`, `YamlParser.js` (dataSource con `url:`), `DataSourceManager.fetchFromUrl`.
+
+### Added — nil-form: `<border label="texto">` con fieldset/legend
+
+Un `<border>` con atributo `label` se renderiza como `<fieldset><legend>`:
+
+```xml
+<border label="[ IDENTIDAD ]">
+    <field id="nombre" .../>
+</border>
+```
+
+Sin `label`, sigue siendo un `<div class="border-box">`.
+
+**Archivo:** `js/components/form/LayoutProcessor.js`
+
+### Added — nil-form: atributo `load=` en `<form>`
+
+Permite pre-rellenar campos al abrir el formulario con una GET a la URL indicada, sin necesidad de seleccionar un registro en un `<in-table>`. Útil para formularios de configuración sin keyField.
+
+```xml
+<form table="empresa_config" database="auth" load="/api/admin/empresa">
+```
+
+**Archivo:** `js/components/form/FormContext.js` (`ctx.formLoad`), `ValidationCoordinator.initLoad()`
+
+### Added — handler: endpoint `afterLoad`
+
+`POST /api/handler/:handler/after-load` — procesa todos los campos de un registro en un solo request al cargarlo, agregando los resultados de `enable/disableFields`. Evita N requests individuales (uno por campo) al navegar o abrir un registro.
+
+```js
+// HandlerBridge.callAfterLoad(record) — llamado desde ValidationCoordinator.loadRecord()
+```
+
+**Archivos:** `src/controllers/handlerController.js` (`afterLoad`), `src/routes/handlerRoutes.js`, `js/components/form/HandlerBridge.js` (`callAfterLoad`)
+
+### Added — audit_log: persistencia en base de datos
+
+`auditLog.js` ahora persiste cada request autenticado en la tabla `audit_log` de `auth.db` (además del log de pino existente). Se excluyen rutas ruidosas (`/api/health`, `/api/log`, `/api/auth/check`).
+
+**Archivo:** `src/middleware/auditLog.js`, `src/services/authDatabase.js` (`insertAuditLog`)
+
+### Added — `last_login` en usuarios
+
+`auth.db.usuarios` tiene nueva columna `last_login TEXT`. Se actualiza con `datetime('now','localtime')` en cada login exitoso.
+
+**Archivos:** `src/services/authService.js`, `src/services/authDatabase.js` (migración idempotente)
+
+### Fixed — checkbox copy: USER_BLOCKED al activar usuario
+
+Al copiar un registro vía `<in-table>` con `<copy>`, los campos `type="checkbox"` recibían `.value = '0'` en lugar de `.checked = true/false`. FormData incluye un checkbox solo cuando está marcado, usando su `.value` como dato — si `.value` era `'0'`, el servidor recibía `activo: false` aunque el usuario hubiera tildado el checkbox.
+
+Fix en 4 puntos:
+- `Autocomplete.loadAndCopyRecord` — usa `.checked` para checkboxes
+- `Autocomplete.selectItem` (path no-keyField) — ídem
+- `ValidationCoordinator.applyFieldCopies` — ídem
+- `SubmitManager` FormData parsing — si el campo es checkbox y está en FormData, valor es siempre `true` (FormData solo lo incluye cuando está marcado)
+
+**Archivos:** `js/components/fieldRenderer/Autocomplete.js`, `js/components/form/SubmitManager.js`, `js/components/form/ValidationCoordinator.js`
+
+### Removed — rol `superadmin` (deprecado)
+
+El rol `superadmin` fue eliminado. Los niveles superiores son `wizard`, `admin` y `auditor`.
+- `GLOBAL_AUTH_ROLES` en `recordController` → `new Set(['wizard'])`
+- Arrays `SYSTEM_ROLES` en frontend → `['wizard', 'admin', 'auditor']`
+- `usersController`: `VALID_ROLES` incluye wizard/admin/auditor/operador (no superadmin)
+
+**Archivos:** `src/controllers/recordController.js`, `js/main.js`, `src/routes/nilRoutes.js` y otros.
+
+### Added — scaffold: utilidades de creación de proyectos
+
+Nuevas utilidades en `utils/` para crear y arrancar proyectos custom:
+
+- `utils/scaffold.js` — genera skeleton de proyecto con `--dest`, `--port`, `--version`, `--help`
+- `utils/nil-start.js` — script de arranque centralizado; proyectos delegan vía `NIL_APP_DIR`
+- `utils/nil-setup.js` — setup de primer arranque (JWT secret + auth.db); proyectos lo envuelven
+- `vars` — script de desarrollo para sourcear: exporta `NILSRC` y funciones shell `scaffold`, `nil-start`, `nil-setup`
+
+```bash
+# Activar entorno de desarrollo
+. ./vars
+
+# Crear proyecto
+scaffold mi-app --dest=/opt/wc --port=3002
+```
+
+La estructura generada:
+```
+mi-app_v000/
+  mi-app/       ← app directory con .env, menu.xml, form/, apps/, reports/, init-app.js
+  nilix         ← symlink a NILSRC
+```
+
+---
+
 ## [2.6.1] — 2026-03-25
 
 ### Fixed — nil-form

@@ -1,7 +1,7 @@
-# 🗺️ MAPA DE CÓDIGO - NILIX (v2.3.0)
+# 🗺️ MAPA DE CÓDIGO - NILIX (v2.7.0)
 
 **Propósito:** Índice detallado de líneas de código para navegación rápida
-**Última actualización:** 2026-03-11 (v2.3.0 — Nilix Rebranding + Reporte de Ventas)
+**Última actualización:** 2026-04-18 (v2.7.0 — nil-sys surface + scaffold)
 
 ---
 
@@ -11,25 +11,29 @@
 nilix/
 ├── server.js                     # nil-runtime — Express + helmet + TLS + compat bridge SF_→NIL_
 ├── index.html                    # Entry point: header global + layout + CRT toggle
-├── login.html                    # Página pública de login
+├── nil-login.html                # Login público (reemplaza login.html)
+├── nil-sys.html                  # Shell del sistema (wizard/admin/auditor)
+├── nil-setup.html                # Wizard primer arranque (crea primera empresa + usuario)
 ├── report.html                   # Visor de reportes YAML
 ├── package.json                  # Dependencias
 ├── .env.example                  # Template con todas las vars NIL_
+├── vars                          # Dev: source para exportar NILSRC + funciones shell
 │
 ├── js/                           # nil-form + nil-report + nil-explorer frontend
-│   ├── main.js                   # ~140 líneas — guard auth + getMenu() + sidebar + CRT
+│   ├── main.js                   # guard auth (operadores) + getMenu() + sidebar + CRT
+│   ├── nil-sys.js                # guard auth (wizard/admin/auditor) + getNilMenu() + sidebar
 │   ├── api/
-│   │   └── client.js             # authFetch() cookie-based; logout(); getMenu(); getFile()
+│   │   └── client.js             # authFetch() cookie-based; logout(); getMenu(); getNilMenu(); getAdminMenu()
 │   ├── components/
 │   │   ├── FormRenderer.js       # ~105 líneas — orquestador delgado (v0.21.0)
 │   │   ├── FileExplorer.js       # Renderiza ítems de menú (separator/form/report/menu)
 │   │   ├── Workspace.js          # loadItem() → FormRenderer o ReportEngine
 │   │   ├── form/                 # nil-form modular (v0.21.0)
-│   │   │   ├── FormContext.js            # ~73 líneas — estado central, AbortController
-│   │   │   ├── LayoutProcessor.js        # ~180 líneas — XML → DOM recursivo, is= virtual
-│   │   │   ├── ValidationCoordinator.js  # ~125 líneas — lookups, copy-fields, loadRecord, PAG_SIG/ANT
-│   │   │   ├── HandlerBridge.js          # ~100 líneas — POST /api/handler/:handler/after
-│   │   │   └── SubmitManager.js          # ~123 líneas — botones CRUD, RADU enforcement
+│   │   │   ├── FormContext.js            # estado central; database/table separation; formLoad
+│   │   │   ├── LayoutProcessor.js        # XML → DOM recursivo; <border label> → fieldset; url= in-table
+│   │   │   ├── ValidationCoordinator.js  # lookups, copy-fields, loadRecord, PAG_SIG/ANT, initLoad
+│   │   │   ├── HandlerBridge.js          # callAfter + callAfterLoad (batch on record load)
+│   │   │   └── SubmitManager.js          # botones CRUD, RADU enforcement, checkbox FormData fix
 │   │   ├── fieldRenderer/        # Renderizado de campos
 │   │   │   ├── index.js          # Exports
 │   │   │   ├── Label.js          # ~120 líneas
@@ -51,7 +55,7 @@ nilix/
 │   ├── services/
 │   │   ├── LookupService.js      # ~85 líneas — lookup BD + cache invalidation
 │   │   ├── TableCache.js         # ~70 líneas — cache nil_catalog_* con invalidación
-│   │   ├── RecordService.js      # ~60 líneas — CRUD frontend (v0.16.0)
+│   │   ├── RecordService.js      # ~130 líneas — CRUD frontend; URLs /api/records/:db/:table
 │   │   └── themeService.js       # Toggle tema dark/light
 │   └── utils/
 │       ├── validator.js          # Validaciones inline (min/max/pattern/check/between)
@@ -63,35 +67,61 @@ nilix/
 │   │   ├── apiRoutes.js          # Rutas generales
 │   │   ├── authRoutes.js         # /auth/login, /auth/logout, /auth/check
 │   │   ├── catalogRoutes.js      # GET /api/catalogs/:table
-│   │   ├── recordRoutes.js       # CRUD /api/records/:table
-│   │   ├── handlerRoutes.js      # /api/handler/:handler/*
+│   │   ├── recordRoutes.js       # CRUD /api/records/:db/:table  (app|auth)
+│   │   ├── handlerRoutes.js      # /api/handler/:handler/* incl. after-load
+│   │   ├── nilRoutes.js          # /api/nil/menu + catálogos <in-table url=...>
+│   │   ├── adminRoutes.js        # /api/admin/* (requiere rol=admin)
+│   │   ├── setupRoutes.js        # /api/setup/status + /api/setup/init (públicas)
 │   │   └── publicReportRoutes.js # /api/public/report-data (sin auth)
 │   ├── controllers/
 │   │   ├── catalogController.js        # Lista catálogos + cache headers
-│   │   ├── recordController.js         # CRUD con RADU server-side
-│   │   ├── handlerController.js        # Ejecuta handlers con ScopedDb
+│   │   ├── recordController.js         # CRUD con RADU server-side; resolveDb(app|auth)
+│   │   ├── handlerController.js        # after + afterLoad (batch) + before + afterField
+│   │   ├── nilController.js            # Menú nil-sys con filtro RADU
+│   │   ├── nilSysController.js         # Catálogos para <in-table url=...>
+│   │   ├── adminController.js          # getAdminMenu, getAuditLog, getUsuarios, empresa CRUD
+│   │   ├── setupController.js          # Wizard primer arranque: ensureCoreSchema + insert
 │   │   ├── filesystemController.js     # getMenu, getContent con authorizedDirs
 │   │   └── publicReportController.js   # isReportPublic + resolveEmpresaId
 │   ├── services/
 │   │   ├── database.js           # sql.js SQLite + saveDatabase()
-│   │   ├── authDatabase.js       # auth.db separado + token_blacklist + cleanup
-│   │   ├── authService.js        # login() bcrypt+JWT; LoginError; bloqueo 5 intentos
+│   │   ├── authDatabase.js       # auth.db + migraciones + token_blacklist + insertAuditLog
+│   │   ├── authService.js        # login() bcrypt+JWT; last_login; bloqueo 5 intentos
+│   │   ├── authRecordService.js  # CRUD genérico sobre auth.db (empresa_id scoping)
+│   │   ├── authHandlerService.js # Carga handlers @auth: desde src/handlers/auth/
 │   │   ├── scopedDb.js           # createScopedDb(rawDb, empresaId) — nil-data
 │   │   ├── menuService.js        # Parsea menu.xml recursivo; authorizedDirs; tablePermissions
 │   │   ├── handlerService.js     # Carga handlers dinámicos desde $NIL_APP_DIR/apps/
 │   │   ├── catalogService.js     # Queries catálogos con whitelist
 │   │   ├── recordService.js      # CRUD SQL + navigate (PAG_SIG/ANT)
 │   │   └── schemaService.js      # hasColumn(), getAllTables(), tableExists()
+│   ├── handlers/
+│   │   └── auth/
+│   │       ├── nil-wizard.js     # Handler sistema usuarios (wizard/admin/auditor)
+│   │       └── nil-users.js      # Handler operadores de empresa
 │   └── middleware/
-│       ├── verifyToken.js        # Lee nil_token cookie → req.empresaId/usuarioId/rol
-│       └── auditLog.js           # Registra escrituras + errores con usuarioId+empresaId
+│       ├── verifyToken.js        # Cookie nil_token → req.empresaId/usuarioId/rol/permisos
+│       └── auditLog.js           # Log + persistencia en audit_log (auth.db)
 │
-├── forms/                        # XML del motor (login.xml, etc.)
+├── forms/                        # XML del motor
 │   └── login.xml                 # Form login (parte del motor)
+│
+├── sys/                          # nil-sys: menú + forms + reports del sistema
+│   ├── nil-sys.xml               # Menú con permisos por rol
+│   ├── form/
+│   │   ├── nil-wizard.xml        # Usuarios sistema (database="auth" table="usuarios")
+│   │   ├── nil-users.xml         # Operadores de empresa
+│   │   └── nil-config.xml        # Configuración de empresa
+│   └── report/
+│       ├── nil-audit.yaml        # Reporte de auditoría
+│       └── nil-users.yaml        # Reporte de usuarios
 │
 ├── utils/
 │   ├── init-auth.js              # Schema auth.db + 3 empresas + 3 usuarios demo
 │   ├── init-pizzeria.js          # Demo data: categorías + productos + empresa_config
+│   ├── scaffold.js               # Crea skeleton de proyecto custom (--dest/--port/--version)
+│   ├── nil-start.js              # Arranque centralizado; proyectos delegan vía NIL_APP_DIR
+│   ├── nil-setup.js              # Setup centralizado: JWT secret + auth.db init
 │   └── exp.js                    # TSV → SQLite
 │
 ├── data/
