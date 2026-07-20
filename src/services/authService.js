@@ -63,7 +63,7 @@ function isValidPassword(password, empresaId = null) {
 
 function incrementFailedAttempts(db, id, currentCount) {
     const newCount = currentCount + 1;
-    const shouldBlock = newCount >= MAX_FAILED_ATTEMPTS;
+    const shouldBlock = newCount >= MAX_FAILED_ATTEMPTS_DEFAULT;
 
     if (shouldBlock) {
         db.run(

@@ -121,6 +121,7 @@ async function setupAuthDb(users = []) {
         rol             TEXT    NOT NULL DEFAULT 'user',
         activo          INTEGER NOT NULL DEFAULT 1,
         failed_attempts INTEGER NOT NULL DEFAULT 0,
+        last_login      TEXT,
         permisos        TEXT    NOT NULL DEFAULT 'RADU',
         created_at      TEXT    DEFAULT (datetime('now')),
         updated_at      TEXT    DEFAULT (datetime('now'))
