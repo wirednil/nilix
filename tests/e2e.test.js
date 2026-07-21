@@ -35,15 +35,22 @@ async function setupE2e() {
 
     const { getAuthDatabase, saveAuthDatabase } = require('../src/services/authDatabase');
     const authDb = getAuthDatabase();
-    const exists = authDb.exec("SELECT id FROM usuarios WHERE usuario = 'operador'");
-    if (!exists.length || !exists[0].values.length) {
-        const hash = bcrypt.hashSync('operador1234', 4);
-        authDb.run(
-            `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, permisos)
-             VALUES (99, 'Operador E2E', 'operador', ?, 'operador', 'RADU')`, [hash]
-        );
-        saveAuthDatabase();
-    }
+
+    const addUser = (usuario, password, nombre, rol, permisos) => {
+        const exists = authDb.exec(`SELECT id FROM usuarios WHERE usuario = '${usuario}'`);
+        if (!exists.length || !exists[0].values.length) {
+            const hash = bcrypt.hashSync(password, 4);
+            authDb.run(
+                `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, permisos)
+                 VALUES (99, ?, ?, ?, ?, ?)`, [nombre, usuario, hash, rol, permisos]
+            );
+        }
+    };
+
+    addUser('operador', 'operador1234', 'Operador E2E', 'operador', 'RADU');
+    addUser('e2ewizard', 'wizard1234', 'Wizard E2E', 'wizard', 'RADU');
+
+    saveAuthDatabase();
 
     const server = http.createServer(app);
     await new Promise(resolve => server.listen(0, resolve));
@@ -61,6 +68,13 @@ async function setupE2e() {
         assert.equal(res.status(), 200);
     }
 
+    async function loginAsWizard() {
+        const res = await page.request.post(`${baseUrl}/api/auth/login`, {
+            data: { usuario: 'e2ewizard', password: 'wizard1234' }
+        });
+        assert.equal(res.status(), 200);
+    }
+
     function cleanup() {
         server.close();
         try { closeDatabase(); } catch {}
@@ -68,7 +82,7 @@ async function setupE2e() {
         browser.close();
     }
 
-    return { baseUrl, page, context, browser, server, loginAsOperador, cleanup };
+    return { baseUrl, page, context, browser, server, loginAsOperador, loginAsWizard, cleanup };
 }
 
 describe('E2E — Dev Sandbox', async () => {
@@ -238,5 +252,50 @@ describe('E2E — Dev Sandbox', async () => {
 
         const updatedNombre = await page.inputValue('#nombre');
         assert.equal(updatedNombre, newNombre, 'nombre should persist after reload via navigation');
+    });
+
+    it('7. Nil-wizard — create a system user via wizard form', async () => {
+        const { page, baseUrl, context, loginAsWizard } = ctx;
+        await context.clearCookies();
+        await loginAsWizard();
+
+        await page.goto(`${baseUrl}/nil-sys`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#sidebar');
+
+        // Click "Usuarios sistema" in nil-sys sidebar
+        await page.click('.tree-node:has(span:text("Usuarios sistema"))');
+        await page.waitForSelector('#usuario', { timeout: 10000 });
+
+        // Fill new system user form (keyField #id left empty = create mode)
+        const testUser = 'e2e-test-admin-' + Date.now();
+        await page.fill('#nombre', 'E2E Test Admin');
+        await page.fill('#usuario', testUser);
+
+        // Rol is autocomplete (rendered as input + button). Open dropdown, pick "Admin".
+        await page.click('#rol + .autocomplete-btn');
+        await page.waitForSelector('.autocomplete-dropdown:not([style*="none"])', { timeout: 3000 });
+        await page.locator('.autocomplete-dropdown .autocomplete-item').filter({ hasText: 'Admin' }).click();
+
+        await page.fill('#password', 'TestPass123!');
+
+        // Submit
+        await page.click('button[type="submit"]');
+        await page.waitForTimeout(2000);
+
+        // Verify create feedback
+        const btnText = await page.textContent('button[type="submit"]');
+        assert.ok(btnText.includes('CREADO') || btnText.includes('GUARDADO'),
+            `expected CREADO feedback, got: ${btnText}`);
+
+        // Verify user exists via API
+        const check = await page.request.get(`${baseUrl}/api/auth/check`);
+        const cookie = await check.json();
+        const usersRes = await page.request.get(`${baseUrl}/api/nil/usuarios`);
+        assert.equal(usersRes.status(), 200);
+        const users = await usersRes.json();
+        const found = users.rows.find(u => u.usuario === testUser);
+        assert.ok(found, `user ${testUser} should exist in nil usuarios`);
+        assert.equal(found.rol, 'admin');
+        assert.equal(found.permisos, 'RAU');
     });
 });
