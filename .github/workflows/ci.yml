@@ -17,7 +17,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-bin-links
-      - run: npm run test:all
+      - run: npm test
 
   lint:
     name: Lint
