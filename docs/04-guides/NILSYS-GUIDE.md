@@ -62,7 +62,8 @@ El wizard gestiona los usuarios que acceden a `/nil-sys`: otros wizards, admins 
 6. Presionar **ENVIAR**
 
 > El ID de usuario no puede modificarse una vez creado.
-> No pueden crearse usuarios con prefijo `nil-` (nombre reservado).
+> ⚠️ El prefijo `nil-` está reservado para cuentas del motor según la documentación,
+> pero actualmente **no hay validación** que lo impida.
 
 ### Modificar un usuario sistema
 

@@ -24,8 +24,7 @@ CREATE TABLE usuarios (
     empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
 
     -- Identidad
-    first_name      TEXT,
-    last_name       TEXT,
+    nombre          TEXT NOT NULL,
     usuario         TEXT NOT NULL UNIQUE,
     email           TEXT,
     password_hash   TEXT NOT NULL,
@@ -63,8 +62,7 @@ CREATE TABLE usuarios (
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| `first_name` | TEXT | Primer nombre |
-| `last_name` | TEXT | Apellido |
+| `nombre` | TEXT | Nombre completo |
 | `usuario` | TEXT UNIQUE | Nombre de login (3-30 chars, `[a-zA-Z0-9_-]`) |
 | `email` | TEXT | Email principal (usado para recovery) |
 | `password_hash` | TEXT | bcrypt, mínimo 8 caracteres |
@@ -196,7 +194,7 @@ por `/nil-sys`. Los `operador` son **usuarios de la app** — acceden por `/`.
 
 1. Wizard crea usuario desde `sys/form/nil-wizard.xml`
 2. `POST /api/records/auth/usuarios` → `authRecordService.upsert` hashea password
-3. `nil-wizard.js::beforeSave` asigna `permisos` según rol, fuerza `empresa_id = 0`
+3. `nil-wizard.js::beforeSave` asigna `permisos` según rol; `authRecordService.upsert` fuerza `empresa_id = 0` para usuarios sistema
 4. Si `force_change=1` → en el próximo login se redirige a pantalla de cambio de contraseña
 
 ### Recovery de contraseña

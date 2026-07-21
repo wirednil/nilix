@@ -109,8 +109,10 @@ nilix/
 │       └── auditLog.js        # Log write ops (POST/PUT/DELETE)
 │
 ├── utils/
-│   ├── init-auth.js       # Schema auth.db + 3 empresas + 3 usuarios demo
-│   └── init-pizzeria.js   # Schema app DB + 3 empresas + ~120 productos
+│   ├── init-dev.js        # Dev sandbox: auth + app schema + demo data
+│   ├── nil-start.js       # Arranque centralizado; proyectos delegan vía NIL_APP_DIR
+│   ├── nil-setup.js       # Setup centralizado: JWT secret + auth.db init
+│   └── ndat.js            # TSV bidireccional ↔ SQLite
 │
 ├── forms/                 # Motor forms (parte del repo)
 │   └── login.xml          # Form de login (action="/api/auth/login")

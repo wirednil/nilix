@@ -1,6 +1,6 @@
 # 🔍 JERARQUÍA DE ANÁLISIS - NILIX
 
-**Última actualización:** 2026-03-11 (v2.3.0 — Nilix Rebranding + Reporte de Ventas)
+**Última actualización:** 2026-07-21 (v2.7.2 — nil-sys HIGH fixes + stale docs limpiados)
 **Propósito:** Guía de consulta rápida para el agente IA
 
 ---
@@ -19,7 +19,7 @@
 | **Definiciones** | XML (formas) + YAML (reports) — en dir externo vía `NIL_MENU_FILE` |
 | **Estética** | Terminal/Monospace + Neobrutalismo + CRT Effects |
 | **Cobertura** | ~95% |
-| **Estado actual** | 🚀 v2.0.0 — Gastro App Multi-Tenant (2026-03-10) |
+| **Estado actual** | 🚀 v2.7.1 — Fixes Express 5 + tests integración (2026-07-21) |
 
 ### Stack Tecnológico
 - **Runtime:** Node.js + Express 5.2.1
@@ -555,8 +555,8 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | Cache no invalida | Verificar `nil_invalidation_time` en localStorage |
 | Multi-table no persiste | Verificar `saveDatabase()` después de handler |
 | **Catálogo desactualizado** | **Cache valida count vs API (304 = sin cambios)** |
-| auth.db sobreescrito al init | SIEMPRE parar servidor antes de `node utils/init-auth.js` — sql.js in-memory sobrescribe el archivo nuevo |
-| publicToken null en URL | Correr init-auth.js con servidor detenido; el JWT viejo no tiene publicToken |
+| auth.db sobreescrito al init | SIEMPRE parar servidor antes de `node utils/init-dev.js` — sql.js in-memory sobrescribe el archivo nuevo |
+| ~~publicToken null en URL~~ | ~~✅ FIXED v2.7.2 — initAuthDatabase() inserta empresa 0 con public_token~~ |
 | Report muestra datos de otra empresa | Token alterado → `resolveEmpresaId` devuelve null → `{ rows: [] }` (esperado) |
 | Header/footer dinámico no carga | Verificar que NIL_APP_DIR/reports/ tenga carta.yaml con `dataSource: config` |
 | Zone expression devuelve undefined | Usar nombre de columna DB crudo (`field: titulo`), no alias YAML (`field: cfg_titulo`) |
@@ -772,7 +772,7 @@ node server.js
 | 8 | `SubmitManager.js` — `_handleCustomAction` + `_showFormError` | `js/components/form/SubmitManager.js` | ✅ |
 | 9 | `client.js` — `authFetch()` usa cookie automática; elimina Bearer header; `logout()` POST + redirect | `js/api/client.js` | ✅ |
 | 10 | `main.js` — guard: sin `nil_token` → redirect login | `js/main.js` | ✅ |
-| 11 | `init-auth.js` — schema actualizado con `usuario`, `failed_attempts`, timestamps | `utils/init-auth.js` | ✅ |
+| 11 | Schema auth.db actualizado con `usuario`, `failed_attempts`, timestamps ✅ *(init-auth.js, removido v2.4.1)* | — | ✅ |
 | 12 | `.env` — `NIL_JWT_SECRET` + `NIL_JWT_EXPIRY=8h` | `.env` | ✅ |
 
 **Demo:** `admin` / `demo1234` → JWT válido 8h → `nil_token` cookie (HttpOnly)
@@ -784,7 +784,7 @@ node server.js
 | # | Tarea | Archivo | Estado |
 |---|-------|---------|--------|
 | 1 | `src/services/authDatabase.js` — conexión `NIL_AUTH_DB` | `src/services/authDatabase.js` | ✅ |
-| 2 | `utils/init-auth.js` — crea `empresas` + `usuarios` + demo data | `utils/init-auth.js` | ✅ |
+| 2 | Schema auth.db: `empresas` + `usuarios` + demo data ✅ *(init-auth.js, removido v2.4.1)* | — | ✅ |
 | 3 | `bcryptjs` instalado | `package.json` | ✅ |
 | 4 | `.env`: `NIL_AUTH_DB=data/auth.db` | `.env` | ✅ |
 | 5 | `demo_categorias`: columna `empresa_id` | `utils/init-pizzeria.js` | ✅ |
@@ -802,9 +802,9 @@ node server.js
 
 | # | Tarea | Versión | Archivo | Estado |
 |---|-------|---------|---------|--------|
-| 1 | 3 empresas demo + 3 usuarios en auth.db | 2.0.0 | `utils/init-auth.js` | ✅ |
-| 2 | Datos demo para 3 empresas (cat + prod sin colisión) | 2.0.0 | `utils/init-pizzeria.js` | ✅ |
-| 3 | `public_token` (UUID base64url 22 chars) reemplaza slug | 2.1.0 | `utils/init-auth.js`, `authService.js`, `authRoutes.js` | ✅ |
+| 1 | 3 empresas demo + 3 usuarios en auth.db | 2.0.0 | `utils/init-dev.js` | ✅ |
+| 2 | Datos demo para 3 empresas (cat + prod sin colisión) | 2.0.0 | `utils/init-dev.js` | ✅ |
+| 3 | `public_token` (UUID base64url 22 chars) reemplaza slug | 2.1.0 | `authService.js`, `authDatabase.js:initAuthDatabase()` | ✅ |
 | 4 | URL pública `?t=TOKEN` — 128-bit entropy, no guessable | 2.1.0 | `Workspace.js`, `DataSourceManager.js`, `report.html`, `main.js` | ✅ |
 | 5 | `resolveEmpresaId` busca `WHERE public_token = ?` | 2.1.0 | `src/controllers/publicReportController.js` | ✅ |
 | 6 | Sin token válido → `{ rows: [] }` (no cross-tenant leak) | 2.1.0 | `src/controllers/publicReportController.js` | ✅ |

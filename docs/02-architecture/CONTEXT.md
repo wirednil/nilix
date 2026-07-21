@@ -1,6 +1,6 @@
 # NILIX — Contexto Estratégico para Sesiones
 
-*v2.3.0 · 2026-03-11*
+*v2.7.2 · 2026-07-21*
 
 ## Identidad del Proyecto
 
@@ -14,11 +14,12 @@ Filosofía: ex nihilo — como la megaestructura de Blame!, modular, silenciosa,
 
 `/media/cibo/KINGSTON/side-proj/other/space-form`
 
-## Estado Actual: v2.3.0
+## Estado Actual: v2.7.2
 
 - **Cobertura FDL:** ~95%
+- **Tests:** 97 tests (56 unit + 37 integration + 18 authRecordService) — 100% pass
+- **Últimos fixes:** authRecordService tests + empresa_id=0 scenarios (LOW-4)
 - **Docs maestras:** `docs/02-architecture/ANALYSIS-HIERARCHY.md` (EMPEZAR SIEMPRE ACÁ)
-- **Demo activo:** Gastro App Pizzería + Parrilla + Heladería (multi-tenant 3 empresas)
 
 ## Arquitectura Clave
 
@@ -154,4 +155,4 @@ Object.keys(localStorage)
 
 ---
 
-**Última actualización:** 2026-03-11 (v2.3.0 — Nilix Rebranding + Reporte de Ventas)
+**Última actualización:** 2026-07-21 (v2.7.2 — nil-sys HIGH fixes)

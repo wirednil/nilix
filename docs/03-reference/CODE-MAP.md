@@ -117,12 +117,11 @@ nilix/
 │       └── nil-users.yaml        # Reporte de usuarios
 │
 ├── utils/
-│   ├── init-auth.js              # Schema auth.db + 3 empresas + 3 usuarios demo
-│   ├── init-pizzeria.js          # Demo data: categorías + productos + empresa_config
-│   ├── scaffold.js               # Crea skeleton de proyecto custom (--dest/--port/--version)
+│   ├── init-dev.js               # Dev sandbox: auth + app schema + demo data
 │   ├── nil-start.js              # Arranque centralizado; proyectos delegan vía NIL_APP_DIR
 │   ├── nil-setup.js              # Setup centralizado: JWT secret + auth.db init
-│   └── exp.js                    # TSV → SQLite
+│   ├── scaffold.js               # Crea skeleton de proyecto custom (--dest/--port/--version)
+│   └── ndat.js                   # TSV bidireccional → SQLite
 │
 ├── data/
 │   └── auth.db                   # Motor-owned: empresas + usuarios + token_blacklist

@@ -786,6 +786,19 @@ app.use(helmet.frameguard({ action: 'deny' }));
 
 ---
 
+## 🟢 HALLAZGOS PENDIENTES (BAJA PRIORIDAD)
+
+Issues conocidos, no bloqueantes, registrados para referencia futura.
+
+| # | Hallazgo | Archivo | Riesgo | Estado |
+|----|----------|---------|--------|--------|
+| LOW-1 | `empresa_id=0` viola FK `REFERENCES empresas(id)` — funciona solo porque `PRAGMA foreign_keys=OFF` en toda la codebase | `authDatabase.js:86` | Si se activa FK enforcement, todos los INSERT/UPDATE de nil users fallan | ✅ FIXED v2.7.2 — empresa `id=0` insertada en initAuthDatabase |
+| LOW-2 | `publicToken` siempre `null` para nil users — no hay fila con `id=0` en `empresas` | `authService.js:142` | wizard/admin/auditor no pueden generar QR de reportes públicos | ✅ FIXED v2.7.2 — misma empresa `id=0` con public_token generado |
+| LOW-3 | `utils/init-auth.js` no existe pero `nil-setup.js:90` lo requiere | `nil-setup.js:90` | `require()` lanza `MODULE_NOT_FOUND` al ejecutar nil-setup | ✅ FIXED v2.7.2 — verifica existencia con fs.existsSync, warning en vez de crash |
+| LOW-4 | Zero test coverage para `authRecordService` y escenarios `empresa_id=0` | `tests/` | El pipeline CRUD de auth no está testeado | ✅ FIXED v2.7.2 — 18 tests en `tests/authRecordService.test.js` |
+
+---
+
 ## 📚 REFERENCIAS
 
 - [OWASP WSTG v4.2](https://owasp.org/www-project-web-security-testing-guide/)
@@ -797,5 +810,6 @@ app.use(helmet.frameguard({ action: 'deny' }));
 ---
 
 **Documento generado:** 2026-03-02  
-**Versión:** 1.0.0  
+**Última actualización:** 2026-07-21  
+**Versión:** 1.1.0  
 **Próxima revisión:** Post-implementación de fixes críticos

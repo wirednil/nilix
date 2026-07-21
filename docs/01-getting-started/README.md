@@ -82,7 +82,7 @@ nilix/
 │   └── utils/                   # RADU, ExpressionEngine, validator
 ├── css/styles.css               # Neobrutalismo terminal phosphor green
 ├── forms/                       # XML del motor (login.xml, etc.)
-├── utils/                       # init-auth.js, init-dev.js, ndat.js, gencf.js
+├── utils/                       # init-dev.js, ndat.js, gencf.js, scaffold.js
 ├── scripts/                     # setup.js, check.js
 ├── dev/                         # dev sandbox (menu.xml, forms, data, dbase)
 ├── tests/                       # test suite (38 tests unitarios)
@@ -118,7 +118,8 @@ El dev sandbox incluido en el repo usa empresa 99:
 | 99 | Dev Sandbox | `superdvlp` | `devpass1234` |
 
 Creado automáticamente por `scripts/setup.js` vía `utils/init-dev.js`.
-Las apps pueden definir sus propias empresas y usuarios con `init-auth.js` (no incluido en el motor).
+Las apps existentes pueden migrar sus propios datos a `auth.db` vía la API o scripts custom.
+`init-auth.js` fue removido en v2.4.1 — la inicialización del schema se maneja en `src/services/authDatabase.js::initAuthDatabase()`.
 
 ---
 

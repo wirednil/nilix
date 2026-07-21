@@ -7,6 +7,131 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.7.2] — 2026-07-21
+
+### Fixed — nilSysController SQL interpolation
+
+`nilSysController.js:37` usaba `${NIL_EMPRESA_ID}` interpolado en la query SQL en lugar de `?` parametrizado. Aunque `NIL_EMPRESA_ID` es una constante (0), la interpolación es inconsistente con el resto del código. Cambiado a `WHERE empresa_id = ?` con `[NIL_EMPRESA_ID]` como parámetro.
+
+**Archivo:** `src/controllers/nilSysController.js:37`
+
+### Fixed — wizard ahora puede acceder a rutas admin y users
+
+Los guards en `adminRoutes.js` y `usersRoutes.js` solo permitían `rol === 'admin'`, excluyendo a `wizard`. Esto impedía:
+- Acceder al menú admin y audit log siendo wizard
+- Configurar `nil_config` para `empresa_id=0` (MEDIUM-8)
+- Gestionar usuarios via endpoints admin/users
+
+**Fix:** ambos guards cambian de `req.rol !== 'admin'` a `!['admin', 'wizard'].includes(req.rol)`.
+
+**Archivos:** `src/routes/adminRoutes.js:18`, `src/routes/usersRoutes.js:18`
+
+### Fixed — wizard ve solo empresa_id=0 en catálogos @auth
+
+`catalogController.getAuthRows()` filtraba por `empresa_id = ?` con `req.empresaId`. Para wizard (`empresaId=0`), esto retornaba solo usuarios sistema, no todos. Ahora cuando `empresaId === 0` (wizard), se omite el filtro `WHERE empresa_id`, devolviendo todos los rows de la tabla auth.
+
+**Archivo:** `src/controllers/catalogController.js:17-31`
+
+### Fixed — empresa_id=0 viola FK y publicToken null para nil users
+
+`authDatabase.js::initAuthDatabase()` ahora inserta la empresa `id=0` ("Nilix System") con un `public_token` generado si no existe. Esto resuelve dos issues:
+
+1. **FK violation:** cualquier INSERT/UPDATE con `empresa_id=0` ahora tiene una fila referenciable en `empresas`.
+2. **publicToken null:** `authService.js:142` ejecuta `SELECT public_token FROM empresas WHERE id = ?` con `empresa_id=0` — ahora retorna el token en vez de `null`.
+
+**Archivo:** `src/services/authDatabase.js:95-106`
+
+### Fixed — nil-setup.js crasheaba si init-auth.js no existía
+
+`nil-setup.js:80-90` requería `utils/init-auth.js` con `require()` — si el archivo no existía (porque ya no pertenece al engine), el script terminaba con `process.exit(1)`. Ahora verifica existencia con `fs.existsSync()`: si el archivo no está, loggea un aviso informativo y continúa (la init del auth DB se maneja en server start via `authDatabase.js`).
+
+**Archivo:** `utils/nil-setup.js:80-90`
+
+### Fixed — empresa_id=0 se pisaba silenciosamente en authRecordService INSERT
+
+El guard `!insertData.empresa_id` en `authRecordService.js:157` trataba `0` como falsy, sobrescribiendo `empresa_id=0` con el valor de `empresaId` del JWT (que para usuarios nil puede ser `0`, causando un no-op, o `null`, reemplazándolo con otro valor). Cambiado a `insertData.empresa_id == null` para distinguir `0` real de `null`/`undefined`.
+
+**Archivo:** `src/services/authRecordService.js:157`
+
+---
+
+### Added — 18 tests para authRecordService + empresa_id=0
+
+Nueva suite `tests/authRecordService.test.js` que cubre todo el pipeline CRUD de auth.db:
+
+- **findById:** tenant isolation, global access (null), not found
+- **upsert INSERT:** empresa_id desde scope, wizard global → empresa_id=0, empresa_id=0 explícito preservado (guard fix), empresa_id pisado con empresaId no-null, password corto rechazado
+- **upsert UPDATE:** modificación campos, otra empresa no encontrado, self-deactivation rechazado
+- **navigate:** next/prev dentro de empresa, boundary, no cruza empresas
+- **remove:** soft delete (activo=0), RECORD_NOT_FOUND, tenant isolation
+
+**Archivos:** `tests/authRecordService.test.js` (nuevo), `tests/helpers/db.js` (empresa 0 en setupAuthDb)
+
+---
+
+## [2.7.1] — 2026-07-21
+
+### Fixed — DELETE no funciona con Express 5 (keyField en body)
+
+Express 5 no parsea el body de requests DELETE. `RecordService.delete()` mandaba `keyField` en el body JSON, que Express 5 ignora silenciosamente → el backend recibía `keyField: undefined` y respondía 400.
+
+**Fix:** `keyField`, `handler`, `crudMode` se envían como query params en vez de body. Se eliminó el header `Content-Type` (no hay body).
+
+**Archivo:** `js/services/RecordService.js:102-121`
+
+### Fixed — navegación ANT/SIG sin feedback visual
+
+Cuando `currentKey` es `null` (formulario vacío, modo INSERT) o se alcanza el límite de registros, los botones ANT/SIG no tenían ningún efecto silenciosamente.
+
+**Fix:** se agregó `_flashNav()` que muestra un mensaje inline con fade out de 2s:
+- Sin registro cargado → "Cargá un registro primero"
+- Sin más registros → "No hay más registros (→/← límite)"
+
+**Archivo:** `js/components/form/ValidationCoordinator.js:119-158`
+
+### Fixed — `empresa_id` incorrecto al crear usuarios nil desde nil-wizard
+
+Al crear usuarios sistema (`wizard`/`admin`/`auditor`) desde nil-wizard, `empresa_id` quedaba como `NULL` en vez de `0`. El catálogo `/api/nil/usuarios` filtra por `empresa_id = 0`, por lo que los usuarios creados no aparecían en el dropdown.
+
+**Causa:** `authRecordService.upsert()` solo asignaba `empresa_id` cuando `empresaId !== null`. Para rol `wizard` (acceso global), `empresaId` es `null`, por lo que el campo no se seteaba.
+
+**Fix:** cuando `empresaId` es `null` (wizard), se fuerza `empresa_id = 0`.
+
+**Archivo:** `src/services/authRecordService.js:74-75`
+
+### Added — Integration tests (37 tests)
+
+Nueva suite de tests de integración que ejercitan la API REST completa con autenticación real:
+
+- Auth: login (success, wrong, blocked, invalid, anti-enumeration), logout, check, refresh, token blacklist
+- CRUD: getTables, getRecord, create, upsert, update, delete, 404/400 edge cases
+- Navigate: next, prev, boundary, missing params
+- Multitenancy: empresa isolation via API (read, create, navigate)
+- Role-based: admin/sys routes con distintos roles, 401 sin token
+
+**Archivos nuevos:**
+- `tests/api.integration.test.js` — 37 tests
+- `tests/helpers/integration.js` — test server bootstrap (Express random port, in-memory DBs, cookie-jar HTTP wrapper)
+
+### Changed — server.js refactor: export app para tests
+
+`server.js` ahora exporta `{ app, startServer, initDatabase, initAuthDatabase, closeDatabase, closeAuthDatabase }`. El auto-start solo se ejecuta cuando `require.main === module`, permitiendo importar el módulo en tests sin levantar el servidor.
+
+### Changed — database.js / authDatabase.js: lazy path resolution
+
+Las rutas `DB_PATH` y `AUTH_DB_PATH` se resuelven dentro de `initDatabase()` / `initAuthDatabase()` en lugar de al cargar el módulo. Esto permite que los tests sobrescriban `NIL_DB_FILE` / `NIL_AUTH_DB` via `process.env` antes de inicializar.
+
+### Changed — Login rate limiter bypass en modo test
+
+`authRoutes.js` ahora saltea el rate limiter de login cuando `NODE_ENV=test`, evitando falsos 429 en la suite de integración.
+
+### Changed — package.json + CI
+
+- Nuevos scripts: `test:integration` y `test:all` (unit + integration)
+- CI actualizado para ejecutar `npm run test:all`
+
+---
+
 ## [2.7.0] — 2026-04-18
 
 ### Changed — nil-form: separación `database` / `table`
