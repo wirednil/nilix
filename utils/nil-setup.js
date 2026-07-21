@@ -80,12 +80,11 @@ if (!hasSecret) {
 // ── Step 2: Initialize auth.db ───────────────────────────────────────────────
 const initAuthPath = path.join(ENGINE_PATH, 'utils', 'init-auth.js');
 
-if (!fs.existsSync(initAuthPath)) {
-    console.error(`❌  init-auth.js not found at ${ENGINE_PATH}/utils/`);
-    console.error('    Check NIL_ENGINE_PATH in .env');
-    process.exit(1);
+if (fs.existsSync(initAuthPath)) {
+    console.log('🗄️   Initializing auth.db...');
+    require(initAuthPath);
+    console.log('    Done.');
+} else {
+    console.log('🗄️   Auth DB schema handled at server start via authDatabase.js');
+    console.log('    (init-auth.js not found — this is normal)');
 }
-
-console.log('🗄️   Initializing auth.db...');
-require(initAuthPath);
-console.log('    Done.');

@@ -71,8 +71,8 @@ async function upsert(tableName, keyField, data, empresaId, requestUserId = null
     let insertData = { ...data };
 
     if (tableName === 'usuarios') {
-        // Enforce tenant — null = global access, don't overwrite empresa_id from data
-        if (empresaId !== null) insertData.empresa_id = empresaId;
+        // Enforce tenant — null = global wizard access → empresa_id=0
+        insertData.empresa_id = empresaId !== null ? empresaId : 0;
 
         // Hash password if provided, skip if empty
         if (insertData.password) {
@@ -154,7 +154,7 @@ async function upsert(tableName, keyField, data, empresaId, requestUserId = null
         return { ...findById(tableName, keyField, keyValue, empresaId), updated: true };
     } else {
         // INSERT — enforce empresa_id unless global access (null)
-        if (empresaId !== null && !insertData.empresa_id) insertData.empresa_id = empresaId;
+        if (empresaId !== null && insertData.empresa_id == null) insertData.empresa_id = empresaId;
 
         const fields = Object.keys(insertData).filter(f =>
             validCols.includes(f) &&

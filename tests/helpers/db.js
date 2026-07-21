@@ -33,6 +33,7 @@ const APP_DB_MODULES = [
 const AUTH_DB_MODULES = [
     'src/services/authDatabase.js',
     'src/services/authService.js',
+    'src/services/authRecordService.js',
 ];
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -127,7 +128,9 @@ async function setupAuthDb(users = []) {
         updated_at      TEXT    DEFAULT (datetime('now'))
     )`);
 
-    // Empresa de test
+    // Empresa 0 (nil-sys) y empresa de test
+    db.run(`INSERT OR IGNORE INTO empresas (id, nombre, public_token)
+            VALUES (0, 'Nilix System', 'nil-token-000000')`);
     db.run(`INSERT OR IGNORE INTO empresas (id, nombre, public_token)
             VALUES (1, 'Test Empresa', 'test-token-abc123')`);
 

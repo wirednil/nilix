@@ -5,6 +5,7 @@ const { getAuthDatabase } = require('../services/authDatabase');
 const logger = require('../services/logger');
 
 const CACHE_TTL = 86400;
+const NIL_EMPRESA_ID = 0;
 
 function assertTableAllowed(table, res) {
     if (!schemaService.isTableAllowed(table)) {
@@ -16,10 +17,11 @@ function assertTableAllowed(table, res) {
 
 function getAuthRows(tableName, empresaId) {
     const db = getAuthDatabase();
-    const result = db.exec(
-        `SELECT * FROM ${tableName} WHERE empresa_id = ? ORDER BY id`,
-        [empresaId]
-    );
+    const isWizard = empresaId === NIL_EMPRESA_ID;
+    const sql = isWizard
+        ? `SELECT * FROM ${tableName} ORDER BY id`
+        : `SELECT * FROM ${tableName} WHERE empresa_id = ? ORDER BY id`;
+    const result = db.exec(sql, isWizard ? [] : [empresaId]);
     if (!result.length || !result[0].values.length) return [];
     const { columns, values } = result[0];
     const hidden = new Set(['password_hash', 'failed_attempts']);

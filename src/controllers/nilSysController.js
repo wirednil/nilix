@@ -34,9 +34,10 @@ const listSysUsers = (req, res) => {
                     failed_attempts, force_change, never_exp, exp_days,
                     pass_from, pass_to, warn_date, warn_days, allow_change
              FROM usuarios
-             WHERE empresa_id = ${NIL_EMPRESA_ID}
+             WHERE empresa_id = ?
                AND rol IN ('wizard','admin','auditor')
-             ORDER BY nombre`
+             ORDER BY nombre`,
+            [NIL_EMPRESA_ID]
         ));
         rows.forEach(r => { r.activo = r.activo ? 1 : 0; });
         res.json({ rows });

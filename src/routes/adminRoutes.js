@@ -15,7 +15,7 @@ const router  = express.Router();
 const { getAdminMenu, getAuditLog, getUsuarios, getEmpresa, updateEmpresa } = require('../controllers/adminController');
 
 function requireAdmin(req, res, next) {
-    if (req.rol !== 'admin') {
+    if (!['admin', 'wizard'].includes(req.rol)) {
         return res.status(403).json({ error: 'Se requiere rol admin' });
     }
     next();
