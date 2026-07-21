@@ -101,15 +101,13 @@ class RecordService {
     
     static async delete(table, keyField, id, options = {}) {
         const { db = 'app', ...rest } = options;
-        const response = await authFetch(`${API_BASE}/${db}/${table}/${encodeURIComponent(id)}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                keyField,
-                handler: rest.handler,
-                crudMode: rest.crudMode
-            })
-        });
+        const params = new URLSearchParams({ keyField });
+        if (rest.handler) params.set('handler', rest.handler);
+        if (rest.crudMode) params.set('crudMode', rest.crudMode);
+        const response = await authFetch(
+            `${API_BASE}/${db}/${table}/${encodeURIComponent(id)}?${params}`,
+            { method: 'DELETE' }
+        );
         
         if (!response.ok) {
             const error = await response.json();

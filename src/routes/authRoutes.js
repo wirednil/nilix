@@ -12,9 +12,13 @@ const crypto = require('crypto');
 const authService = require('../services/authService');
 const logger = require('../services/logger');
 
+const LOGIN_RATE_LIMIT_MAX = process.env.NIL_LOGIN_RATE_LIMIT_MAX
+    ? parseInt(process.env.NIL_LOGIN_RATE_LIMIT_MAX, 10)
+    : 10;
+
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 10,                   // máx 10 intentos por IP
+    max: process.env.NODE_ENV === 'test' ? Infinity : LOGIN_RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiados intentos de login. Intente de nuevo en 15 minutos.' }

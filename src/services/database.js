@@ -2,19 +2,25 @@ const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = process.env.NIL_DB_FILE
-    ?? path.join(__dirname, '../../data/catalogs.db');
-
 let db = null;
 let SQL = null;
+let DB_PATH = null;
+
+function resolveDbPath() {
+    if (DB_PATH) return DB_PATH;
+    DB_PATH = process.env.NIL_DB_FILE
+        ?? path.join(__dirname, '../../data/catalogs.db');
+    return DB_PATH;
+}
 
 async function initDatabase() {
     if (db) return db;
     
+    const dbPath = resolveDbPath();
     SQL = await initSqlJs();
     
-    if (fs.existsSync(DB_PATH)) {
-        const buffer = fs.readFileSync(DB_PATH);
+    if (fs.existsSync(dbPath)) {
+        const buffer = fs.readFileSync(dbPath);
         db = new SQL.Database(buffer);
     } else {
         db = new SQL.Database();
@@ -34,7 +40,7 @@ function saveDatabase() {
     if (!db) return;
     const data = db.export();
     const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_PATH, buffer);
+    fs.writeFileSync(resolveDbPath(), buffer);
 }
 
 function closeDatabase() {

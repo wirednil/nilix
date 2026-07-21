@@ -117,16 +117,39 @@ export class ValidationCoordinator {
     }
 
     async navigateToAdjacent(dir) {
-        if (!this.ctx.currentKey || !this.ctx.tableConfig) return;
+        if (!this.ctx.currentKey || !this.ctx.tableConfig) {
+            this._flashNav('Cargá un registro primero');
+            return;
+        }
         const { table, keyField, db = 'app' } = this.ctx.tableConfig;
         const { default: RecordService } = await import('../../services/RecordService.js');
         const record = await RecordService.navigate(table, keyField, this.ctx.currentKey, dir, db);
-        if (!record) return; // boundary — noop silencioso
+        if (!record) {
+            this._flashNav(`No hay más registros (${dir === 'next' ? '→' : '←'} límite)`);
+            return;
+        }
         this.ctx.currentKey = record[keyField]; // set before fillForm
         this.fillForm(record);
         if (this._handlerBridge) {
             await this._handlerBridge.callAfter(keyField, record[keyField]);
         }
+    }
+
+    _flashNav(msg) {
+        const formEl = this.ctx.container?.querySelector('form');
+        if (!formEl) return;
+        let el = formEl.querySelector('.nav-feedback');
+        if (!el) {
+            el = document.createElement('span');
+            el.className = 'nav-feedback';
+            el.style.cssText = 'display:inline-block;margin-left:0.5rem;font-size:0.8rem;color:var(--help-icon-color,#888);transition:opacity 0.3s;';
+            const nav = formEl.querySelector('.actions-nav');
+            (nav || formEl).appendChild(el);
+        }
+        el.textContent = msg;
+        el.style.opacity = '1';
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
     }
 
     /**

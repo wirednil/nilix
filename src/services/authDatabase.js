@@ -6,27 +6,34 @@
  * @module services/authDatabase
  */
 
+const crypto = require('crypto');
 const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
 
-const AUTH_DB_PATH = process.env.NIL_AUTH_DB
-    ? path.resolve(process.cwd(), process.env.NIL_AUTH_DB)
-    : path.join(__dirname, '../../data/auth.db');
-
 let db = null;
 let SQL = null;
+let AUTH_DB_PATH = null;
+
+function resolveAuthDbPath() {
+    if (AUTH_DB_PATH) return AUTH_DB_PATH;
+    AUTH_DB_PATH = process.env.NIL_AUTH_DB
+        ? path.resolve(process.cwd(), process.env.NIL_AUTH_DB)
+        : path.join(__dirname, '../../data/auth.db');
+    return AUTH_DB_PATH;
+}
 
 async function initAuthDatabase() {
     if (db) return db;
 
+    const dbPath = resolveAuthDbPath();
     SQL = await initSqlJs();
 
-    const dbDir = path.dirname(AUTH_DB_PATH);
+    const dbDir = path.dirname(dbPath);
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-    if (fs.existsSync(AUTH_DB_PATH)) {
-        const buffer = fs.readFileSync(AUTH_DB_PATH);
+    if (fs.existsSync(dbPath)) {
+        const buffer = fs.readFileSync(dbPath);
         db = new SQL.Database(buffer);
     } else {
         db = new SQL.Database();
@@ -87,6 +94,17 @@ async function initAuthDatabase() {
     // Ensure permisos column exists on usuarios (migration-safe for existing DBs)
     try { db.run(`ALTER TABLE usuarios ADD COLUMN permisos TEXT NOT NULL DEFAULT 'RADU'`); } catch { /* already exists */ }
 
+    // Ensure empresa 0 exists (nil-sys: wizard/admin/auditor users)
+    try {
+        const count = db.exec('SELECT COUNT(*) FROM empresas WHERE id = 0');
+        const exists = count.length && count[0].values.length && count[0].values[0][0] > 0;
+        if (!exists) {
+            const token = crypto.randomUUID().replace(/-/g, '');
+            db.run('INSERT INTO empresas (id, nombre, public_token) VALUES (0, ?, ?)',
+                ['Nilix System', token]);
+        }
+    } catch { /* table may not exist yet */ }
+
     // Extended usuarios columns (migration-safe)
     try { db.run(`ALTER TABLE usuarios ADD COLUMN estado       TEXT    NOT NULL DEFAULT 'activo'`); } catch { /* exists */ }
     try { db.run(`ALTER TABLE usuarios ADD COLUMN force_change INTEGER NOT NULL DEFAULT 0`);        } catch { /* exists */ }
@@ -124,7 +142,7 @@ function getAuthDatabase() {
 function saveAuthDatabase() {
     if (!db) return;
     const data = db.export();
-    fs.writeFileSync(AUTH_DB_PATH, Buffer.from(data));
+    fs.writeFileSync(resolveAuthDbPath(), Buffer.from(data));
 }
 
 function closeAuthDatabase() {

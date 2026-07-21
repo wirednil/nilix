@@ -233,4 +233,9 @@ process.on('unhandledRejection', reason => {
     process.exit(1);
 });
 
-startServer();
+// Export app for integration tests (import without auto-starting server)
+module.exports = { app, startServer, closeDatabase, closeAuthDatabase, initDatabase, initAuthDatabase };
+
+if (require.main === module) {
+    startServer();
+}
