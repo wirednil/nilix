@@ -21,6 +21,9 @@ dist/
 .claude/
 .agents/
 
+# Knowledge graph (generado por graphify skill)
+graphify-out/
+
 # OS
 .DS_Store
 Thumbs.db
