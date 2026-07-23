@@ -96,13 +96,15 @@ nilix/
 │   │   ├── schemaService.js   # hasColumn para detección tenant
 │   │   └── recordService.js   # CRUD + navigate (PAG_SIG/ANT)
 │   ├── controllers/
-│   │   ├── recordController.js       # /api/records CRUD + RADU
+│   │   ├── recordController.js       # CRUD app DB con RADU server-side
+│   │   ├── authRecordController.js   # CRUD auth DB (usuarios, usuario_permisos)
 │   │   ├── filesystemController.js   # /api/menu + /api/files/content
 │   │   └── publicReportController.js # /api/public/report-data
 │   ├── routes/
 │   │   ├── apiRoutes.js        # Monta todas las rutas autenticadas
 │   │   ├── authRoutes.js       # POST /login, /logout, GET /check
-│   │   ├── recordRoutes.js     # GET/POST/PUT/DELETE /api/records/:table
+│   │   ├── recordRoutes.js     # GET/POST/PUT/DELETE /api/records/app/:table
+│   │   ├── authRecordRoutes.js # GET/POST/PUT/DELETE /api/records/auth/:table
 │   │   └── publicReportRoutes.js
 │   └── middleware/
 │       ├── verifyToken.js     # JWT desde cookie nil_token

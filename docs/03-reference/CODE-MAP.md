@@ -67,7 +67,8 @@ nilix/
 │   │   ├── apiRoutes.js          # Rutas generales
 │   │   ├── authRoutes.js         # /auth/login, /auth/logout, /auth/check
 │   │   ├── catalogRoutes.js      # GET /api/catalogs/:table
-│   │   ├── recordRoutes.js       # CRUD /api/records/:db/:table  (app|auth)
+│   │   ├── recordRoutes.js       # CRUD /api/records/app/:table (app DB)
+│   │   ├── authRecordRoutes.js   # CRUD /api/records/auth/:table (auth DB)
 │   │   ├── handlerRoutes.js      # /api/handler/:handler/* incl. after-load
 │   │   ├── nilRoutes.js          # /api/nil/menu + catálogos <in-table url=...>
 │   │   ├── adminRoutes.js        # /api/admin/* (requiere rol=admin)
@@ -75,7 +76,8 @@ nilix/
 │   │   └── publicReportRoutes.js # /api/public/report-data (sin auth)
 │   ├── controllers/
 │   │   ├── catalogController.js        # Lista catálogos + cache headers
-│   │   ├── recordController.js         # CRUD con RADU server-side; resolveDb(app|auth)
+│   │   ├── recordController.js         # CRUD app DB con RADU server-side
+│   │   ├── authRecordController.js     # CRUD auth DB (usuarios, usuario_permisos)
 │   │   ├── handlerController.js        # after + afterLoad (batch) + before + afterField
 │   │   ├── nilController.js            # Menú nil-sys con filtro RADU
 │   │   ├── nilSysController.js         # Catálogos para <in-table url=...>

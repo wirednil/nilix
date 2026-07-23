@@ -7,6 +7,34 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.7.3] — 2026-07-23
+
+### Changed — Migración arquitectónica de recordController
+
+El controller `recordController.js` manejaba tanto tablas `app` como `auth` mediante branches `if (isAuth)` en cada handler. Se separó en dos controllers independientes:
+
+- **`recordController.js`** — solo CRUD para app DB (con RADU server-side, handlers, scoped DB)
+- **`authRecordController.js`** (nuevo) — solo CRUD para auth DB (usuarios, usuario_permisos)
+
+Las rutas también se separaron:
+- `recordRoutes.js` — cambió de `/:db/:table` (param dinámico) a `/app/:table` (fijo)
+- `authRecordRoutes.js` (nuevo) — rutas fijas `/auth/:table`
+
+**Montaje en server.js:**
+```js
+app.use('/api/records/auth', authRecordRoutes);
+app.use('/api/records', recordRoutes);
+```
+
+**URLs externas no cambiaron** — `/api/records/app/productos` y `/api/records/auth/usuarios` siguen funcionando igual.
+
+**Archivos:**
+- `src/controllers/authRecordController.js` (nuevo)
+- `src/routes/authRecordRoutes.js` (nuevo)
+- `src/controllers/recordController.js` (simplificado)
+- `src/routes/recordRoutes.js` (rutas fijas)
+- `server.js` (doble montaje)
+
 ## [2.7.2] — 2026-07-21
 
 ### Fixed — nilSysController SQL interpolation

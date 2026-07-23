@@ -25,9 +25,10 @@ Filosofía: ex nihilo — como la megaestructura de Blame!, modular, silenciosa,
 
 ```
 nil-runtime (server.js + src/):
-  src/routes/        — apiRoutes, authRoutes, recordRoutes, handlerRoutes, publicReportRoutes
-  src/controllers/   — catalogController, recordController, handlerController,
-                       filesystemController, publicReportController
+  src/routes/        — apiRoutes, authRoutes, recordRoutes, authRecordRoutes,
+                       handlerRoutes, publicReportRoutes
+  src/controllers/   — catalogController, recordController, authRecordController,
+                       handlerController, filesystemController, publicReportController
   src/services/      — database.js (sql.js SQLite), authDatabase.js (auth.db separado),
                        authService.js (bcrypt+JWT), scopedDb.js (multi-tenant auto-filter),
                        menuService.js (parse menu.xml), handlerService.js, ...

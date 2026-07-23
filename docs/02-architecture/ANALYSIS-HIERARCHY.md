@@ -228,8 +228,10 @@ Campo key="true" → blur → ValidationCoordinator.loadRecord(value)
 | **DuckDBAdapter** | Wrapper DuckDB-WASM con CDN lazy load | `js/components/report/DuckDBAdapter.js` |
 | **QueryBuilder** | Compilador YAML → SQL | `js/components/report/QueryBuilder.js` |
 | **YamlParser** | Parsea reportes .yaml a ReportSchema | `js/components/report/parsers/YamlParser.js` |
-| **recordController** | Controller CRUD (v0.16.0) | `src/controllers/recordController.js` |
-| **recordRoutes** | Rutas CRUD (v0.16.0) | `src/routes/recordRoutes.js` |
+| **recordController** | Controller CRUD app DB (v0.16.0, migrado v2.7.3) | `src/controllers/recordController.js` |
+| **authRecordController** | Controller CRUD auth DB (v2.7.3) | `src/controllers/authRecordController.js` |
+| **recordRoutes** | Rutas CRUD app DB (v0.16.0, migrado v2.7.3) | `src/routes/recordRoutes.js` |
+| **authRecordRoutes** | Rutas CRUD auth DB (v2.7.3) | `src/routes/authRecordRoutes.js` |
 | **scopedDb** | `createScopedDb(rawDb, empresaId)` → auto-inyecta `empresa_id` en tablas tenant ✅ v0.27.0 | `src/services/scopedDb.js` |
 | **handlerService** | Carga handlers dinámicos; `transformWithHandler(handler, data, db)` — db ya es ScopedDb | `src/services/handlerService.js` |
 | **handlerController** | Controller /api/handler/:handler/* — construye ScopedDb antes de llamar handlers ✅ v0.27.0 | `src/controllers/handlerController.js` |
@@ -648,12 +650,19 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | 12 | `deleteRecord(req, res)` | `src/controllers/recordController.js` | ✅ |
 | 13 | `GET/POST/PUT/DELETE /api/records` | `src/routes/recordRoutes.js` | ✅ |
 | 14 | Montar recordRoutes | `server.js` | ✅ |
-| 15 | `RecordService.js` frontend | `js/services/RecordService.js` | ✅ |
-| 16 | `tableConfig` en FormRenderer | `js/components/FormRenderer.js` | ✅ |
-| 17 | `handleSubmit()` a SQLite | `js/components/FormRenderer.js` | ✅ |
-| 18 | `filterValidFields` backend | `src/services/recordService.js` | ✅ |
-| 19 | Utilitario `exp.js` | `utils/exp.js` | ✅ |
-| 20 | Demo form `forms/demo/clientes.xml` | `forms/demo/` | ✅ |
+| 15 | auth getRecord | `src/controllers/authRecordController.js` | ✅ |
+| 16 | auth createRecord | `src/controllers/authRecordController.js` | ✅ |
+| 17 | auth upsertRecord | `src/controllers/authRecordController.js` | ✅ |
+| 18 | auth updateRecord | `src/controllers/authRecordController.js` | ✅ |
+| 19 | auth deleteRecord | `src/controllers/authRecordController.js` | ✅ |
+| 20 | `GET/POST/PUT/DELETE /api/records/auth` | `src/routes/authRecordRoutes.js` | ✅ |
+| 21 | Montar authRecordRoutes | `server.js` | ✅ |
+| 22 | `RecordService.js` frontend | `js/services/RecordService.js` | ✅ |
+| 23 | `tableConfig` en FormRenderer | `js/components/FormRenderer.js` | ✅ |
+| 24 | `handleSubmit()` a SQLite | `js/components/FormRenderer.js` | ✅ |
+| 25 | `filterValidFields` backend | `src/services/recordService.js` | ✅ |
+| 26 | Utilitario `exp.js` | `utils/exp.js` | ✅ |
+| 27 | Demo form `forms/demo/clientes.xml` | `forms/demo/` | ✅ |
 
 ### v0.17.0 - Zona de Claves (Próximo)
 

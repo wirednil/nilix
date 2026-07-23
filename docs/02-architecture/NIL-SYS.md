@@ -262,7 +262,9 @@ Una vez migrados, se puede retirar `adminRoutes` de `server.js`.
 | `src/middleware/verifyToken.js` | Extrae rol/permisos del JWT |
 | `src/controllers/nilSysController.js` | Catálogos para `<in-table url=...>` |
 | `src/controllers/nilController.js` | Menú con filtro RADU |
-| `src/controllers/recordController.js` | CRUD estándar; resuelve `app`/`auth` por `/:db/` |
+| `src/controllers/recordController.js` | CRUD app DB con RADU server-side |
+| `src/controllers/authRecordController.js` | CRUD auth DB (usuarios, usuario_permisos) |
+| `src/routes/authRecordRoutes.js` | Rutas `/api/records/auth/*` |
 | `src/routes/nilRoutes.js` | Rutas `/api/nil/*` (catálogos + menú) |
 | `src/handlers/auth/nil-wizard.js` | Handler nil-wizard: enable/disable + permisos |
 | `sys/nil-sys.xml` | Menú del sistema con permisos |
