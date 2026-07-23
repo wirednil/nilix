@@ -1,6 +1,6 @@
 # NILIX — Contexto Estratégico para Sesiones
 
-*v2.7.2 · 2026-07-21*
+*v2.7.6 · 2026-07-21*
 
 ## Identidad del Proyecto
 
@@ -14,7 +14,7 @@ Filosofía: ex nihilo — como la megaestructura de Blame!, modular, silenciosa,
 
 `/media/cibo/KINGSTON/side-proj/other/space-form`
 
-## Estado Actual: v2.7.2
+## Estado Actual: v2.7.6
 
 - **Cobertura FDL:** ~95%
 - **Tests:** 97 tests (56 unit + 37 integration + 18 authRecordService) — 100% pass
@@ -39,7 +39,7 @@ nil-form (js/components/form/ + FormRenderer.js):
   FormContext.js     — estado centralizado, AbortController
   LayoutProcessor.js — XML → DOM recursivo
   ValidationCoordinator.js — lookups, copy-fields, loadRecord, navigateToAdjacent
-  HandlerBridge.js   — POST /api/handler/:handler/after
+  HandlerBridge.js   — POST /api/v1/handler/:handler/after
   SubmitManager.js   — botones CRUD, RADU enforcement client-side
   fieldRenderer/     — Label, InputField, Autocomplete, Checkbox, Multifield, Stepper
 
@@ -63,9 +63,9 @@ nil-handler (src/services/handlerService.js)
 
 ```
 HttpOnly cookie nil_token (NO localStorage, NO Bearer)
-├── POST /api/auth/login → bcrypt + JWT → res.cookie('nil_token', ...)
-├── GET  /api/auth/check → verifica cookie → { ok, usuario, rol, publicToken }
-├── POST /api/auth/logout → blacklist JTI + clearCookie
+├── POST /api/v1/auth/login → bcrypt + JWT → res.cookie('nil_token', ...)
+├── GET  /api/v1/auth/check → verifica cookie → { ok, usuario, rol, publicToken }
+├── POST /api/v1/auth/logout → blacklist JTI + clearCookie
 └── verifyToken.js lee req.cookies.nil_token
 ```
 
@@ -156,4 +156,4 @@ Object.keys(localStorage)
 
 ---
 
-**Última actualización:** 2026-07-21 (v2.7.2 — nil-sys HIGH fixes)
+**Última actualización:** 2026-07-21 (v2.7.6 — nil-sys HIGH fixes)

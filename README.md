@@ -122,19 +122,20 @@ Full spec: [`docs/api/openapi.yaml`](docs/api/openapi.yaml) (OpenAPI 3.1 — imp
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/health` | — | Server + DB status |
-| POST | `/api/auth/login` | — | Login — sets `nil_token` HttpOnly cookie |
-| POST | `/api/auth/logout` | — | Logout — clears cookie, blacklists JWT |
-| GET | `/api/auth/check` | — | Check session — `{ ok, usuario, rol, publicToken }` |
-| POST | `/api/auth/refresh` | — | Rotate token — issues new JWT, blacklists old |
-| GET | `/api/menu` | 🔒 | Parse and return menu tree |
-| GET | `/api/records/:table` | 🔒 | Read record (tenant-scoped) |
-| POST | `/api/records/:table` | 🔒 | Insert record |
-| PUT | `/api/records/:table/:id` | 🔒 | Update record |
-| DELETE | `/api/records/:table/:id` | 🔒 | Delete record |
-| POST | `/api/handler/:handler/after` | 🔒 | Execute handler after() callback |
-| GET | `/api/public/report-data/:report/:table?t=TOKEN` | — | Public report data |
-| POST | `/api/security/csp-report` | — | CSP violation receiver |
+| GET | `/api/health` | — | Server + DB status (unversioned) |
+| POST | `/api/v1/auth/login` | — | Login — sets `nil_token` HttpOnly cookie |
+| POST | `/api/v1/auth/logout` | — | Logout — clears cookie, blacklists JWT |
+| GET | `/api/v1/auth/check` | — | Check session — `{ ok, usuario, rol, publicToken }` |
+| POST | `/api/v1/auth/refresh` | — | Rotate token — issues new JWT, blacklists old |
+| GET  | `/api/v1/menu` | 🔒 | Parse and return menu tree |
+| POST | `/api/v1/records/app/:table` | 🔒 | CRUD on app DB (get/insert/update/delete) |
+| POST | `/api/v1/records/auth/:table` | 🔒 | CRUD on auth DB (users, permissions) |
+| POST | `/api/v1/handler/:handler/after` | 🔒 | Execute handler after() callback |
+| GET | `/api/v1/public/report-data/:report/:table?t=TOKEN` | — | Public report data |
+| POST | `/api/security/csp-report` | — | CSP violation receiver (unversioned) |
+| GET | `/api/server-info` | — | Server network IP (unversioned) |
+
+> Note: `/api/*` paths still work as deprecated alias (with `Deprecation: true` header).
 
 ---
 

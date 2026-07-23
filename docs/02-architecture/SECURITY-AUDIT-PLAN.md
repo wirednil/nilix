@@ -41,12 +41,12 @@ Nilix es un motor de formularios web con arquitectura de 3 capas que maneja:
 **Pruebas específicas Nilix:**
 ```bash
 # Enumerar endpoints API
-curl -s http://localhost:3000/api/menu
-curl -s http://localhost:3000/api/catalogs/tables
-curl -s http://localhost:3000/api/files/content?path=...
+curl -s http://localhost:3000/api/v1/menu
+curl -s http://localhost:3000/api/v1/catalogs/tables
+curl -s http://localhost:3000/api/v1/files/content?path=...
 
 # Verificar headers
-curl -I http://localhost:3000/api/auth/login
+curl -I http://localhost:3000/api/v1/auth/login
 # Verificar: X-Powered-By, Server, X-Frame-Options, CSP
 ```
 
@@ -71,22 +71,22 @@ grep -r "localhost\|127.0.0.1\|192.168" --include="*.js" .
 **Endpoints Públicos (sin auth):**
 | Endpoint | Método | Descripción | Riesgo |
 |----------|--------|-------------|--------|
-| `/api/auth/login` | POST | Login JWT | Alto (brute force) |
-| `/api/public/report-data/:report/:table` | GET | Reportes públicos | Media |
+| `/api/v1/auth/login` | POST | Login JWT | Alto (brute force) |
+| `/api/v1/public/report-data/:report/:table` | GET | Reportes públicos | Media |
 
 **Endpoints Protegidos (con JWT):**
 | Endpoint | Método | Descripción | Riesgo |
 |----------|--------|-------------|--------|
-| `/api/records/:table` | GET/POST/PUT/DELETE | CRUD completo | Alto (IDOR) |
-| `/api/handler/:handler/*` | POST | Ejecuta handlers | Crítico (RCE) |
-| `/api/files/content` | GET | Lee archivos | Alto (path traversal) |
-| `/api/catalogs/:table` | GET | Lista catálogos | Media |
-| `/api/menu` | GET | Menú de navegación | Baja |
+| `/api/v1/records/app/:table` | GET/POST/PUT/DELETE | CRUD completo | Alto (IDOR) |
+| `/api/v1/handler/:handler/*` | POST | Ejecuta handlers | Crítico (RCE) |
+| `/api/v1/files/content` | GET | Lee archivos | Alto (path traversal) |
+| `/api/v1/catalogs/:table` | GET | Lista catálogos | Media |
+| `/api/v1/menu` | GET | Menú de navegación | Baja |
 
 **Parámetros críticos identificados:**
-- `path` en `/api/files/content` (path traversal risk)
-- `table` en `/api/records/:table` (SQL injection risk)
-- `handler` en `/api/handler/:handler/*` (code execution risk)
+- `path` en `/api/v1/files/content` (path traversal risk)
+- `table` en `/api/v1/records/app/:table` (SQL injection risk)
+- `handler` en `/api/v1/handler/:handler/*` (code execution risk)
 - `empresa_id` en JWT payload (multi-tenant isolation)
 
 ---
@@ -99,14 +99,14 @@ grep -r "localhost\|127.0.0.1\|192.168" --include="*.js" .
 
 | Prueba | Endpoint | Resultado Esperado |
 |--------|----------|-------------------|
-| OPTIONS a endpoints | `/api/records/clientes` | Solo GET/POST/PUT/DELETE permitidos |
+| OPTIONS a endpoints | `/api/v1/records/app/clientes` | Solo GET/POST/PUT/DELETE permitidos |
 | TRACE request | `/` | 405 Method Not Allowed (evitar XST) |
-| PUT sin body | `/api/records/clientes` | 400 Bad Request |
+| PUT sin body | `/api/v1/records/app/clientes` | 400 Bad Request |
 
 **Comandos:**
 ```bash
 # Verificar métodos permitidos
-curl -X OPTIONS -i http://localhost:3000/api/records/clientes
+curl -X OPTIONS -i http://localhost:3000/api/v1/records/app/clientes
 
 # Probar TRACE (debe fallar)
 curl -X TRACE -i http://localhost:3000/
@@ -174,19 +174,19 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 | Prueba | Endpoint | Técnica |
 |--------|----------|---------|
-| Timing attack | `/api/auth/login` | Medir tiempo respuesta user existe vs no |
-| Mensajes diferenciados | `/api/auth/login` | Verificar mensajes genéricos |
+| Timing attack | `/api/v1/auth/login` | Medir tiempo respuesta user existe vs no |
+| Mensajes diferenciados | `/api/v1/auth/login` | Verificar mensajes genéricos |
 
 **Auditar en:** [`src/services/authService.js`](src/services/authService.js:31)
 
 ```bash
 # Prueba de enumeración - usuario existe
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"usuario":"admin","password":"wrong"}'
 
 # Prueba de enumeración - usuario no existe
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"usuario":"nouser","password":"wrong"}'
 
@@ -197,20 +197,20 @@ curl -X POST http://localhost:3000/api/auth/login \
 
 | Prueba | Método | Endpoint | Resultado Esperado |
 |--------|--------|----------|-------------------|
-| Sin JWT | GET | `/api/records/clientes` | 401 Unauthorized |
-| JWT inválido | GET | `/api/records/clientes` | 401 Token inválido |
-| JWT expirado | GET | `/api/records/clientes` | 401 Sesión expirada |
-| JWT malformed | GET | `/api/records/clientes` | 401 Token inválido |
-| Header sin Bearer | GET | `/api/records/clientes` | 401 Autenticación requerida |
+| Sin JWT | GET | `/api/v1/records/app/clientes` | 401 Unauthorized |
+| JWT inválido | GET | `/api/v1/records/app/clientes` | 401 Token inválido |
+| JWT expirado | GET | `/api/v1/records/app/clientes` | 401 Sesión expirada |
+| JWT malformed | GET | `/api/v1/records/app/clientes` | 401 Token inválido |
+| Header sin Bearer | GET | `/api/v1/records/app/clientes` | 401 Autenticación requerida |
 
 **Comandos:**
 ```bash
 # Sin token
-curl -i http://localhost:3000/api/records/clientes
+curl -i http://localhost:3000/api/v1/records/app/clientes
 
 # Token inválido
 curl -i -H "Authorization: Bearer invalid.token.here" \
-  http://localhost:3000/api/records/clientes
+  http://localhost:3000/api/v1/records/app/clientes
 
 # Token expirado (generar uno con fecha pasada)
 # Token sin firma correcta
@@ -230,7 +230,7 @@ curl -i -H "Authorization: Bearer invalid.token.here" \
 ```bash
 # Script de prueba de brute force
 for i in {1..6}; do
-  curl -X POST http://localhost:3000/api/auth/login \
+  curl -X POST http://localhost:3000/api/v1/auth/login \
     -H "Content-Type: application/json" \
     -d '{"usuario":"admin","password":"wrong'$i'"}'
 done
@@ -248,7 +248,7 @@ const loginLimiter = rateLimit({
     max: 5, // 5 intentos por IP
     message: { error: 'Demasiados intentos, intente más tarde' }
 });
-app.use('/api/auth/login', loginLimiter);
+app.use('/api/v1/auth/login', loginLimiter);
 ```
 
 #### 3.4 JWT Weaknesses
@@ -269,7 +269,7 @@ echo "eyJ..." | cut -d'.' -f1 | base64 -d 2>/dev/null
 echo "eyJ..." | cut -d'.' -f2 | base64 -d 2>/dev/null
 
 # Verificar firma con jwt_tool
-python3 jwt_tool.py -t http://localhost:3000/api/records/clientes \
+python3 jwt_tool.py -t http://localhost:3000/api/v1/records/app/clientes \
   -rc "Authorization: Bearer TOKEN" -M at
 
 # Prueba de algorithm confusion
@@ -302,14 +302,14 @@ python3 jwt_tool.py -t http://localhost:3000/api/records/clientes \
 
 ```bash
 # Paso 1: Login como empresa A (empresa_id=1)
-TOKEN_A=$(curl -s -X POST http://localhost:3000/api/auth/login \
+TOKEN_A=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"usuario":"admin","password":"demo1234"}' | jq -r '.token')
 
 # Paso 2: Intentar acceder datos empresa B (empresa_id=2)
 # Esto debería fallar porque ScopedDb inyecta empresa_id
 curl -H "Authorization: Bearer $TOKEN_A" \
-  "http://localhost:3000/api/records/demo_productos?empresa_id=2"
+  "http://localhost:3000/api/v1/records/app/demo_productos?empresa_id=2"
 
 # Paso 3: Verificar que empresa_id viene del JWT, no del query param
 ```
@@ -344,7 +344,7 @@ curl -H "Authorization: Bearer $TOKEN_A" \
 ```bash
 # Intentar leer auth.db directamente
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:3000/api/files/content?path=/opt/wc/pizzeria/../../../data/auth.db"
+  "http://localhost:3000/api/v1/files/content?path=/opt/wc/pizzeria/../../../data/auth.db"
 
 # Verificar normalización de paths
 # El sistema usa path.resolve() - verificar que bloquea traversal
@@ -383,7 +383,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 | Concurrent sessions | Mismo user, múltiples tokens | Permitido (stateless) |
 | Expiry behavior | Acceder con token expirado | 401 Sesión expirada |
 
-**Estado:** ✅ Implementado en v1.5.0. `POST /api/auth/logout` lee cookie `nil_token`, extrae JTI, inserta en `token_blacklist` (auth.db), llama `clearCookie`. `verifyToken.js` verifica blacklist en cada request. Cleanup automático al startup y cada hora.
+**Estado:** ✅ Implementado en v1.5.0. `POST /api/v1/auth/logout` lee cookie `nil_token`, extrae JTI, inserta en `token_blacklist` (auth.db), llama `clearCookie`. `verifyToken.js` verifica blacklist en cada request. Cleanup automático al startup y cada hora.
 
 #### 5.2 CSRF Protection
 
@@ -415,11 +415,11 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```bash
 # Inyección en parámetro table
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:3000/api/records/clientes' OR '1'='1"
+  "http://localhost:3000/api/v1/records/app/clientes' OR '1'='1"
 
 # Inyección en query params
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:3000/api/records/clientes?keyField=id&id=1 OR 1=1"
+  "http://localhost:3000/api/v1/records/app/clientes?keyField=id&id=1 OR 1=1"
 
 # Inyección en scopedDb.exec (escape hatch)
 # Si un handler usa db.exec() con input no sanitizado
@@ -596,7 +596,7 @@ dataSource:
 
 | Prueba | Descripción | Objetivo |
 |--------|-------------|----------|
-| Saltar validate | POST directo a /api/records | Evadir validación handler |
+| Saltar validate | POST directo a /api/v1/records/app | Evadir validación handler |
 | Saltar beforeSave | crudMode=direct | Bypass transformación |
 | Race condition | Múltiples submits concurrentes | Estado inconsistente |
 | Modificar empresa_id | En body de POST | Cross-tenant write |
@@ -604,7 +604,7 @@ dataSource:
 **Comandos:**
 ```bash
 # Bypass de handler con crudMode=direct
-curl -X POST http://localhost:3000/api/records/clientes \
+curl -X POST http://localhost:3000/api/v1/records/app/clientes \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

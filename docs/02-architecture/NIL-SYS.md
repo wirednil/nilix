@@ -193,7 +193,7 @@ por `/nil-sys`. Los `operador` son **usuarios de la app** — acceden por `/`.
 ### Creación de usuario
 
 1. Wizard crea usuario desde `sys/form/nil-wizard.xml`
-2. `POST /api/records/auth/usuarios` → `authRecordService.upsert` hashea password
+2. `POST /api/v1/records/auth/usuarios` → `authRecordService.upsert` hashea password
 3. `nil-wizard.js::beforeSave` asigna `permisos` según rol; `authRecordService.upsert` fuerza `empresa_id = 0` para usuarios sistema
 4. Si `force_change=1` → en el próximo login se redirige a pantalla de cambio de contraseña
 
@@ -212,16 +212,16 @@ por `/nil-sys`. Los `operador` son **usuarios de la app** — acceden por `/`.
 
 ## CRUD de usuarios sistema
 
-El CRUD de usuarios del sistema usa el **pipeline estándar** del motor (`/api/records/:db/:table`) apuntando a `auth.db`:
+El CRUD de usuarios del sistema usa el **pipeline estándar** del motor (`/api/v1/records/:db/:table`) apuntando a `auth.db`:
 
 ```xml
 <form database="auth" table="usuarios" handler="@auth:nil-wizard">
 ```
 
 Esto resuelve a:
-- `GET  /api/records/auth/usuarios?keyField=id&id=N` — cargar registro
-- `POST /api/records/auth/usuarios`                  — alta
-- `POST /api/records/auth/usuarios/:id`              — actualizar (upsert)
+- `GET  /api/v1/records/auth/usuarios?keyField=id&id=N` — cargar registro
+- `POST /api/v1/records/auth/usuarios`                  — alta
+- `POST /api/v1/records/auth/usuarios/:id`              — actualizar (upsert)
 
 El handler `@auth:nil-wizard` (`src/handlers/auth/nil-wizard.js`) aporta:
 - `after()` — enable/disable de campos según create vs update; toggle expiración
@@ -229,24 +229,24 @@ El handler `@auth:nil-wizard` (`src/handlers/auth/nil-wizard.js`) aporta:
 
 `authRecordService` maneja el hasheo de contraseñas, el scoping por `empresa_id` y la auditoría de `modifier_id`.
 
-## Endpoints `/api/nil/`
+## Endpoints `/api/v1/nil/`
 
 | Método | Path | Acceso | Descripción |
 |---|---|---|---|
-| `GET` | `/api/nil/menu` | wizard/admin/auditor | Menú filtrado por permisos |
-| `GET` | `/api/nil/usuarios` | wizard/admin/auditor | Catálogo para `<in-table url=...>` |
-| `GET` | `/api/nil/operadores` | wizard/admin | Catálogo de operadores para selector |
+| `GET` | `/api/v1/nil/menu` | wizard/admin/auditor | Menú filtrado por permisos |
+| `GET` | `/api/v1/nil/usuarios` | wizard/admin/auditor | Catálogo para `<in-table url=...>` |
+| `GET` | `/api/v1/nil/operadores` | wizard/admin | Catálogo de operadores para selector |
 
-> Los endpoints `/api/nil/` son solo catálogos para selectores de formulario.
-> El CRUD real va por `/api/records/auth/:table`.
+> Los endpoints `/api/v1/nil/` son solo catálogos para selectores de formulario.
+> El CRUD real va por `/api/v1/records/auth/:table`.
 
-### Pendiente de migrar desde `/api/admin/`
+### Pendiente de migrar desde `/api/v1/admin/`
 
 | Endpoint legacy | Nuevo endpoint | Estado |
 |---|---|---|
-| `GET /api/admin/empresa` | `GET /api/nil/empresa` | ⏳ pendiente |
-| `POST /api/admin/empresa` | `POST /api/nil/empresa` | ⏳ pendiente |
-| `GET /api/admin/audit-log` | `GET /api/nil/audit-log` | ⏳ pendiente |
+| `GET /api/v1/admin/empresa` | `GET /api/v1/nil/empresa` | ⏳ pendiente |
+| `POST /api/v1/admin/empresa` | `POST /api/v1/nil/empresa` | ⏳ pendiente |
+| `GET /api/v1/admin/audit-log` | `GET /api/v1/nil/audit-log` | ⏳ pendiente |
 
 Una vez migrados, se puede retirar `adminRoutes` de `server.js`.
 
@@ -264,8 +264,8 @@ Una vez migrados, se puede retirar `adminRoutes` de `server.js`.
 | `src/controllers/nilController.js` | Menú con filtro RADU |
 | `src/controllers/recordController.js` | CRUD app DB con RADU server-side |
 | `src/controllers/authRecordController.js` | CRUD auth DB (usuarios, usuario_permisos) |
-| `src/routes/authRecordRoutes.js` | Rutas `/api/records/auth/*` |
-| `src/routes/nilRoutes.js` | Rutas `/api/nil/*` (catálogos + menú) |
+| `src/routes/authRecordRoutes.js` | Rutas `/api/v1/records/auth/*` |
+| `src/routes/nilRoutes.js` | Rutas `/api/v1/nil/*` (catálogos + menú) |
 | `src/handlers/auth/nil-wizard.js` | Handler nil-wizard: enable/disable + permisos |
 | `sys/nil-sys.xml` | Menú del sistema con permisos |
 | `sys/form/nil-wizard.xml` | Form usuarios sistema (`database="auth" table="usuarios"`) |

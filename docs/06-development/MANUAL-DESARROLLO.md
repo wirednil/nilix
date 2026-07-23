@@ -98,13 +98,13 @@ nilix/
 │   ├── controllers/
 │   │   ├── recordController.js       # CRUD app DB con RADU server-side
 │   │   ├── authRecordController.js   # CRUD auth DB (usuarios, usuario_permisos)
-│   │   ├── filesystemController.js   # /api/menu + /api/files/content
-│   │   └── publicReportController.js # /api/public/report-data
+│   │   ├── filesystemController.js   # /api/v1/menu + /api/v1/files/content
+│   │   └── publicReportController.js # /api/v1/public/report-data
 │   ├── routes/
 │   │   ├── apiRoutes.js        # Monta todas las rutas autenticadas
 │   │   ├── authRoutes.js       # POST /login, /logout, GET /check
-│   │   ├── recordRoutes.js     # GET/POST/PUT/DELETE /api/records/app/:table
-│   │   ├── authRecordRoutes.js # GET/POST/PUT/DELETE /api/records/auth/:table
+│   │   ├── recordRoutes.js     # GET/POST/PUT/DELETE /api/v1/records/app/:table
+│   │   ├── authRecordRoutes.js # GET/POST/PUT/DELETE /api/v1/records/auth/:table
 │   │   └── publicReportRoutes.js
 │   └── middleware/
 │       ├── verifyToken.js     # JWT desde cookie nil_token
@@ -117,7 +117,7 @@ nilix/
 │   └── ndat.js            # TSV bidireccional ↔ SQLite
 │
 ├── forms/                 # Motor forms (parte del repo)
-│   └── login.xml          # Form de login (action="/api/auth/login")
+│   └── login.xml          # Form de login (action="/api/v1/auth/login")
 │
 ├── css/
 │   └── styles.css         # Estilos nil-report + nil-form + responsive
@@ -599,7 +599,7 @@ Campos en fila, labels arriba de cada input.
 #### Comportamiento dynamic select
 
 1. Campo se renderiza como `<select>` vacío
-2. Al hacer **focus** → GET `/api/catalogs/:table`
+2. Al hacer **focus** → GET `/api/v1/catalogs/:table`
 3. Opciones: `<option value="key">display</option>`
 4. Al **seleccionar** → copia campos con `<copy>`
 5. Segunda vez → usa caché (24h TTL)
@@ -619,13 +619,13 @@ Campos en fila, labels arriba de cada input.
 
 ```bash
 # Listar tablas
-GET /api/catalogs/tables
+GET /api/v1/catalogs/tables
 
 # Obtener tabla completa
-GET /api/catalogs/clientes
+GET /api/v1/catalogs/clientes
 
 # Validar clave
-GET /api/catalogs/clientes/clieno/1
+GET /api/v1/catalogs/clientes/clieno/1
 ```
 
 ---
@@ -760,7 +760,7 @@ Validación en blur:
 - ✅ `src/services/database.js` - Conexión sql.js
 - ✅ `src/services/catalogService.js` - Queries + whitelist
 - ✅ `src/controllers/catalogController.js` - API controller
-- ✅ `src/routes/catalogRoutes.js` - GET /api/catalogs/:table
+- ✅ `src/routes/catalogRoutes.js` - GET /api/v1/catalogs/:table
 - ✅ `js/services/LookupService.js` - Validación + copy
 - ✅ `js/services/TableCache.js` - Caché localStorage 24h
 - ✅ `FormRenderer.js` - extractInTableConfig(), validateInTable()
@@ -768,9 +768,9 @@ Validación en blur:
 
 **API disponible:**
 ```
-GET /api/catalogs/tables         → Lista tablas permitidas
-GET /api/catalogs/:table         → Todos los registros
-GET /api/catalogs/:table/:key/:value → Validar clave
+GET /api/v1/catalogs/tables         → Lista tablas permitidas
+GET /api/v1/catalogs/:table         → Todos los registros
+GET /api/v1/catalogs/:table/:key/:value → Validar clave
 ```
 
 **Sintaxis XML propuesta:**

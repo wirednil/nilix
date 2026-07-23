@@ -55,7 +55,7 @@ nilix/
 │   ├── services/
 │   │   ├── LookupService.js      # ~85 líneas — lookup BD + cache invalidation
 │   │   ├── TableCache.js         # ~70 líneas — cache nil_catalog_* con invalidación
-│   │   ├── RecordService.js      # ~130 líneas — CRUD frontend; URLs /api/records/:db/:table
+│   │   ├── RecordService.js      # ~130 líneas — CRUD frontend; API_BASE = /api/v1/records
 │   │   └── themeService.js       # Toggle tema dark/light
 │   └── utils/
 │       ├── validator.js          # Validaciones inline (min/max/pattern/check/between)
@@ -64,16 +64,16 @@ nilix/
 │
 ├── src/                          # nil-runtime backend Node.js
 │   ├── routes/
-│   │   ├── apiRoutes.js          # Rutas generales
-│   │   ├── authRoutes.js         # /auth/login, /auth/logout, /auth/check
-│   │   ├── catalogRoutes.js      # GET /api/catalogs/:table
-│   │   ├── recordRoutes.js       # CRUD /api/records/app/:table (app DB)
-│   │   ├── authRecordRoutes.js   # CRUD /api/records/auth/:table (auth DB)
-│   │   ├── handlerRoutes.js      # /api/handler/:handler/* incl. after-load
-│   │   ├── nilRoutes.js          # /api/nil/menu + catálogos <in-table url=...>
-│   │   ├── adminRoutes.js        # /api/admin/* (requiere rol=admin)
-│   │   ├── setupRoutes.js        # /api/setup/status + /api/setup/init (públicas)
-│   │   └── publicReportRoutes.js # /api/public/report-data (sin auth)
+│   │   ├── apiRoutes.js           # Rutas generales (/api/v1/menu, /api/v1/catalogs, etc.)
+│   │   ├── authRoutes.js         # /api/v1/auth/login, /auth/logout, /auth/check
+│   │   ├── catalogRoutes.js      # GET /api/v1/catalogs/:table
+│   │   ├── recordRoutes.js       # CRUD /api/v1/records/app/:table (app DB)
+│   │   ├── authRecordRoutes.js   # CRUD /api/v1/records/auth/:table (auth DB)
+│   │   ├── handlerRoutes.js      # /api/v1/handler/:handler/* incl. after-load
+│   │   ├── nilRoutes.js          # /api/v1/nil/menu + catálogos <in-table url=...>
+│   │   ├── adminRoutes.js        # /api/v1/admin/* (requiere rol=admin)
+│   │   ├── setupRoutes.js        # /api/v1/setup/status + /api/v1/setup/init (públicas)
+│   │   └── publicReportRoutes.js # /api/v1/public/report-data (sin auth)
 │   ├── controllers/
 │   │   ├── catalogController.js        # Lista catálogos + cache headers
 │   │   ├── recordController.js         # CRUD app DB con RADU server-side
@@ -1731,14 +1731,16 @@ if (customXml) {
 | uiComponents/ | ~70 | Header y botones |
 | LookupService.js | ~85 | Validación catálogos |
 | TableCache.js | ~70 | Caché localStorage |
-| RecordService.js (frontend) | ~60 | Cliente API CRUD (v0.16.0) |
+| RecordService.js (frontend) | ~60 | Cliente API CRUD; API_BASE = /api/v1/records |
 | database.js | ~50 | Conexión sql.js |
 | catalogService.js | ~90 | Queries con whitelist |
 | recordService.js (backend) | ~100 | CRUD SQL (v0.16.0) |
 | catalogController.js | ~65 | API controller |
-| recordController.js | ~80 | CRUD controller (v0.16.0) |
-| catalogRoutes.js | ~10 | Rutas /api/catalogs |
-| recordRoutes.js | ~20 | Rutas /api/records (v0.16.0) |
+| recordController.js | ~80 | CRUD app DB (v2.7.4 — separado auth) |
+| authRecordController.js | ~100 | CRUD auth DB (v2.7.4 — nuevo) |
+| catalogRoutes.js | ~10 | Rutas /api/v1/catalogs |
+| recordRoutes.js | ~20 | Rutas /api/v1/records/app (v2.7.4 — fijas) |
+| authRecordRoutes.js | ~20 | Rutas /api/v1/records/auth (v2.7.4 — nuevo) |
 | initCatalogsDB.js | ~180 | Script inicialización BD |
 | Validator.js | ~120 | Validaciones |
 | ExpressionEngine.js | ~340 | Expresiones |
@@ -1765,20 +1767,26 @@ function getPrimaryKey(tableName) { ... }
 module.exports = { findById, insert, update, getPrimaryKey };
 ```
 
-### Backend - recordController.js (NUEVO)
+### Backend - recordController.js (v2.7.4 — separado app/auth)
 
 ```javascript
 // src/controllers/recordController.js
 const recordService = require('../services/recordService');
 
-function getRecord(req, res) { ... }     // GET /api/records/:table/:id
-function createRecord(req, res) { ... }  // POST /api/records/:table
-function updateRecord(req, res) { ... }  // PUT /api/records/:table/:id
+function getRecord(req, res) { ... }        // GET /api/v1/records/app/:table/:id
+function createRecord(req, res) { ... }      // POST /api/v1/records/app/:table
+function updateRecord(req, res) { ... }      // PUT /api/v1/records/app/:table/:id
+function deleteRecord(req, res) { ... }      // DELETE /api/v1/records/app/:table/:id
+function upsertRecord(req, res) { ... }      // POST /api/v1/records/app/:table/upsert
+function getTables(req, res) { ... }        // GET /api/v1/records/app/tables
+function navigateRecord(req, res) { ... }   // GET /api/v1/records/app/:table/navigate
 
-module.exports = { getRecord, createRecord, updateRecord };
+module.exports = { getRecord, createRecord, updateRecord, deleteRecord, upsertRecord, getTables, navigateRecord };
 ```
 
-### Backend - recordRoutes.js (NUEVO)
+Auth CRUD separado en `authRecordController.js` con las mismas firmas pero sobre auth DB.
+
+### Backend - recordRoutes.js (v2.7.4 — rutas fijas app/auth)
 
 ```javascript
 // src/routes/recordRoutes.js
@@ -1786,18 +1794,24 @@ const express = require('express');
 const router = express.Router();
 const recordController = require('../controllers/recordController');
 
-router.get('/:table/:id', recordController.getRecord);
-router.post('/:table', recordController.createRecord);
-router.put('/:table/:id', recordController.updateRecord);
+router.get('/app/tables', recordController.getTables);
+router.get('/app/:table/:id', recordController.getRecord);
+router.post('/app/:table', recordController.createRecord);
+router.put('/app/:table/:id', recordController.updateRecord);
+router.delete('/app/:table/:id', recordController.deleteRecord);
+router.post('/app/:table/upsert', recordController.upsertRecord);
+router.get('/app/:table/navigate', recordController.navigateRecord);
 
 module.exports = router;
 ```
 
-### Frontend - RecordService.js (NUEVO)
+`authRecordRoutes.js` tiene la misma estructura pero con `/auth/:table`.
+
+### Frontend - RecordService.js (v2.7.5 — API_BASE versionado)
 
 ```javascript
 // js/services/RecordService.js
-const API_BASE = '/api/records';
+const API_BASE = '/api/v1/records';
 
 class RecordService {
     static async load(table, id) { ... }
@@ -1867,9 +1881,11 @@ class FormRenderer {
 - **Tab validation:** Autocomplete.js:233-255
 - **F1 dropdown:** Autocomplete.js:227-231
 - **CRUD recordService:** recordService.js:1-100 (NUEVO)
-- **CRUD recordController:** recordController.js:1-80 (NUEVO)
-- **CRUD routes:** recordRoutes.js:1-20 (NUEVO)
-- **RecordService frontend:** RecordService.js:1-60 (NUEVO)
+- **CRUD recordController (app):** recordController.js (v2.7.4)
+- **CRUD authRecordController (auth):** authRecordController.js (v2.7.4 — nuevo)
+- **CRUD routes (app):** recordRoutes.js (v2.7.4 — rutas fijas /app/:table)
+- **CRUD routes (auth):** authRecordRoutes.js (v2.7.4 — nuevo, /auth/:table)
+- **RecordService frontend:** RecordService.js; API_BASE = /api/v1/records
 - **populateForm:** FormRenderer.js (modificar)
 
 ### Por Problema:

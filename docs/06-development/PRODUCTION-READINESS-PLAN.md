@@ -53,7 +53,7 @@ Validación independiente del estado real del proyecto contra el plan.
 | 3 | `ScopedDb.exec()` / `.prepare()` sin auditoría de uso | `scopedDb.js:85-96` | Documentar que handlers deben sanitizar al usar SQL raw. Agregar log warning. |
 | 4 | ~~Sin refresh token~~ | ~~`authService.js`~~ | ✅ Resuelto en v2.4.5 — rolling sessions + `POST /api/auth/refresh` |
 | 5 | ~~Logs no estructurados~~ | ~~Todo el backend~~ | ✅ Resuelto en v2.4.4 — pino, JSON estructurado, NIL_LOG_LEVEL |
-| 6 | Sin API versioning | `server.js` | Prefixar rutas con `/api/v1/` |
+| 6 | ~~Sin API versioning~~ | ~~`server.js`~~ | ✅ Resuelto en v2.7.5 — dual mount `/api/v1` + `/api` deprecated |
 
 **Medios**
 
@@ -383,8 +383,9 @@ recordService:
 
 ---
 
-#### T2.4 — API versioning
+#### T2.4 — API versioning ~~(PENDIENTE)~~ ✅ COMPLETADO en v2.7.5
 
+<s>
 | Campo | Detalle |
 |---|---|
 | **Descripción** | Prefixar todas las rutas actuales con `/api/v1/`. Mantener `/api/` sin prefijo como alias temporal (deprecated, con header `Deprecation: true`). Documentar política de versionado (major bump = breaking change). |
@@ -394,6 +395,7 @@ recordService:
 | **Riesgo si NO se hacer** | Cualquier cambio de contrato en el futuro rompe todos los clientes sin posibilidad de deprecación gradual. |
 | **Criterios de aceptación** | La spec OpenAPI usa `/api/v1/`. Un test verifica que el alias deprecated responde con el header correcto. |
 | **Responsable hipotético** | Backend dev + Frontend lead |
+</s>
 
 ---
 

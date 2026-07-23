@@ -184,7 +184,7 @@ Listado de todos los usuarios del sistema (wizard, admin, auditor) con ID, nombr
 | Login y redirect por rol | ⬜ Pendiente |
 | Gestión usuarios sistema (nil-wizard.xml) | ✅ Implementado |
 | Gestión operadores (nil-users.xml) | ⚠️ Pendiente migración a pipeline estándar |
-| Configuración empresa (nil-config.xml) | ✅ Implementado (endpoints `/api/admin/`) |
+| Configuración empresa (nil-config.xml) | ✅ Implementado (endpoints `/api/v1/admin/`) |
 | Audit Log (nil-audit.yaml) | ✅ Implementado |
 | Reporte usuarios (nil-users.yaml) | ✅ Implementado |
 | Evaluación expiración de contraseña al login | ⬜ Pendiente |

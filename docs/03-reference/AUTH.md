@@ -24,7 +24,7 @@ La seguridad está en la **firma**: sin el secret no se puede forjar un token v�
 ## Flujo de autenticación (v1.5.0+)
 
 ```
-1. POST /api/auth/login
+1. POST /api/v1/auth/login
    → rate limit: 10 req / 15 min por IP
    → authService verifica usuario/password en auth.db (bcrypt)
    → bloqueo tras 5 intentos fallidos consecutivos (campo failed_attempts)
@@ -53,11 +53,11 @@ La seguridad está en la **firma**: sin el secret no se puede forjar un token v�
 `main.js` verifica sesión antes de cargar la app:
 
 ```javascript
-const res = await fetch('/api/auth/check');
+const res = await fetch('/api/v1/auth/check');
 if (!res.ok) window.location.href = '/login.html';
 ```
 
-`GET /api/auth/check` es público (sin `verifyToken`). Devuelve:
+`GET /api/v1/auth/check` es público (sin `verifyToken`). Devuelve:
 
 ```json
 { "ok": true, "usuario": "admin", "rol": "admin", "publicToken": "abc123..." }
@@ -70,7 +70,7 @@ Si la cookie es inválida o expiró devuelve `401`.
 ## Logout
 
 ```
-POST /api/auth/logout
+POST /api/v1/auth/logout
 → lee req.cookies.nil_token
 → decodifica el jti (JWT ID único)
 → inserta jti en token_blacklist (auth.db)

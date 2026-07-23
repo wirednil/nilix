@@ -743,7 +743,7 @@ Con `public: true`, el reporte es accesible sin login usando el `public_token` d
 
 - El servidor valida el token → resuelve `empresa_id`
 - Token inválido → datos vacíos (sin error, sin leak cross-tenant)
-- El `public_token` lo devuelve `/api/auth/check` como `{ ok, publicToken, ... }`
+- El `public_token` lo devuelve `/api/v1/auth/check` como `{ ok, publicToken, ... }`
 
 ---
 

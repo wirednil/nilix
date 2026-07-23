@@ -1,6 +1,6 @@
 # 🔍 JERARQUÍA DE ANÁLISIS - NILIX
 
-**Última actualización:** 2026-07-21 (v2.7.2 — nil-sys HIGH fixes + stale docs limpiados)
+**Última actualización:** 2026-07-21 (v2.7.6 — nil-sys HIGH fixes + stale docs limpiados)
 **Propósito:** Guía de consulta rápida para el agente IA
 
 ---
@@ -52,7 +52,7 @@ $APP/dbase/pizzeria.db     (NIL_DB_FILE)   ← La app gestiona esto
 
 JWT payload: { usuarioId, empresaId, nombre, usuario, rol, publicToken, jti }
   ↓ HttpOnly cookie nil_token — inaccesible a JS (XSS-safe)
-  ↓ /api/auth/check → { ok, usuario, rol, publicToken }
+  ↓ /api/v1/auth/check → { ok, usuario, rol, publicToken }
   ↓ publicToken en Workspace → URL pública ?t=TOKEN (128-bit entropy, no guessable)
 ```
 
@@ -154,7 +154,7 @@ class ValidationCoordinator {
 
 // js/components/form/HandlerBridge.js (~100 líneas)
 class HandlerBridge {
-    callAfter(fieldId, value)      // POST /api/handler/:handler/after
+    callAfter(fieldId, value)      // POST /api/v1/handler/:handler/after
     getFormData()                  // Recolecta datos del formulario
 }
 
@@ -197,7 +197,7 @@ Campo key="true" → blur → ValidationCoordinator.loadRecord(value)
 | **Autocomplete** | Componente custom para selects (v0.15.0) | `js/components/fieldRenderer/Autocomplete.js` |
 | **uiComponents** | Header, botones de acción | `js/components/uiComponents/` |
 | **RADU** | `RADU(permString)` → canRead/canAdd/canDelete/canUpdate/canWrite ✅ v0.29.0 | `js/utils/RADU.js` |
-| **PublicReports** | `public: true` en YAML → endpoint sin token `/api/public/report-data/:report/:table` ✅ v0.29.1 | `src/controllers/publicReportController.js` |
+| **PublicReports** | `public: true` en YAML → endpoint sin token `/api/v1/public/report-data/:report/:table` ✅ v0.29.1 | `src/controllers/publicReportController.js` |
 | **validator** | Validaciones en tiempo real | `js/utils/validator.js` |
 | **ExpressionEngine** | Expresiones dinámicas | `js/utils/ExpressionEngine.js` |
 | **PersistenceService** | Guardado de envíos (localStorage) | `js/services/PersistenceService.js` |
@@ -212,7 +212,7 @@ Campo key="true" → blur → ValidationCoordinator.loadRecord(value)
 | **database** | Conexión sql.js SQLite + persistencia | `src/services/database.js` |
 | **catalogService** | Consultas tablas con whitelist | `src/services/catalogService.js` |
 | **catalogController** | Controller API /catalogs | `src/controllers/catalogController.js` |
-| **catalogRoutes** | Rutas GET /api/catalogs/:table | `src/routes/catalogRoutes.js` |
+| **catalogRoutes** | Rutas GET /api/v1/catalogs/:table | `src/routes/catalogRoutes.js` |
 | **recordService** | CRUD SQL (v0.16.0) | `src/services/recordService.js` |
 
 ### Report Engine (v0.20.0 - DuckDB-WASM)
@@ -228,13 +228,13 @@ Campo key="true" → blur → ValidationCoordinator.loadRecord(value)
 | **DuckDBAdapter** | Wrapper DuckDB-WASM con CDN lazy load | `js/components/report/DuckDBAdapter.js` |
 | **QueryBuilder** | Compilador YAML → SQL | `js/components/report/QueryBuilder.js` |
 | **YamlParser** | Parsea reportes .yaml a ReportSchema | `js/components/report/parsers/YamlParser.js` |
-| **recordController** | Controller CRUD app DB (v0.16.0, migrado v2.7.3) | `src/controllers/recordController.js` |
+| **recordController** | Controller CRUD app DB (v0.16.0, migrado v2.7.4) | `src/controllers/recordController.js` |
 | **authRecordController** | Controller CRUD auth DB (v2.7.3) | `src/controllers/authRecordController.js` |
 | **recordRoutes** | Rutas CRUD app DB (v0.16.0, migrado v2.7.3) | `src/routes/recordRoutes.js` |
 | **authRecordRoutes** | Rutas CRUD auth DB (v2.7.3) | `src/routes/authRecordRoutes.js` |
 | **scopedDb** | `createScopedDb(rawDb, empresaId)` → auto-inyecta `empresa_id` en tablas tenant ✅ v0.27.0 | `src/services/scopedDb.js` |
 | **handlerService** | Carga handlers dinámicos; `transformWithHandler(handler, data, db)` — db ya es ScopedDb | `src/services/handlerService.js` |
-| **handlerController** | Controller /api/handler/:handler/* — construye ScopedDb antes de llamar handlers ✅ v0.27.0 | `src/controllers/handlerController.js` |
+| **handlerController** | Controller /api/v1/handler/:handler/* — construye ScopedDb antes de llamar handlers ✅ v0.27.0 | `src/controllers/handlerController.js` |
 | **handlerRoutes** | Rutas handler (v0.18.0) | `src/routes/handlerRoutes.js` |
 | **menuService** | Parsea `menu.xml` recursivo, acumula `authorizedDirs` | `src/services/menuService.js` |
 | **authDatabase** | Conexión separada a `NIL_AUTH_DB` ✅ v0.25.0 | `src/services/authDatabase.js` |
@@ -259,7 +259,7 @@ Campo key="true" → blur → ValidationCoordinator.loadRecord(value)
 │   └───────────────┘      │ DuckDB-WASM (~2.5MB)    │   │
 │                          │ - JOINs eficientes      │   │
 │   ┌───────────────┐      │ - GROUP BY nativo       │   │
-│   │ /api/catalogs │─────▶│ - ORDER BY optimizado   │   │
+│   │ /api/v1/catalogs │─────▶│ - ORDER BY optimizado   │   │
 │   │ (SQLite)      │      └─────────────────────────┘   │
 │   └───────────────┘                                     │
 └─────────────────────────────────────────────────────────┘
@@ -491,13 +491,13 @@ npm run init-db
 ### API Endpoints (v0.13.0)
 ```bash
 # Listar tablas permitidas
-curl http://localhost:3000/api/catalogs/tables
+curl http://localhost:3000/api/v1/catalogs/tables
 
 # Obtener todos los registros de una tabla
-curl http://localhost:3000/api/catalogs/clientes
+curl http://localhost:3000/api/v1/catalogs/clientes
 
 # Validar clave específica
-curl http://localhost:3000/api/catalogs/clientes/clieno/1
+curl http://localhost:3000/api/v1/catalogs/clientes/clieno/1
 ```
 
 ### Agregar Nuevo Campo
@@ -542,7 +542,7 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | Sidebar no colapsa en móvil | Verificar breakpoint `650px` en styles.css y main.js |
 | Hamburguesa no anima | Verificar clase `.active` en toggle |
 | API catalogs 404 | Verificar orden de middlewares en server.js |
-| Autocomplete no carga | Verificar LookupService, TableCache, API /api/catalogs |
+| Autocomplete no carga | Verificar LookupService, TableCache, API /api/v1/catalogs |
 | in-table no copia campos | Verificar que campos destino existan con IDs correctos |
 | Campos no monospace | Verificar `font: inherit` en inputs (styles.css) |
 | Inputs desalineados | Verificar `height: calc(var(--line-height) * 2)` |
@@ -552,13 +552,13 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | Registro no se actualiza | Verificar `currentMode === 'edit'` y `currentRecordId` |
 | Form no carga datos | Verificar `populateForm()` en FormRenderer |
 | Handler no carga | Verificar nombre archivo: `nombre.handler.js` en `$NIL_APP_DIR/apps/` primero |
-| `GET /api/files/content` devuelve 403 | El path no está en `authorizedDirs` — revisar menu.xml targets |
+| `GET /api/v1/files/content` devuelve 403 | El path no está en `authorizedDirs` — revisar menu.xml targets |
 | Sidebar vacío | Verificar `NIL_MENU_FILE` en `.env` y que el archivo exista |
 | Cache no invalida | Verificar `nil_invalidation_time` en localStorage |
 | Multi-table no persiste | Verificar `saveDatabase()` después de handler |
 | **Catálogo desactualizado** | **Cache valida count vs API (304 = sin cambios)** |
 | auth.db sobreescrito al init | SIEMPRE parar servidor antes de `node utils/init-dev.js` — sql.js in-memory sobrescribe el archivo nuevo |
-| ~~publicToken null en URL~~ | ~~✅ FIXED v2.7.2 — initAuthDatabase() inserta empresa 0 con public_token~~ |
+| ~~publicToken null en URL~~ | ~~✅ FIXED v2.7.6 — initAuthDatabase() inserta empresa 0 con public_token~~ |
 | Report muestra datos de otra empresa | Token alterado → `resolveEmpresaId` devuelve null → `{ rows: [] }` (esperado) |
 | Header/footer dinámico no carga | Verificar que NIL_APP_DIR/reports/ tenga carta.yaml con `dataSource: config` |
 | Zone expression devuelve undefined | Usar nombre de columna DB crudo (`field: titulo`), no alias YAML (`field: cfg_titulo`) |
@@ -628,7 +628,7 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | 6 | Cache invalidation global | `js/services/TableCache.js` | ✅ |
 | 7 | `forceRefreshOnNextLoad()` | `js/services/LookupService.js` | ✅ |
 | 8 | `saveDatabase()` en recordController | `src/controllers/recordController.js` | ✅ |
-| 9 | Handler routes `/api/handler/:handler/after` | `src/routes/handlerRoutes.js` | ✅ |
+| 9 | Handler routes `/api/v1/handler/:handler/after` | `src/routes/handlerRoutes.js` | ✅ |
 | 10 | `populateRows()` en Multifield | `js/components/fieldRenderer/Multifield.js` | ✅ |
 | 11 | Demo pizzería completo | `forms/demo/pizzeria/` | ✅ |
 
@@ -648,14 +648,14 @@ curl http://localhost:3000/api/catalogs/clientes/clieno/1
 | 10 | `upsertRecord(req, res)` | `src/controllers/recordController.js` | ✅ |
 | 11 | `updateRecord(req, res)` | `src/controllers/recordController.js` | ✅ |
 | 12 | `deleteRecord(req, res)` | `src/controllers/recordController.js` | ✅ |
-| 13 | `GET/POST/PUT/DELETE /api/records` | `src/routes/recordRoutes.js` | ✅ |
+| 13 | `GET/POST/PUT/DELETE /api/v1/records/app` | `src/routes/recordRoutes.js` | ✅ |
 | 14 | Montar recordRoutes | `server.js` | ✅ |
 | 15 | auth getRecord | `src/controllers/authRecordController.js` | ✅ |
 | 16 | auth createRecord | `src/controllers/authRecordController.js` | ✅ |
 | 17 | auth upsertRecord | `src/controllers/authRecordController.js` | ✅ |
 | 18 | auth updateRecord | `src/controllers/authRecordController.js` | ✅ |
 | 19 | auth deleteRecord | `src/controllers/authRecordController.js` | ✅ |
-| 20 | `GET/POST/PUT/DELETE /api/records/auth` | `src/routes/authRecordRoutes.js` | ✅ |
+| 20 | `GET/POST/PUT/DELETE /api/v1/records/auth` | `src/routes/authRecordRoutes.js` | ✅ |
 | 21 | Montar authRecordRoutes | `server.js` | ✅ |
 | 22 | `RecordService.js` frontend | `js/services/RecordService.js` | ✅ |
 | 23 | `tableConfig` en FormRenderer | `js/components/FormRenderer.js` | ✅ |
@@ -748,8 +748,8 @@ node server.js
 | 1 | dotenv + @xmldom/xmldom instalados | `package.json` | ✅ |
 | 2 | server.js carga .env al inicio | `server.js` | ✅ |
 | 3 | menuService.js — parseo recursivo menu.xml | `src/services/menuService.js` | ✅ |
-| 4 | GET /api/menu endpoint | `src/controllers/filesystemController.js` | ✅ |
-| 5 | GET /api/files/content endpoint con autorización | `src/controllers/filesystemController.js` | ✅ |
+| 4 | GET /api/v1/menu endpoint | `src/controllers/filesystemController.js` | ✅ |
+| 5 | GET /api/v1/files/content endpoint con autorización | `src/controllers/filesystemController.js` | ✅ |
 | 6 | Rutas registradas | `src/routes/apiRoutes.js` | ✅ |
 | 7 | client.js: getMenu() + getFile() | `js/api/client.js` | ✅ |
 | 8 | FileExplorer.js: renderiza items de menú | `js/components/FileExplorer.js` | ✅ |
@@ -772,7 +772,7 @@ node server.js
 | # | Tarea | Archivo | Estado |
 |---|-------|---------|--------|
 | 1 | `authService.js` — login seguro con LoginError, bloqueo 5 intentos | `src/services/authService.js` | ✅ |
-| 2 | `authRoutes.js` — `POST /api/auth/login` público | `src/routes/authRoutes.js` | ✅ |
+| 2 | `authRoutes.js` — `POST /api/v1/auth/login` público | `src/routes/authRoutes.js` | ✅ |
 | 3 | `verifyToken.js` — middleware JWT para rutas protegidas | `src/middleware/verifyToken.js` | ✅ |
 | 4 | `server.js` — authRoutes antes de verifyToken; inicia authDatabase | `server.js` | ✅ |
 | 5 | `forms/login.xml` — form XML con `type="password"` + `action` | `forms/login.xml` | ✅ |

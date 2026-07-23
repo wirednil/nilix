@@ -7,6 +7,96 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es-ES/).
 
 ---
 
+## [2.7.6] — 2026-07-23
+
+### Fixed — nesting SCSS inválido en styles.css
+
+~20 bloques con sintaxis de preprocesador no nativa convertidos a CSS plano válido:
+
+- `body.dark-mode & { ... }` → `body.dark-mode .selector { ... }`
+- `&:hover`, `&:active`, `&:focus` → `.selector:hover`, etc.
+- `& span`, `&.active` → `.selector span`, `.selector.active`
+- `&[type="button"]` → `button[type="button"]`
+- `body.dark-mode & { &:hover { ... } }` → `body.dark-mode .selector:hover { ... }`
+
+Estas reglas eran ignoradas silenciosamente por navegadores al no ser CSS válido (sin preprocesador). El cambio es mecánico 1:1 — sin alterar HTMLs, sin split de archivos, sin cambiar estilos visuales.
+
+**Archivo:** `css/styles.css`
+
+---
+
+## [2.7.5] — 2026-07-23
+
+### Added — T2.4 API versioning
+
+Se creó un `apiRouter` que agrupa todas las rutas versionadas y se monta en dos prefijos:
+
+- **`/api/v1/`** — versión canónica (frontend actualizado a esta)
+- **`/api/`** — alias deprecated con headers `Deprecation: true` + `Sunset: Sat, 30 Jun 2027`
+
+**Rutas dentro del apiRouter (públicas, antes de verifyToken):**
+- `/api/v1/auth` — login, logout, check, refresh
+- `/api/v1/setup` — setup wizard
+- `/api/v1/public/report-data` — reportes públicos
+
+**Rutas protegidas (después de verifyToken):**
+- `/api/v1/handler` — handler callbacks (con handlerLimiter 30/min)
+- `/api/v1/records/auth` — CRUD de auth DB
+- `/api/v1/records` — CRUD de app DB
+- `/api/v1/users` — gestión de usuarios
+- `/api/v1/admin` — admin panel
+- `/api/v1/nil` — nil-sys routes
+- `/api/v1/log` — client logging
+- Rutas base (apiRoutes): menú, catálogos, files, CRUD dinámico, etc.
+
+**Endpoints no versionados** (monitoreo/infra, fuera del apiRouter):
+- `/api/health` — health check (sin rate limit)
+- `/api/server-info` — IP de red del servidor (para QR codes)
+- `/api/security/csp-report` — CSP violation reports
+
+**Frontend actualizado a `/api/v1/*`:**
+- `js/api/client.js` — menu, admin menu, nil menu, files, logout
+- `js/services/RecordService.js` — `API_BASE` → `/api/v1/records`
+- `js/services/LookupService.js` — catálogos y records API
+- `js/main.js`, `js/nil-sys.js`, `js/app.js` — auth check, files API
+- `js/components/form/SubmitManager.js` — auth check
+- `js/utils/clientLogger.js` — log endpoint
+- `nil-setup.html`, `nil-login.html`, `report.html` — auth check, setup init
+- `forms/login.xml` — action del form login
+
+**Archivos:** `server.js`, `js/api/client.js`, `js/services/RecordService.js`, `js/services/LookupService.js`, `js/main.js`, `js/nil-sys.js`, `js/app.js`, `js/components/form/SubmitManager.js`, `js/utils/clientLogger.js`, `nil-setup.html`, `nil-login.html`, `report.html`, `forms/login.xml`
+
+---
+
+## [2.7.4] — 2026-07-23
+
+### Fixed — rate limit público mataba tests de integración Auth DB CRUD
+
+11 tests fallaban intermitentemente con `401 Unauthorized` sin cookie. Causa raíz: `publicLimiter` con `max: 60` en `server.js:42` — tras ~59 requests a `/api/auth/*`, la request 60+ recibía `429 Too Many Requests`, el `cookieJar` se vaciaba, y el siguiente request del test llegaba sin cookie → 401.
+
+**Fix:** `max: process.env.NODE_ENV === 'test' ? Infinity : 60`
+
+**Archivo:** `server.js:42`
+
+---
+
+### Changed — separación arquitectónica de recordController (app/auth)
+
+`recordController.js` manejaba tanto tablas `app` como `auth` mediante branches `if (isAuth)`. Se extrajo la lógica auth a un controller independiente y se fijaron las rutas:
+
+- **`src/controllers/authRecordController.js`** (nuevo) — CRUD para auth DB
+- **`src/routes/authRecordRoutes.js`** (nuevo) — rutas fijas `/api/records/auth/:table`
+- **`src/controllers/recordController.js`** — simplificado (sin `isAuth`, sin `resolveDb()`, sin imports de auth)
+- **`src/routes/recordRoutes.js`** — de `/:db/:table` (dinámico) a `/app/:table` (fijo)
+
+**Montaje en server.js:** `authRecordRoutes` se monta antes que `recordRoutes` para que `/auth/*` no caiga en el catch-all.
+
+**Archivos:** `src/controllers/authRecordController.js`, `src/routes/authRecordRoutes.js`, `src/controllers/recordController.js`, `src/routes/recordRoutes.js`, `server.js`
+
+**Documentación actualizada:** `CODE-MAP.md`, `CHANGELOG.md`, `ANALYSIS-HIERARCHY.md`, `CONTEXT.md`, `NIL-SYS.md`, `MANUAL-DESARROLLO.md`
+
+---
+
 ## [2.7.3] — 2026-07-23
 
 ### Changed — Migración arquitectónica de recordController

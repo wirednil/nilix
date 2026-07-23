@@ -91,7 +91,7 @@ Ejemplo:
 <form id="nil-wizard" title="Usuarios Sistema" database="auth" table="usuarios" handler="@auth:nil-wizard">
 
 <!-- Form de acción pura (login), sin CRUD -->
-<form id="login" title="Login" action="/api/auth/login">
+<form id="login" title="Login" action="/api/v1/auth/login">
 ```
 
 ---
@@ -640,7 +640,7 @@ En lugar de `table=`, se puede usar `url=` para cargar el catálogo desde un end
 
 ```xml
 <field id="id" label="Usuario" type="select" keyField="true">
-    <in-table url="/api/nil/operadores" key="id" display="usuario">
+    <in-table url="/api/v1/nil/operadores" key="id" display="usuario">
         <copy from="nombre"   to="nombre"/>
         <copy from="empresa_nombre" to="empresa_nombre"/>
     </in-table>
@@ -1136,14 +1136,14 @@ Los estados equivalentes son:
 
 | FDL original | nil-form | Descripción |
 |---|---|---|
-| `FM_ADD` | `[ GUARDAR ]` (nuevo) | `POST /api/records/:table` |
-| `FM_UPDATE` | `[ GUARDAR ]` (existente) | `PUT /api/records/:table/:id` |
-| `FM_DELETE` | `[ BORRAR ]` | `DELETE /api/records/:table/:id` |
+| `FM_ADD` | `[ GUARDAR ]` (nuevo) | `POST /api/v1/records/app/:table` |
+| `FM_UPDATE` | `[ GUARDAR ]` (existente) | `PUT /api/v1/records/app/:table/:id` |
+| `FM_DELETE` | `[ BORRAR ]` | `DELETE /api/v1/records/app/:table/:id` |
 | `FM_IGNORE` | `[ IGNORAR ]` | reset client-side |
 | `FM_EXIT` | `[ FIN ]` | cierra el formulario |
-| `FM_READ` | completar `keyField` | `GET /api/records/:table/:id` |
-| `FM_READ_NEXT` | `[ SIG > ]` | `GET /api/records/:table/navigate?dir=next` |
-| `FM_READ_PREV` | `[ < ANT ]` | `GET /api/records/:table/navigate?dir=prev` |
+| `FM_READ` | completar `keyField` | `GET /api/v1/records/app/:table/:id` |
+| `FM_READ_NEXT` | `[ SIG > ]` | `GET /api/v1/records/app/:table/navigate?dir=next` |
+| `FM_READ_PREV` | `[ < ANT ]` | `GET /api/v1/records/app/:table/navigate?dir=prev` |
 
 *Figura 3.9 — Estados de operación en nil-form*
 
