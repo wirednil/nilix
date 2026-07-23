@@ -4,7 +4,7 @@
  * @module services/RecordService
  */
 
-const API_BASE = '/api/records';
+const API_BASE = '/api/v1/records';
 
 import { authFetch } from '../api/client.js';
 import LookupService from './LookupService.js';

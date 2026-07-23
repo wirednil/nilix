@@ -29,7 +29,7 @@
         (async () => {
             // If already logged in, skip login page
             try {
-                const check = await fetch('/api/auth/check');
+                const check = await fetch('/api/v1/auth/check');
                 if (check.ok) {
                     const session = await check.json();
                     const SYSTEM_ROLES = ['wizard', 'admin', 'auditor'];

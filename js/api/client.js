@@ -31,7 +31,7 @@ async function authFetch(url, options = {}) {
 async function getMenu() {
     console.log("🌐 GET Menu: Solicitando a /api/menu...");
     try {
-        const response = await authFetch('/api/menu');
+        const response = await authFetch('/api/v1/menu');
         if (!response.ok) throw new Error("Error de red al cargar el menú");
         const data = await response.json();
         console.log("✅ GET Menu: Datos recibidos.");
@@ -44,7 +44,7 @@ async function getMenu() {
 
 async function getAdminMenu() {
     try {
-        const response = await authFetch('/api/admin/menu');
+        const response = await authFetch('/api/v1/admin/menu');
         if (!response.ok) return [];
         return await response.json();
     } catch {
@@ -54,7 +54,7 @@ async function getAdminMenu() {
 
 async function getNilMenu() {
     try {
-        const response = await authFetch('/api/nil/menu');
+        const response = await authFetch('/api/v1/nil/menu');
         if (!response.ok) return [];
         return await response.json();
     } catch {
@@ -65,7 +65,7 @@ async function getNilMenu() {
 async function getFile(absolutePath) {
     console.log(`🌐 GET File: Solicitando ${absolutePath}...`);
     try {
-        const response = await authFetch(`/api/files/content?path=${encodeURIComponent(absolutePath)}`);
+        const response = await authFetch(`/api/v1/files/content?path=${encodeURIComponent(absolutePath)}`);
         if (!response.ok) throw new Error(`Error cargando ${absolutePath}`);
         const data = await response.text();
         console.log(`✅ GET File: ${absolutePath} cargado.`);
@@ -80,7 +80,7 @@ async function getFile(absolutePath) {
 async function getTree() {
     console.log("🌐 GET Tree: Solicitando a /api/files...");
     try {
-        const response = await authFetch('/api/files');
+        const response = await authFetch('/api/v1/files');
         if (!response.ok) throw new Error("Error de red al cargar el árbol");
         const data = await response.json();
         console.log("✅ GET Tree: Datos recibidos.");
@@ -95,7 +95,7 @@ async function getTree() {
  * Cierra la sesión: revoca el token en el servidor (cookie se envía automáticamente).
  */
 async function logout() {
-    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { }
+    try { await fetch('/api/v1/auth/logout', { method: 'POST' }); } catch { }
     window.location.href = '/login.html';
 }
 

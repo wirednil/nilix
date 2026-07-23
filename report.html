@@ -190,7 +190,7 @@
 
             if (!isPublic) {
                 try {
-                    const checkRes = await fetch('/api/auth/check');
+                    const checkRes = await fetch('/api/v1/auth/check');
                     const check = checkRes.ok ? await checkRes.json() : { ok: false };
                     if (!check.ok) { window.location.href = '/nil-login'; return; }
                 } catch { window.location.href = '/nil-login'; return; }

@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 0. Auth guard — redirect to login if no valid session
     let session = null;
     try {
-        const checkRes = await fetch('/api/auth/check');
+        const checkRes = await fetch('/api/v1/auth/check');
         if (!checkRes.ok) { window.location.href = '/nil-login'; return; }
         session = await checkRes.json();
         if (!session.ok) { window.location.href = '/nil-login'; return; }

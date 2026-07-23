@@ -20,7 +20,7 @@ async function _flush() {
     while (_queue.length > 0) {
         const entry = _queue.shift();
         try {
-            await fetch('/api/log', {
+            await fetch('/api/v1/log', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(entry),

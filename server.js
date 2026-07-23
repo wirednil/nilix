@@ -115,11 +115,10 @@ app.use(cors(allowedOrigin ? { origin: allowedOrigin, credentials: true } : { or
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
-app.use('/api/health', healthRoutes);                                    // public — health check, sin rate limit (monitoring)
-app.use('/api/setup', publicLimiter, setupRoutes);                       // public — first-run wizard (locked after first empresa)
-app.use('/api/auth', publicLimiter, authRoutes);                         // public — login ya tiene su propio limiter interno
-app.use('/api/public/report-data', publicLimiter, publicReportRoutes);  // public — report data for public YAMLs
-app.use('/api/security/csp-report', publicLimiter, cspReportRoutes);   // public — CSP violation reports (browsers no mandan cookies)
+// ─── Unversioned endpoints (before versioned router) ─────────────────────────
+// These stay at /api/* without Deprecation header as they are monitoring/infra.
+app.use('/api/health', healthRoutes);                                    // health check, sin rate limit
+app.use('/api/security/csp-report', publicLimiter, cspReportRoutes);   // CSP violation reports — browsers POST aquí sin control
 
 // public — devuelve la IP de red real del servidor (para QR codes)
 const os = require('os');
@@ -141,17 +140,37 @@ app.get('/api/server-info', (req, res) => {
     const proto = (process.env.NIL_TLS_CERT && process.env.NIL_TLS_KEY) ? 'https' : 'http';
     res.json({ host: localIp ? `${proto}://${localIp}:${PORT}` : null });
 });
-app.use('/api', verifyToken);                            // protected — all /api/* below this
-app.use('/api', auditLog);                               // audit log — after token verification
-app.use('/api/handler', handlerLimiter, handlerRoutes); // handlers primero — límite estricto (30/min)
-app.use('/api', apiLimiter);                             // límite general para el resto de /api/*
-app.use('/api', apiRoutes);
-app.use('/api/records/auth', authRecordRoutes);
-app.use('/api/records', recordRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/nil',   nilRoutes);
-app.use('/api/log', logRoutes);
+
+// ─── API versioning ──────────────────────────────────────────────────────────
+// v1 es la versión actual; /api/ se mantiene como alias deprecated.
+function deprecationMiddleware(req, res, next) {
+    res.set('Deprecation', 'true');
+    res.set('Sunset', 'Sat, 30 Jun 2027 23:59:59 GMT');
+    next();
+}
+
+const apiRouter = require('express').Router();
+
+// Public (before verifyToken)
+apiRouter.use('/auth', publicLimiter, authRoutes);
+apiRouter.use('/setup', publicLimiter, setupRoutes);
+apiRouter.use('/public/report-data', publicLimiter, publicReportRoutes);
+
+// Protected
+apiRouter.use(verifyToken);
+apiRouter.use(auditLog);
+apiRouter.use('/handler', handlerLimiter, handlerRoutes);  // límite estricto (30/min)
+apiRouter.use(apiLimiter);                                  // límite general
+apiRouter.use(apiRoutes);
+apiRouter.use('/records/auth', authRecordRoutes);
+apiRouter.use('/records', recordRoutes);
+apiRouter.use('/users', usersRoutes);
+apiRouter.use('/admin', adminRoutes);
+apiRouter.use('/nil',   nilRoutes);
+apiRouter.use('/log', logRoutes);
+
+app.use('/api/v1', apiRouter);
+app.use('/api', deprecationMiddleware, apiRouter);
 // ─── HTML surface routes ──────────────────────────────────────────────────────
 app.get('/nil-setup', (_req, res) => {
     res.sendFile(path.join(__dirname, 'nil-setup.html'));

@@ -1,8 +1,8 @@
 import TableCache from './TableCache.js';
 import { authFetch } from '../api/client.js';
 
-const API_BASE = '/api/catalogs';
-const RECORDS_API = '/api/records';
+const API_BASE = '/api/v1/catalogs';
+const RECORDS_API = '/api/v1/records';
 let invalidationTimestamp = Date.now();
 const forceRefreshSet = new Set();
 

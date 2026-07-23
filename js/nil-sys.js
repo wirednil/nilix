@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Auth guard
     let session = null;
     try {
-        const res = await fetch('/api/auth/check');
+        const res = await fetch('/api/v1/auth/check');
         if (!res.ok) { window.location.href = '/nil-login'; return; }
         session = await res.json();
         if (!session?.ok) { window.location.href = '/nil-login'; return; }

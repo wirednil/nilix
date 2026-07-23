@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<form title="Iniciar Sesión" action="/api/auth/login">
+<form title="Iniciar Sesión" action="/api/v1/auth/login">
     <layout>
         <field id="usuario" label="Usuario" type="text" size="20">
             <validation>

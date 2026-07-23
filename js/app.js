@@ -1,7 +1,7 @@
 // --- CONFIGURACIÓN ---
 const CONFIG = {
     ROOT_PATH: '/opt/user/home/progs/', // Ruta visual (solo estética)
-    API_URL: '/api/files', // ENDPOINT DEL BACKEND (Ya no es JSON estático)
+    API_URL: '/api/v1/files', // ENDPOINT DEL BACKEND (Ya no es JSON estático)
     FORMS_DIR: './forms/' // Ruta real usada por el frontend para cargar los XMLs
 };
 

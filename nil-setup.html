@@ -126,8 +126,8 @@
     // Redirect if setup already done or user is logged in
     try {
         const [statusRes, authRes] = await Promise.all([
-            fetch('/api/setup/status'),
-            fetch('/api/auth/check')
+            fetch('/api/v1/setup/status'),
+            fetch('/api/v1/auth/check')
         ]);
         if (authRes.ok)               { window.location.href = '/';         return; }
         const { needed } = await statusRes.json();
@@ -185,7 +185,7 @@
         btn.textContent = 'Configurando...';
 
         try {
-            const res = await fetch('/api/setup/init', {
+            const res = await fetch('/api/v1/setup/init', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

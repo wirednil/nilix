@@ -258,7 +258,7 @@ export class SubmitManager {
             // Login response → redirect based on rol
             const SYSTEM_ROLES = ['wizard', 'admin', 'auditor'];
             try {
-                const check = await fetch('/api/auth/check');
+                const check = await fetch('/api/v1/auth/check');
                 const s = check.ok ? await check.json() : null;
                 window.location.href = SYSTEM_ROLES.includes(s?.rol) ? '/nil-sys' : '/';
             } catch {
