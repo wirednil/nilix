@@ -3,9 +3,9 @@ const schemaService = require('../services/schemaService');
 const authRecordService = require('../services/authRecordService');
 const { getAuthDatabase } = require('../services/authDatabase');
 const logger = require('../services/logger');
+const { isGlobalWizard } = require('../utils/authScope');
 
 const CACHE_TTL = 86400;
-const NIL_EMPRESA_ID = 0;
 
 function assertTableAllowed(table, res) {
     if (!schemaService.isTableAllowed(table)) {
@@ -15,13 +15,18 @@ function assertTableAllowed(table, res) {
     return true;
 }
 
-function getAuthRows(tableName, empresaId) {
+// req, not just empresaId — isGlobalWizard() needs rol too. This used to
+// check empresaId === 0 alone, which meant any non-wizard rol that ever
+// ended up with empresa_id=0 would see every tenant's auth.db rows here,
+// unfiltered (emails, roles, permisos — the whole table, read-only but
+// system-wide).
+function getAuthRows(tableName, req) {
     const db = getAuthDatabase();
-    const isWizard = empresaId === NIL_EMPRESA_ID;
-    const sql = isWizard
+    const global = isGlobalWizard(req);
+    const sql = global
         ? `SELECT * FROM ${tableName} ORDER BY id`
         : `SELECT * FROM ${tableName} WHERE empresa_id = ? ORDER BY id`;
-    const result = db.exec(sql, isWizard ? [] : [empresaId]);
+    const result = db.exec(sql, global ? [] : [req.empresaId]);
     if (!result.length || !result[0].values.length) return [];
     const { columns, values } = result[0];
     const hidden = new Set(['password_hash', 'failed_attempts']);
@@ -42,7 +47,7 @@ function getTable(req, res) {
             if (!authRecordService.tableAllowed(tableName)) {
                 return res.status(403).json({ error: { code: 'TABLE_FORBIDDEN', message: `Auth table not accessible: ${tableName}` } });
             }
-            const rows = getAuthRows(tableName, req.empresaId);
+            const rows = getAuthRows(tableName, req);
             return res.json({ table, rows, count: rows.length, timestamp: Date.now(), ttl: CACHE_TTL });
         }
 

@@ -132,11 +132,19 @@ const initSetup = async (req, res) => {
         const empRows = db.exec('SELECT last_insert_rowid()');
         const empresaId = empRows[0].values[0][0];
 
-        // Insert admin user
+        // Insert admin user — rol='admin', NOT 'wizard'. 'wizard' means
+        // system-wide access across every tenant (see authRecordController.js's
+        // authEmpresaId, which grants unscoped access to rol='wizard' users);
+        // the bootstrap admin of a single new tenant has no business getting
+        // that. This used to create rol='wizard' here, which meant every
+        // tenant onboarded via the public /nil-setup wizard got silent
+        // cross-tenant read/write over every other tenant's users — see
+        // utils/migrate-wizard-scope.js for the migration that fixes rows
+        // already created that way.
         const hash = await bcrypt.hash(admin_password, 10);
         db.run(
             `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, permisos)
-             VALUES (?, ?, ?, ?, 'wizard', 'RADU')`,
+             VALUES (?, ?, ?, ?, 'admin', 'RADU')`,
             [empresaId, admin_nombre?.trim() || admin_usuario.trim(), admin_usuario.trim(), hash]
         );
 

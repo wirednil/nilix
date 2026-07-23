@@ -9,8 +9,7 @@
 
 const { getAuthDatabase } = require('../services/authDatabase');
 const logger = require('../services/logger');
-
-const NIL_EMPRESA_ID = 0;
+const { isGlobalWizard, NIL_EMPRESA_ID } = require('../utils/authScope');
 
 function toRows(result) {
     if (!result.length || !result[0].values.length) return [];
@@ -50,12 +49,12 @@ const listSysUsers = (req, res) => {
 /**
  * GET /api/nil/operadores
  * Catalog of operadores for <in-table url="/api/nil/operadores">.
- * wizard (empresaId=0) sees all; admin sees only their empresa.
+ * wizard (rol='wizard' AND empresaId=0) sees all; admin sees only their empresa.
  */
 const listOperadores = (req, res) => {
     try {
         const db = getAuthDatabase();
-        const isWizard = req.empresaId === NIL_EMPRESA_ID;
+        const isWizard = isGlobalWizard(req);
         const rows = isWizard
             ? toRows(db.exec(
                 `SELECT u.id, u.nombre, u.usuario, u.email, u.empresa_id,

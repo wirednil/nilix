@@ -1,11 +1,36 @@
 const authRecordService = require('../services/authRecordService');
 const logger = require('../services/logger');
 const { loadAuthHandler } = require('../services/authHandlerService');
+const { isGlobalWizard } = require('../utils/authScope');
 
-const GLOBAL_AUTH_ROLES = new Set(['wizard']);
+// authRecordService.upsert() error codes that reflect a bad request, not a
+// server fault — surfaced as 400 with the service's own message.
+const CLIENT_ERROR_CODES = new Set([
+    'PASSWORD_TOO_SHORT', 'PASSWORD_REQUIRED', 'SELF_DEACTIVATION', 'INVALID_PERMISOS', 'FIELD_NOT_ALLOWED',
+]);
 
 function authEmpresaId(req) {
-    return GLOBAL_AUTH_ROLES.has(req.rol) ? null : req.empresaId;
+    return isGlobalWizard(req) ? null : req.empresaId;
+}
+
+// COLUMN_FORBIDDEN (keyField isn't a real column of the table — see
+// assertKeyFieldAllowed in authRecordService.js) → 403, matching
+// recordController.js's identical mapping on the app-db side. Shared by
+// every handler below since keyField reaches findById/upsert/navigate/remove
+// from getRecord, createRecord, upsertRecord, updateRecord, deleteRecord and
+// navigateRecord alike.
+function handleAuthRecordError(error, res) {
+    if (error.code === 'COLUMN_FORBIDDEN') {
+        return res.status(403).json({ error: { code: error.code, message: error.message } });
+    }
+    if (CLIENT_ERROR_CODES.has(error.code)) {
+        return res.status(400).json({ error: { code: error.code, message: error.message } });
+    }
+    if (error.code === 'RECORD_NOT_FOUND') {
+        return res.status(404).json({ error: { code: error.code, message: error.message } });
+    }
+    logger.error({ err: error }, '[AUTH_RECORD] Controller error');
+    return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
 }
 
 function getRecord(req, res) {
@@ -20,8 +45,7 @@ function getRecord(req, res) {
         if (!record) return res.status(404).json({ error: { code: 'RECORD_NOT_FOUND', message: 'Record not found' } });
         return res.json({ data: record });
     } catch (error) {
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
@@ -40,11 +64,7 @@ async function createRecord(req, res) {
         const result = await authRecordService.upsert(tableName, keyField ?? 'id', data, authEmpresaId(req), req.usuarioId);
         return res.status(201).json({ data: result });
     } catch (error) {
-        if (error.code === 'PASSWORD_TOO_SHORT' || error.code === 'SELF_DEACTIVATION') {
-            return res.status(400).json({ error: { code: error.code, message: error.message } });
-        }
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
@@ -67,11 +87,7 @@ async function upsertRecord(req, res) {
             ? res.json({ data: result, updated: true })
             : res.status(201).json({ data: result, created: true });
     } catch (error) {
-        if (error.code === 'PASSWORD_TOO_SHORT' || error.code === 'SELF_DEACTIVATION' || error.code === 'RECORD_NOT_FOUND') {
-            return res.status(400).json({ error: { code: error.code, message: error.message } });
-        }
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
@@ -92,11 +108,7 @@ async function updateRecord(req, res) {
         const result = await authRecordService.upsert(tableName, keyField, data, authEmpresaId(req), req.usuarioId);
         return res.json({ data: result, updated: true });
     } catch (error) {
-        if (error.code === 'PASSWORD_TOO_SHORT' || error.code === 'SELF_DEACTIVATION') {
-            return res.status(400).json({ error: { code: error.code, message: error.message } });
-        }
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
@@ -112,11 +124,7 @@ function deleteRecord(req, res) {
         authRecordService.remove(tableName, keyField, id, authEmpresaId(req));
         return res.status(204).send();
     } catch (error) {
-        if (error.code === 'RECORD_NOT_FOUND') {
-            return res.status(404).json({ error: { code: 'RECORD_NOT_FOUND', message: error.message } });
-        }
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
@@ -132,8 +140,7 @@ function navigateRecord(req, res) {
         if (!record) return res.status(404).json({ error: { code: 'BOUNDARY_REACHED', message: `No ${dir} record found` } });
         return res.json({ data: record });
     } catch (error) {
-        logger.error({ err: error }, '[AUTH_RECORD] Controller error');
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+        handleAuthRecordError(error, res);
     }
 }
 
