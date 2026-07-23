@@ -321,6 +321,15 @@ describe('API Integration', async () => {
             assert.equal(res.status, 200, 'wizard debe poder acceder a rutas nil-sys');
         });
 
+        it('GET /api/nil/operadores — rol=wizard with a non-zero empresa_id is still scoped', async () => {
+            const jar = (await ctx.loginAs('tenantwizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/nil/operadores', undefined, jar);
+            assert.equal(res.status, 200);
+            for (const r of res.body.rows) {
+                assert.equal(r.empresa_id, 1, 'tenantwizard solo debe ver operadores de su propia empresa');
+            }
+        });
+
         it('GET /api/catalogs/@auth:usuarios returns all users for wizard', async () => {
             const jar = (await ctx.loginAs('wizard')).cookieJar;
             const res = await ctx.request('GET', '/api/catalogs/@auth:usuarios', undefined, jar);
@@ -338,6 +347,18 @@ describe('API Integration', async () => {
             assert.equal(res.status, 200);
             for (const r of res.body.rows) {
                 assert.equal(r.empresa_id, 1, 'admin solo debe ver usuarios de su propia empresa');
+            }
+        });
+
+        it('GET /api/catalogs/@auth:usuarios — rol=wizard with a non-zero empresa_id is still scoped', async () => {
+            // Same regression as authRecordController's — a rol='wizard' row
+            // with empresa_id != 0 (tenantwizard, id=8) must not read every
+            // tenant's rows here either.
+            const jar = (await ctx.loginAs('tenantwizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/catalogs/@auth:usuarios', undefined, jar);
+            assert.equal(res.status, 200);
+            for (const r of res.body.rows) {
+                assert.equal(r.empresa_id, 1, 'tenantwizard solo debe ver usuarios de su propia empresa');
             }
         });
 
@@ -424,6 +445,134 @@ describe('API Integration', async () => {
         });
     });
 
+    // ── Password management (usersController — self-service + admin reset) ─
+
+    describe('Password management', () => {
+        it('PUT /api/users/me/password — wrong current_password returns 401', async () => {
+            const jar = (await ctx.loginAs('operador')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/me/password', {
+                current_password: 'nope-not-it', new_password: 'newpass1234',
+            }, jar);
+            assert.equal(res.status, 401);
+        });
+
+        it('PUT /api/users/me/password — new_password too short returns 400', async () => {
+            const jar = (await ctx.loginAs('operador')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/me/password', {
+                current_password: 'password1234', new_password: 'short',
+            }, jar);
+            assert.equal(res.status, 400);
+        });
+
+        it('PUT /api/users/me/password — correct current_password changes it', async () => {
+            const jar = (await ctx.loginAs('operador')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/me/password', {
+                current_password: 'password1234', new_password: 'operadornew1234',
+            }, jar);
+            assert.equal(res.status, 200);
+
+            const oldLogin = await ctx.loginAs('operador'); // still PASS constant
+            assert.equal(oldLogin.status, 401, 'la password vieja ya no debe funcionar');
+
+            const newLogin = await ctx.request('POST', '/api/auth/login', { usuario: 'operador', password: 'operadornew1234' });
+            assert.equal(newLogin.status, 200, 'la password nueva debe funcionar');
+        });
+
+        it('PUT /api/users/:id/password — non-admin actor returns 403', async () => {
+            const jar = (await ctx.loginAs('auditor')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/5/password', { password: 'sneaky1234' }, jar);
+            assert.equal(res.status, 403);
+        });
+
+        it('PUT /api/users/:id/password — admin targeting self returns 400 (use /me/password)', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/1/password', { password: 'selfreset1234' }, jar);
+            assert.equal(res.status, 400);
+        });
+
+        it('PUT /api/users/:id/password — admin resets operador (lower rank), forces relogin', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/2/password', { password: 'adminreset1234' }, jar);
+            assert.equal(res.status, 200);
+
+            const newLogin = await ctx.request('POST', '/api/auth/login', { usuario: 'operador', password: 'adminreset1234' });
+            assert.equal(newLogin.status, 200, 'operador debe poder loguearse con la password reseteada por el admin');
+        });
+
+        it('PUT /api/users/:id/password — admin resets auditor (lower rank) succeeds', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/5/password', { password: 'auditorreset1234' }, jar);
+            assert.equal(res.status, 200);
+        });
+
+        it('POST /api/users — admin cannot create a peer admin or a wizard', async () => {
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+
+            const peerAdmin = await ctx.request('POST', '/api/users', {
+                nombre: 'Admin Dos', usuario: 'admin2', password: 'password1234', rol: 'admin',
+            }, adminJar);
+            assert.equal(peerAdmin.status, 403, 'un admin no debe poder crear otro admin en su empresa');
+
+            const wannabeWizard = await ctx.request('POST', '/api/users', {
+                nombre: 'Wannabe', usuario: 'wannabewiz', password: 'password1234', rol: 'wizard',
+            }, adminJar);
+            assert.equal(wannabeWizard.status, 403, 'un admin no debe poder crear un wizard');
+        });
+
+        it('PUT /api/users/:id — admin cannot promote a user to admin or wizard', async () => {
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+            const promoteToAdmin = await ctx.request('PUT', '/api/users/2', { rol: 'admin' }, adminJar); // operador → admin
+            assert.equal(promoteToAdmin.status, 403);
+
+            const promoteToWizard = await ctx.request('PUT', '/api/users/2', { rol: 'wizard' }, adminJar);
+            assert.equal(promoteToWizard.status, 403);
+        });
+
+        it('PUT /api/users/:id — admin cannot touch a peer admin at all, not even to demote them', async () => {
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+            // admin2 (id=7) is a peer admin, same empresa — demoting them to
+            // operador passes the "new rol" check (1 < 2) but must still be
+            // blocked by the "target's current rol" check: demoting a peer is
+            // itself an attack, not a safe direction.
+            const demote = await ctx.request('PUT', '/api/users/7', { rol: 'operador' }, adminJar);
+            assert.equal(demote.status, 403);
+
+            // Not even an unrelated, non-rol field.
+            const renameAttempt = await ctx.request('PUT', '/api/users/7', { nombre: 'Renamed By Peer' }, adminJar);
+            assert.equal(renameAttempt.status, 403);
+        });
+
+        it('PUT /api/users/:id — admin can still edit their own nombre/email', async () => {
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/1', { nombre: 'Admin Renombrado' }, adminJar);
+            assert.equal(res.status, 200, 'editar el propio perfil no debe quedar bloqueado por el chequeo de rango de peers');
+        });
+
+        it('PUT /api/users/:id — password field is rejected (use the dedicated password routes)', async () => {
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/2', { password: 'shouldnotwork1234' }, adminJar);
+            assert.equal(res.status, 400, 'updateUser no debe aceptar password — reabriría el bypass del rank check');
+        });
+
+        it('PUT /api/users/:id/password — admin targeting a peer admin (same rank) returns 403', async () => {
+            // admin2 (id=7) is a peer admin in empresa 1, seeded directly in
+            // the test fixture — createUser's own rank check means an admin
+            // actor could never have produced this pairing themselves anymore
+            // (see the createUser rank test above), but the account can
+            // already exist from before that check landed, so resetUserPassword
+            // still needs to refuse it independently.
+            const adminJar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/users/7/password', { password: 'shouldnotwork1234' }, adminJar);
+            assert.equal(res.status, 403, 'un admin no debe poder resetear a otro admin de su misma empresa');
+        });
+
+        it('PUT /api/users/:id/password — actor cannot reach a target outside their tenant', async () => {
+            const jar = (await ctx.loginAs('adminb')).cookieJar; // empresa 2
+            const res = await ctx.request('PUT', '/api/users/2/password', { password: 'crosstenant1234' }, jar); // operador, empresa 1
+            assert.equal(res.status, 404, 'un admin no debe poder alcanzar usuarios de otra empresa ni para el chequeo de rango');
+        });
+    });
+
     // ── Auth DB CRUD (recordController @auth: routes) ──────────────────────
 
     describe('Auth DB CRUD', () => {
@@ -440,6 +589,20 @@ describe('API Integration', async () => {
             const res = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=999', undefined, jar);
             assert.equal(res.status, 404);
             assert.equal(res.body.error.code, 'RECORD_NOT_FOUND');
+        });
+
+        it('GET /api/records/auth/usuarios — rol=wizard with a non-zero empresa_id gets NO cross-tenant access', async () => {
+            // tenantwizard (id=8) has rol='wizard' but empresa_id=1 — exactly
+            // what setupController.js used to create for every tenant's
+            // bootstrap admin. authEmpresaId() must require empresa_id===0
+            // too, or this account silently sees every other tenant's users.
+            const jar = (await ctx.loginAs('tenantwizard')).cookieJar;
+
+            const ownTenant = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=8', undefined, jar);
+            assert.equal(ownTenant.status, 200, 'debe poder verse a si mismo, dentro de su propio tenant');
+
+            const otherTenant = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=4', undefined, jar); // adminb, empresa 2
+            assert.equal(otherTenant.status, 404, 'no debe poder leer un usuario de otro tenant solo por tener rol=wizard');
         });
 
         it('GET /api/records/auth/usuarios — missing params returns 400', async () => {
@@ -459,11 +622,20 @@ describe('API Integration', async () => {
         it('POST /api/records/auth/usuarios — creates auth user', async () => {
             const jar = (await ctx.loginAs('wizard')).cookieJar;
             const res = await ctx.request('POST', '/api/records/auth/usuarios', {
-                data: { usuario: 'nuevo', nombre: 'Nuevo', password: 'password1234', rol: 'operador' }
+                data: { usuario: 'nuevo', nombre: 'Nuevo', password: 'password1234' }
             }, jar);
             assert.equal(res.status, 201);
             assert.equal(res.body.data.usuario, 'nuevo');
             assert.ok(res.body.data.id);
+        });
+
+        it('POST /api/records/auth/usuarios — rol no editable vía esta ruta, 400', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/auth/usuarios', {
+                data: { usuario: 'wannabewizard', nombre: 'Nope', password: 'password1234', rol: 'wizard' }
+            }, jar);
+            assert.equal(res.status, 400);
+            assert.equal(res.body.error.code, 'FIELD_NOT_ALLOWED');
         });
 
         it('POST /api/records/auth/usuarios — without data returns 400', async () => {

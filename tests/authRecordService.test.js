@@ -60,8 +60,7 @@ describe('authRecordService', async () => {
     it('insert — creates new user with empresa_id from scope', async () => {
         const svc = getService();
         const result = await svc.upsert('usuarios', 'id', {
-            usuario: 'nuevo1', nombre: 'Nuevo Uno', password: 'pass123456',
-            rol: 'operador', permisos: 'R',
+            usuario: 'nuevo1', nombre: 'Nuevo Uno', password: 'pass123456', permisos: 'R',
         }, 1);
         assert.ok(result.created, 'debe ser un INSERT');
         assert.equal(result.empresa_id, 1, 'empresa_id debe ser 1');
@@ -71,8 +70,7 @@ describe('authRecordService', async () => {
     it('insert — global wizard (empresaId=null) sets empresa_id=0', async () => {
         const svc = getService();
         const result = await svc.upsert('usuarios', 'id', {
-            usuario: 'nuevo2', nombre: 'Nil User', password: 'pass123456',
-            rol: 'auditor', permisos: 'R',
+            usuario: 'nuevo2', nombre: 'Nil User', password: 'pass123456', permisos: 'R',
         }, null);
         assert.ok(result.created);
         assert.equal(result.empresa_id, 0, 'wizard global crea usuario con empresa_id=0');
@@ -82,7 +80,7 @@ describe('authRecordService', async () => {
         const svc = getService();
         const result = await svc.upsert('usuarios', 'id', {
             usuario: 'nuevo3', nombre: 'Explicit Zero', password: 'pass123456',
-            empresa_id: 0, rol: 'auditor', permisos: 'R',
+            empresa_id: 0, permisos: 'R',
         }, null);
         assert.ok(result.created);
         assert.equal(result.empresa_id, 0, 'empresa_id=0 explícito debe preservarse');
@@ -92,7 +90,7 @@ describe('authRecordService', async () => {
         const svc = getService();
         const result = await svc.upsert('usuarios', 'id', {
             usuario: 'nuevo4', nombre: 'Will Be One', password: 'pass123456',
-            empresa_id: 0, rol: 'operador', permisos: 'R',
+            empresa_id: 0, permisos: 'R',
         }, 1);
         assert.ok(result.created);
         assert.equal(result.empresa_id, 1, 'empresa_id en INSERT debe venir de empresaId cuando es distinto de null');
@@ -103,9 +101,38 @@ describe('authRecordService', async () => {
         await assert.rejects(
             () => svc.upsert('usuarios', 'id', {
                 usuario: 'shortpwd', nombre: 'Short', password: '123',
-                rol: 'operador',
             }, 1),
             { code: 'PASSWORD_TOO_SHORT' }
+        );
+    });
+
+    it('insert — rol no es editable vía esta ruta (requiere ruta dedicada con role check)', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.upsert('usuarios', 'id', {
+                usuario: 'wannabewizard', nombre: 'Nope', password: 'pass123456', rol: 'wizard',
+            }, 1),
+            { code: 'FIELD_NOT_ALLOWED', fields: ['rol'] }
+        );
+    });
+
+    it('insert — permisos inválido rechazado', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.upsert('usuarios', 'id', {
+                usuario: 'badperms', nombre: 'Nope', password: 'pass123456', permisos: 'ALLPOWERFUL',
+            }, 1),
+            { code: 'INVALID_PERMISOS' }
+        );
+    });
+
+    it('insert — password_hash crudo del cliente rechazado (no bypassea el hashing)', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.upsert('usuarios', 'id', {
+                usuario: 'stolenhash', nombre: 'Nope', password_hash: '$2a$10$stolenhashvalue',
+            }, 1),
+            { code: 'FIELD_NOT_ALLOWED', fields: ['password_hash'] }
         );
     });
 
@@ -128,11 +155,22 @@ describe('authRecordService', async () => {
         );
     });
 
-    it('update — self-deactivation rechazado', async () => {
+    it('update — activo no es editable vía esta ruta (requiere ruta dedicada con role check)', async () => {
         const svc = getService();
+        // activo (y por lo tanto la protección de auto-desactivación que antes
+        // vivía acá) quedó fuera de esta ruta genérica por completo — ver
+        // EDITABLE_FIELDS en authRecordService.js.
         await assert.rejects(
             () => svc.upsert('usuarios', 'id', { id: 1, activo: 0 }, 1, 1),
-            { code: 'SELF_DEACTIVATION' }
+            { code: 'FIELD_NOT_ALLOWED', fields: ['activo'] }
+        );
+    });
+
+    it('update — failed_attempts no es editable vía esta ruta (previene reset de lockout)', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.upsert('usuarios', 'id', { id: 1, failed_attempts: 0 }, 1),
+            { code: 'FIELD_NOT_ALLOWED', fields: ['failed_attempts'] }
         );
     });
 
@@ -184,5 +222,50 @@ describe('authRecordService', async () => {
             () => svc.remove('usuarios', 'id', 1, 0),
             { code: 'RECORD_NOT_FOUND' }
         );
+    });
+
+    // ── createSystemWizard ──────────────────────────────────────────────────
+    // La ruta de rol='wizard': no pasa por upsert()/EDITABLE_FIELDS en
+    // absoluto. Cobertura de "empresa_id=0 ausente" está en el PoC manual de
+    // utils/create-wizard.js (necesita una DB sin schema en absoluto, algo
+    // que este helper compartido no puede representar porque siempre siembra
+    // empresa_id=0).
+
+    it('createSystemWizard — crea con rol=wizard y empresa_id=0 fijos', async () => {
+        const svc = getService();
+        const result = await svc.createSystemWizard({
+            nombre: 'Nuevo Wizard', usuario: 'nuevowizard', password: 'password1234',
+        });
+        assert.equal(result.rol, 'wizard');
+        assert.equal(result.empresa_id, 0);
+        assert.equal(result.usuario, 'nuevowizard');
+    });
+
+    it('createSystemWizard — usuario duplicado rechazado', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.createSystemWizard({ nombre: 'X', usuario: 'wizard', password: 'password1234' }),
+            { code: 'USUARIO_EXISTS' }
+        );
+    });
+
+    it('createSystemWizard — password corta rechazada', async () => {
+        const svc = getService();
+        await assert.rejects(
+            () => svc.createSystemWizard({ nombre: 'X', usuario: 'shortpw', password: '123' }),
+            { code: 'PASSWORD_TOO_SHORT' }
+        );
+    });
+
+    it('createSystemWizard — no acepta rol ni empresa_id del caller (no existen como parámetros)', async () => {
+        const svc = getService();
+        // Pasar campos extra no declarados en la firma no debe tener efecto —
+        // createSystemWizard desestructura {nombre, usuario, password} y nada más.
+        const result = await svc.createSystemWizard({
+            nombre: 'Con Extras', usuario: 'conextras', password: 'password1234',
+            rol: 'operador', empresa_id: 5,
+        });
+        assert.equal(result.rol, 'wizard');
+        assert.equal(result.empresa_id, 0);
     });
 });

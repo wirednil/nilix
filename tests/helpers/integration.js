@@ -66,6 +66,7 @@ async function setupIntegration() {
         failed_attempts INTEGER NOT NULL DEFAULT 0,
         last_login      TEXT,
         permisos        TEXT    NOT NULL DEFAULT 'RADU',
+        force_change    INTEGER NOT NULL DEFAULT 0,
         created_at      TEXT    DEFAULT (datetime('now')),
         updated_at      TEXT    DEFAULT (datetime('now'))
     )`);
@@ -98,6 +99,22 @@ async function setupIntegration() {
     authDb.run(
         `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, activo, permisos)
          VALUES (0, 'Wizard', 'wizard', ?, 'wizard', 1, 'RADU')`, [PASS_HASH]
+    );
+    // Peer admin in empresa 1 — seeded directly (not via POST /api/users)
+    // because admin-creates-admin is exactly what usersController's
+    // ROLE_RANK check now blocks; this exists to test what happens once a
+    // peer admin already exists (e.g. from before the rank check landed).
+    authDb.run(
+        `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, activo, permisos)
+         VALUES (1, 'Admin Dos', 'admin2', ?, 'admin', 1, 'RADU')`, [PASS_HASH]
+    );
+    // rol='wizard' but empresa_id=1 — exactly the shape setupController.js
+    // used to create for every tenant's bootstrap admin before the fix (see
+    // utils/migrate-wizard-scope.js). Exists to prove authEmpresaId() no
+    // longer grants global access on rol alone.
+    authDb.run(
+        `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, activo, permisos)
+         VALUES (1, 'Tenant Wizard', 'tenantwizard', ?, 'wizard', 1, 'RADU')`, [PASS_HASH]
     );
 
     const server = http.createServer(app);

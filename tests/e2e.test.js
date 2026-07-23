@@ -36,19 +36,24 @@ async function setupE2e() {
     const { getAuthDatabase, saveAuthDatabase } = require('../src/services/authDatabase');
     const authDb = getAuthDatabase();
 
-    const addUser = (usuario, password, nombre, rol, permisos) => {
+    const addUser = (usuario, password, nombre, rol, permisos, empresaId = 99) => {
         const exists = authDb.exec(`SELECT id FROM usuarios WHERE usuario = '${usuario}'`);
         if (!exists.length || !exists[0].values.length) {
             const hash = bcrypt.hashSync(password, 4);
             authDb.run(
                 `INSERT INTO usuarios (empresa_id, nombre, usuario, password_hash, rol, permisos)
-                 VALUES (99, ?, ?, ?, ?, ?)`, [nombre, usuario, hash, rol, permisos]
+                 VALUES (?, ?, ?, ?, ?, ?)`, [empresaId, nombre, usuario, hash, rol, permisos]
             );
         }
     };
 
     addUser('operador', 'operador1234', 'Operador E2E', 'operador', 'RADU');
-    addUser('e2ewizard', 'wizard1234', 'Wizard E2E', 'wizard', 'RADU');
+    // empresa_id=0, not 99 — authRecordController.js's authEmpresaId() now
+    // requires rol='wizard' AND empresa_id=0 for global (cross-tenant) access.
+    // A wizard scoped to a real tenant's empresa_id is just that tenant's
+    // admin now (see utils/migrate-wizard-scope.js for the migration that
+    // downgraded exactly this kind of row).
+    addUser('e2ewizard', 'wizard1234', 'Wizard E2E', 'wizard', 'RADU', 0);
 
     saveAuthDatabase();
 
@@ -254,7 +259,15 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(updatedNombre, newNombre, 'nombre should persist after reload via navigation');
     });
 
-    it('7. Nil-wizard — create a system user via wizard form', async () => {
+    it('7. Nil-wizard — creating a system user with a rol is rejected pending a role-gated endpoint', async () => {
+        // authRecordService.js's EDITABLE_FIELDS allowlist (security fix) blocks
+        // rol/activo/failed_attempts/estado from this generic @auth: CRUD path
+        // entirely — including at creation time. That means this form can no
+        // longer create a NEW wizard/admin/auditor account with a chosen rol at
+        // all: doing so needs a dedicated, role-gated endpoint (mirroring
+        // PUT /api/users/:id/password's rank check) that doesn't exist yet.
+        // This test documents that gap instead of silently going green on a
+        // capability that's currently unavailable through the UI.
         const { page, baseUrl, context, loginAsWizard } = ctx;
         await context.clearCookies();
         await loginAsWizard();
@@ -282,20 +295,17 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('button[type="submit"]');
         await page.waitForTimeout(2000);
 
-        // Verify create feedback
+        // The submit is rejected server-side (FIELD_NOT_ALLOWED) — the button
+        // never reaches CREADO/GUARDADO feedback.
         const btnText = await page.textContent('button[type="submit"]');
-        assert.ok(btnText.includes('CREADO') || btnText.includes('GUARDADO'),
-            `expected CREADO feedback, got: ${btnText}`);
+        assert.ok(!btnText.includes('CREADO') && !btnText.includes('GUARDADO'),
+            `expected the save to be rejected, but got success feedback: ${btnText}`);
 
-        // Verify user exists via API
-        const check = await page.request.get(`${baseUrl}/api/auth/check`);
-        const cookie = await check.json();
+        // And no such user was actually created.
         const usersRes = await page.request.get(`${baseUrl}/api/nil/usuarios`);
         assert.equal(usersRes.status(), 200);
         const users = await usersRes.json();
         const found = users.rows.find(u => u.usuario === testUser);
-        assert.ok(found, `user ${testUser} should exist in nil usuarios`);
-        assert.equal(found.rol, 'admin');
-        assert.equal(found.permisos, 'RAU');
+        assert.ok(!found, `user ${testUser} should NOT have been created`);
     });
 });
