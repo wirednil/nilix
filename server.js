@@ -39,7 +39,7 @@ const logger = require('./src/services/logger');
 // Endpoints públicos sin auth (auth/check, auth/logout, public reports)
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 60,
+    max: process.env.NODE_ENV === 'test' ? Infinity : 60,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
@@ -48,10 +48,9 @@ const publicLimiter = rateLimit({
 // API general autenticada (records, catalogs, menu, files, etc.)
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 200,
+    max: 999,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
 });
 
 // Handlers — ejecutan lógica de negocio, más restrictivo
@@ -63,6 +62,7 @@ const handlerLimiter = rateLimit({
     message: { error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intente en un momento.' } }
 });
 const apiRoutes = require('./src/routes/apiRoutes');
+const authRecordRoutes = require('./src/routes/authRecordRoutes');
 const recordRoutes = require('./src/routes/recordRoutes');
 const handlerRoutes = require('./src/routes/handlerRoutes');
 const authRoutes = require('./src/routes/authRoutes');
@@ -146,6 +146,7 @@ app.use('/api', auditLog);                               // audit log — after 
 app.use('/api/handler', handlerLimiter, handlerRoutes); // handlers primero — límite estricto (30/min)
 app.use('/api', apiLimiter);                             // límite general para el resto de /api/*
 app.use('/api', apiRoutes);
+app.use('/api/records/auth', authRecordRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);

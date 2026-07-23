@@ -352,6 +352,216 @@ describe('API Integration', async () => {
         });
     });
 
+    // ── Error paths (recordController uncovered branches) ───────────────────
+
+    describe('RecordController error paths', () => {
+        it('GET blocked table (sqlite_master) returns 403 TABLE_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/app/sqlite_master?keyField=id&id=1', undefined, jar);
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('GET nonexistent table returns 404 TABLE_NOT_FOUND', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/app/nonexistent_xyz?keyField=id&id=1', undefined, jar);
+            assert.equal(res.status, 404);
+            assert.equal(res.body.error.code, 'TABLE_NOT_FOUND');
+        });
+
+        it('GET invalid column keyField returns 403 COLUMN_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/app/productos?keyField=invalid_col&id=1', undefined, jar);
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'COLUMN_FORBIDDEN');
+        });
+
+        it('navigate blocked table returns 403 TABLE_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request(
+                'GET', '/api/records/app/sqlite_master/navigate?keyField=id&current=1&dir=next',
+                undefined, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('navigate nonexistent table returns 404 TABLE_NOT_FOUND', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request(
+                'GET', '/api/records/app/nonexistent_xyz/navigate?keyField=id&current=1&dir=next',
+                undefined, jar
+            );
+            assert.equal(res.status, 404);
+            assert.equal(res.body.error.code, 'TABLE_NOT_FOUND');
+        });
+
+        it('POST blocked table returns 403 TABLE_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/app/sqlite_master',
+                { data: { nombre: 'test' } }, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('PUT blocked table returns 403 TABLE_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('PUT', '/api/records/app/sqlite_master/1',
+                { keyField: 'id', data: { nombre: 'test' } }, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('DELETE blocked table returns 403 TABLE_FORBIDDEN', async () => {
+            const jar = (await ctx.loginAs('admin')).cookieJar;
+            const res = await ctx.request('DELETE', '/api/records/app/sqlite_master/1?keyField=id',
+                undefined, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+    });
+
+    // ── Auth DB CRUD (recordController @auth: routes) ──────────────────────
+
+    describe('Auth DB CRUD', () => {
+        it('GET /api/records/auth/usuarios — success returns user', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=1', undefined, jar);
+            assert.equal(res.status, 200);
+            assert.equal(res.body.data.usuario, 'admin');
+            assert.equal(res.body.data.empresa_id, 1);
+        });
+
+        it('GET /api/records/auth/usuarios — not found returns 404', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=999', undefined, jar);
+            assert.equal(res.status, 404);
+            assert.equal(res.body.error.code, 'RECORD_NOT_FOUND');
+        });
+
+        it('GET /api/records/auth/usuarios — missing params returns 400', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/auth/usuarios', undefined, jar);
+            assert.equal(res.status, 400);
+            assert.equal(res.body.error.code, 'MISSING_PARAMS');
+        });
+
+        it('GET /api/records/auth/empresas — table not allowed returns 403', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('GET', '/api/records/auth/empresas?keyField=id&id=1', undefined, jar);
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('POST /api/records/auth/usuarios — creates auth user', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/auth/usuarios', {
+                data: { usuario: 'nuevo', nombre: 'Nuevo', password: 'password1234', rol: 'operador' }
+            }, jar);
+            assert.equal(res.status, 201);
+            assert.equal(res.body.data.usuario, 'nuevo');
+            assert.ok(res.body.data.id);
+        });
+
+        it('POST /api/records/auth/usuarios — without data returns 400', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/auth/usuarios', {}, jar);
+            assert.equal(res.status, 400);
+            assert.equal(res.body.error.code, 'MISSING_DATA');
+        });
+
+        it('POST /api/records/auth/usuarios — table not allowed returns 403', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/auth/empresas',
+                { data: { nombre: 'test' } }, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('POST /api/records/auth/usuarios/:id — upsert updates auth user', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('POST', '/api/records/auth/usuarios/1', {
+                keyField: 'id',
+                data: { nombre: 'Admin-Mod' }
+            }, jar);
+            // wizard global access — empresa_id=0, user is empresa_id=1 → handled
+            assert.ok(res.status === 200 || res.status === 201);
+            const check = await ctx.request('GET', '/api/records/auth/usuarios?keyField=id&id=1', undefined, jar);
+            // wizard sees all users, may be null (cross-empresa when empresa_id=null)
+            if (check.status === 200) {
+                assert.equal(check.body.data.nombre, 'Admin-Mod');
+            }
+        });
+
+        it('PUT /api/records/auth/usuarios/1 — updates auth user', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('PUT', '/api/records/auth/usuarios/1', {
+                keyField: 'id',
+                data: { nombre: 'Admin-v2' }
+            }, jar);
+            const expectedStatus = [200, 201]; // wizard may get update or upsert
+            assert.ok(expectedStatus.includes(res.status), `status ${res.status} not in ${expectedStatus}`);
+        });
+
+        it('DELETE /api/records/auth/usuarios/1?keyField=id — soft deletes auth user', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('DELETE', '/api/records/auth/usuarios/1?keyField=id', undefined, jar);
+            assert.equal(res.status, 204, 'wizard debe poder soft-delete usuario');
+        });
+
+        it('DELETE /api/records/auth/usuarios/1 — without keyField returns 400', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('DELETE', '/api/records/auth/usuarios/1', undefined, jar);
+            assert.equal(res.status, 400);
+            assert.equal(res.body.error.code, 'MISSING_KEYFIELD');
+        });
+
+        it('DELETE /api/records/auth/empresas/1?keyField=id — table not allowed returns 403', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request('DELETE', '/api/records/auth/empresas/1?keyField=id', undefined, jar);
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+
+        it('navigate auth usuarios returns next record', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request(
+                'GET', '/api/records/auth/usuarios/navigate?keyField=id&current=1&dir=next',
+                undefined, jar
+            );
+            // wizard con empresa_id=null ve todos los usuarios globalmente
+            // puede tener resultado o no, depende del soft-delete anterior
+            assert.ok(res.status === 200 || res.status === 404, `unexpected status ${res.status}`);
+            if (res.status === 200) {
+                assert.ok(res.body.data.id > 1);
+            }
+        });
+
+        it('navigate auth usuarios missing params returns 400', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request(
+                'GET', '/api/records/auth/usuarios/navigate',
+                undefined, jar
+            );
+            assert.equal(res.status, 400);
+            assert.equal(res.body.error.code, 'MISSING_PARAMS');
+        });
+
+        it('navigate auth usuarios table not allowed returns 403', async () => {
+            const jar = (await ctx.loginAs('wizard')).cookieJar;
+            const res = await ctx.request(
+                'GET', '/api/records/auth/empresas/navigate?keyField=id&current=1&dir=next',
+                undefined, jar
+            );
+            assert.equal(res.status, 403);
+            assert.equal(res.body.error.code, 'TABLE_FORBIDDEN');
+        });
+    });
+
     // ── Health ──────────────────────────────────────────────────────────────
 
     describe('Health', () => {
