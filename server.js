@@ -230,12 +230,16 @@ async function startServer() {
             logger.info({ url: `${proto}://localhost:${PORT}` }, 'Nilix server started');
         });
         
-        process.on('SIGINT', () => {
+        const shutdown = () => {
             closeDatabase();
             closeAuthDatabase();
             server.close();
             process.exit(0);
-        });
+        };
+        // SIGTERM is what Docker/systemd/PM2 send on a normal stop or deploy —
+        // without a handler for it, only Ctrl-C (SIGINT) ever flushed to disk.
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
     } catch (error) {
         logger.error({ err: error }, 'Failed to start server');
         process.exit(1);

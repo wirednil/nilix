@@ -38,6 +38,9 @@ async function initAuthDatabase() {
     } else {
         db = new SQL.Database();
     }
+    // Off by default in SQLite — usuarios/usuario_permisos' REFERENCES were
+    // decorative until this ran on every connection.
+    db.run('PRAGMA foreign_keys = ON;');
 
     // Ensure token_blacklist table exists (migration-safe)
     db.run(`

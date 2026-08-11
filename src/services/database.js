@@ -25,7 +25,10 @@ async function initDatabase() {
     } else {
         db = new SQL.Database();
     }
-    
+    // Off by default in SQLite — schemas that declare REFERENCES were
+    // decorative until this ran on every connection.
+    db.run('PRAGMA foreign_keys = ON;');
+
     return db;
 }
 
