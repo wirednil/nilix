@@ -85,7 +85,10 @@ export class ReportRenderer {
         const hasFieldTrigger = triggers.some(t => t.type === 'field');
 
         if (hasReportTrigger && zone.printCondition.when === 'before') {
-            if (zone.layout === 'horizontal-scroll') return 'nav';
+            // 'horizontal-scroll' is a deprecated alias — the name described an
+            // effect (scroll) when it actually selects a role (category nav).
+            // Kept so any YAML already written against it keeps working.
+            if (zone.layout === 'nav' || zone.layout === 'horizontal-scroll') return 'nav';
             if (zone.layout === 'lines') return 'lines';
             return 'header';
         }
@@ -121,7 +124,7 @@ export class ReportRenderer {
             p.className = 'report-header-line';
             const evaluated = this.evaluator.evaluate(line, evaluatedContext);
             if (this.markdownEnabled) {
-                p.innerHTML = this._markedInline(evaluated);
+                p.innerHTML = this._markedLine(evaluated);
             } else {
                 p.textContent = evaluated;
             }
@@ -144,7 +147,7 @@ export class ReportRenderer {
             p.className = 'report-subtotal-line';
             const evaluated = this.evaluator.evaluate(line, evaluatedContext);
             if (this.markdownEnabled) {
-                p.innerHTML = this._markedInline(evaluated);
+                p.innerHTML = this._markedLine(evaluated);
             } else {
                 p.textContent = evaluated;
             }
@@ -166,7 +169,7 @@ export class ReportRenderer {
             p.className = 'report-footer-line';
             const evaluated = this.evaluator.evaluate(line, evaluatedContext);
             if (this.markdownEnabled) {
-                p.innerHTML = this._markedInline(evaluated);
+                p.innerHTML = this._markedLine(evaluated);
             } else {
                 p.textContent = evaluated;
             }
@@ -496,6 +499,21 @@ export class ReportRenderer {
             try { return markedLib.parseInline(text); } catch (e) { /* fall through */ }
         }
         return this._diyInline(text);
+    }
+
+    /**
+     * One-line markdown for header/footer/subtotal zones (renderHeaderZone,
+     * renderFooterZone, renderSubtotalZone). Those render one line per
+     * already-styled block — .report-header-line:first-child is bold/
+     * uppercase/large on its own — so a leading '#'/'##'/'###' reads as
+     * "this is a title line" and is stripped rather than turned into a
+     * nested <h1>-<h6>, which would carry its own browser-default margin
+     * and need a CSS reset to not double up with the container's spacing.
+     * parseInline() (block markdown ignored) doesn't touch '#' at all, which
+     * is why "## Audit Log" used to render with the literal '##' still in it.
+     */
+    _markedLine(text) {
+        return this._markedInline(text.replace(/^#{1,6}\s+/, ''));
     }
 
     /** DIY block parser — Phase 1-2 fallback (used when CDN is unavailable) */

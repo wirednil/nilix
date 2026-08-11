@@ -136,6 +136,20 @@
             }
         }
 
+        // Reports pulled out of the report engine during the kind/document/ledger
+        // restructuring (2026-07-24) — they were rowTemplate-driven markdown
+        // tables over live, unfiltered API data (audit log / user list), not
+        // documents or ledgers. They stay on disk (their YAML is the spec for
+        // the future data-grid replacement — columns, dataSource, no cuts/
+        // aggregates) but report.html refuses to render them as reports. This
+        // is the only place that needs to know about the exclusion: report.html
+        // is the sole consumer of ReportEngine/YamlParser in this codebase
+        // (confirmed by grep), so there is no separate registry to update.
+        const NOT_A_REPORT = new Map([
+            ['nil-audit', 'Se va a reimplementar como data-grid (filtro/orden/paginación sobre datos vivos). Ver sys/report/nil-audit.yaml para la spec de columnas.'],
+            ['nil-users', 'Se va a reimplementar como data-grid, igual que Audit Log. Ver sys/report/nil-users.yaml para la spec de columnas.'],
+        ]);
+
         async function loadReport() {
             const container = document.getElementById('report-container');
 
@@ -148,6 +162,18 @@
             const reportParams = {};
             for (const [k, v] of params.entries()) {
                 if (!RESERVED.has(k)) reportParams[k] = v;
+            }
+
+            const reportSlug = reportFile ? reportFile.replace(/\.(yaml|yml)$/, '') : null;
+            if (reportSlug && NOT_A_REPORT.has(reportSlug)) {
+                container.innerHTML = `
+                    <div class="report-not-found">
+                        <h2>Este listado ya no es un reporte</h2>
+                        <p>${NOT_A_REPORT.get(reportSlug)}</p>
+                    </div>
+                `;
+                document.title = 'Migrado — Nilix';
+                return;
             }
 
             if (!reportFile) {
@@ -238,6 +264,49 @@
 
         document.getElementById('print-btn').addEventListener('click', () => window.print());
         loadReport();
+
+        // Drag-to-scroll for wide report tables (.report-lines-md) — lets users
+        // grab the table itself and pan horizontally instead of reaching for the
+        // scrollbar at the bottom of the box. Delegated on the static container
+        // since .report-lines-md elements are created dynamically by ReportEngine.
+        (function enableTableDragScroll() {
+            const root = document.getElementById('report-container');
+            let dragEl = null;
+            let dragging = false;
+            let startX = 0;
+            let startScrollLeft = 0;
+
+            root.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0) return;
+                const el = e.target.closest('.report-lines-md');
+                if (!el || el.scrollWidth <= el.clientWidth) return;
+                dragEl = el;
+                dragging = false;
+                startX = e.clientX;
+                startScrollLeft = el.scrollLeft;
+            });
+
+            root.addEventListener('pointermove', (e) => {
+                if (!dragEl) return;
+                const dx = e.clientX - startX;
+                if (!dragging) {
+                    if (Math.abs(dx) < 4) return;
+                    dragging = true;
+                    dragEl.classList.add('is-dragging');
+                    dragEl.setPointerCapture(e.pointerId);
+                }
+                dragEl.scrollLeft = startScrollLeft - dx;
+                e.preventDefault();
+            });
+
+            const stopDrag = () => {
+                if (dragEl && dragging) dragEl.classList.remove('is-dragging');
+                dragEl = null;
+                dragging = false;
+            };
+            root.addEventListener('pointerup', stopDrag);
+            root.addEventListener('pointercancel', stopDrag);
+        })();
     </script>
 </body>
 </html>

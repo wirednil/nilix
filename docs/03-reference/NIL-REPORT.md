@@ -1,6 +1,10 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.4
+**Versión:** 1.5 — agrega `kind`/rol de zona (§5.4), corrige `layout` (`nav`
+reemplaza a `horizontal-scroll`, `grid` no es un valor real de `layout`),
+corrige el ejemplo de §5.3 (`layout: table` con `condition` no renderiza),
+corrige §7.5 (`#` en zonas header/footer/subtotal ya no se muestra literal).
+Reestructuración kind/document/ledger, 2026-07-24/25.
 **Basado en:** REP-SPEC.md (Capítulo 17, IDEA-FIX RDL) + implementación nilix v2.5.3
 **Formato nativo:** YAML (reemplaza el RDL textual del legado)
 
@@ -13,6 +17,7 @@
 3. [Sección `fields`](#3-sección-fields)
 4. [Sección `dataSources`](#4-sección-datasources)
 5. [Sección `zones`](#5-sección-zones)
+   - [5.4 `kind` del reporte y rol de zona](#54-kind-del-reporte-y-rol-de-zona)
 6. [Condiciones de impresión](#6-condiciones-de-impresión)
 7. [Expresiones y templates](#7-expresiones-y-templates)
    - [7.5 Markdown en templates](#75-markdown-en-templates)
@@ -279,11 +284,52 @@ zones:
 | `name` | string | Identificador único |
 | `dataSource` | string | Fuente de datos a iterar |
 | `condition` | object | Cuándo imprimir (ver §6) |
-| `layout` | string | `vertical` (default) \| `lines` \| `table` \| `horizontal-scroll` \| `grid` |
+| `layout` | string | `vertical` (default) \| `lines` \| `table` \| `nav` \| `horizontal-scroll` (deprecado, ver nota) |
 | `expressions` | array | Campos calculados o referencias (ver §7) |
 | `template` | array | Líneas de salida con `{placeholders}` (no aplica con `layout: table`) |
 | `columns` | array | Definición de columnas, solo con `layout: table` (ver §5.2) |
 | `noPrint` | boolean | Zona procesada pero no renderizada |
+
+> **`layout: vertical` es el default explícito** — cualquier zona sin `layout:` declarado
+> se comporta como si dijera `layout: vertical` (`YamlParser.js` — `z.layout || 'vertical'`).
+> Renderiza vía `renderCardZone()` (`.report-card`): útil para zonas de detalle simples,
+> una tarjeta por registro.
+
+> **`layout: nav` (agregado 2026-07-24, antes `horizontal-scroll`).** Selecciona la
+> barra de navegación sticky por categorías (`.report-nav`, `renderNavZone()`) — solo
+> válido en una zona con `condition: {when: before, on: report}`. El nombre anterior,
+> `horizontal-scroll`, describía un efecto visual presunto en vez del rol que en
+> realidad selecciona (navegación, no scroll); **sigue funcionando como alias
+> deprecado** (mismo resultado, `ReportRenderer.js` acepta ambos) para no romper YAMLs
+> que ya lo usen — pero usar `nav` en YAMLs nuevos.
+>
+> **Criterio de eliminación del alias** (no es "algún día"): se borra el branch
+> `layout === 'horizontal-scroll'` de `ReportRenderer.js`/`YamlParser.js` cuando
+> se cumplan **las dos** condiciones — (a) `grep -rl "horizontal-scroll"` sobre
+> todos los `.yaml` de producción da cero resultados, **y** (b) existe al menos
+> un `.yaml` real usando `layout: nav` que confirme que el reemplazo funciona
+> en producción, no solo en un caso sintético de esta sesión. Hoy (a) se
+> cumple trivialmente — ningún reporte usa ninguno de los dos — pero (b) no,
+> así que el alias se queda: no hay reemplazo probado todavía.
+>
+> Semánticamente, una zona `nav` solo tiene sentido en reportes `kind: document`
+> (el caso canónico es una carta/menú navegable por categoría) — ver §5.4.
+
+> **`grid` NO es un valor de `layout` real** — a pesar de que versiones previas de
+> este documento lo listaban como si lo fuera. Comprobado por grep contra
+> `ReportRenderer.js`/`ReportEngine.js`: no existe ninguna comparación
+> `layout === 'grid'` en el motor. Si una zona declara `layout: grid` hoy, el
+> valor se ignora en silencio y la zona cae al comportamiento de `vertical`
+> (tarjeta). Lo que sí es real es `.report-products-grid`
+> (`ReportEngine.js:119`, `createProductsGrid()`): el motor envuelve el conjunto
+> de zonas de detalle de **cada** corte/grupo en un contenedor CSS Grid
+> (`grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))`, `gap: 1rem`)
+> — **siempre, incondicionalmente, sin que ninguna zona lo pida.** Si el grupo
+> contiene una zona `layout: lines`, un selector CSS (`.report-products-grid:has(.report-lines)`)
+> colapsa el grid a una sola columna sin gap. No hay forma de configurar columnas
+> o gap desde el YAML — es estructural, no una opción de zona. Documentado tal
+> como se comporta hoy; que no sea configurable es una limitación conocida, no
+> una feature pendiente de esta fase.
 
 ### 5.2 `layout: lines`
 
@@ -325,6 +371,100 @@ Renderiza una zona como tabla HTML con encabezado y columnas configurables. No u
 | `width` | Ancho (porcentaje o valor CSS) |
 | `align` | `left` \| `right` \| `center` |
 | `format` | Formato opcional (mismos valores que §7.2) |
+
+> **⚠️ El ejemplo de arriba no renderiza como tabla — confirmado en vivo (2026-07-24).**
+> `layout: table` solo llega al renderer de tabla real (`renderTableZone()`,
+> el que lee `columns`) cuando la zona **no tiene `condition:`** — es decir,
+> como zona de detalle, una vez por registro (y ahí arma una tabla de 1 fila
+> por llamada, con su propio `<thead>` cada vez, no una tabla de N filas).
+> Una zona `layout: table` **con** `condition: {when: after, on: report}` —
+> como el ejemplo de arriba — se enruta a `renderFooterZone()` (usa
+> `template`, ignora `columns` por completo). Sin `template`, esa zona
+> renderiza un `<div class="report-footer">` vacío. Esto no es hipotético:
+> es exactamente la forma de la zona `resumen_tabla` en
+> `flujo_mensual_nivel1.yaml`, verificada en vivo renderizando 0 hijos.
+> **Hoy no existe una forma de producir una tabla HTML de N filas desde un
+> `dataSource` vía `layout: table`** — la única vía que funciona para eso es
+> `rowTemplate` con `markdown: true` (§7.5). Este ejemplo queda documentado
+> tal cual estaba (para no inventar un comportamiento distinto al legado),
+> pero no lo copies esperando que funcione.
+
+### 5.4 `kind` del reporte y rol de zona
+
+Todo reporte declara `kind: document` o `kind: ledger` — **obligatorio desde
+2026-07-25** (antes de eso el motor lo inferÍa de las zonas presentes y solo
+avisaba con un warning; la inferencia se retiró, pero el mismo cálculo se
+reusa hoy para sugerir un valor en el mensaje de error, no se descartó).
+
+```yaml
+name: flujo_mensual
+kind: ledger
+```
+
+Un reporte sin `kind`, o con un valor que no sea `document`/`ledger`, no
+carga — `YamlParser.buildSchema()` tira un error visible en `report.html`
+que nombra el reporte, dice qué está mal, lista los valores válidos, y
+sugiere el `kind` que el reporte parece ser según sus zonas.
+
+**`kind` no es lo mismo que `layout` ni que el `zoneType` que usa el
+renderer.** Cada zona tiene un **rol** semántico, derivado de su
+`condition.when`/`condition.on` y de si tiene una expresión `aggregate` —
+**no** de su `layout`. Esto importa porque casi todos los reportes reales
+ponen `layout: lines` en casi todas sus zonas (para el `||` de alineación
+manual), lo que colapsa el `zoneType` que calcula `ReportRenderer.js` a
+`'lines'` para ~90% de las zonas sin importar su rol real — un validador
+construido sobre `zoneType` no distinguiría nada. Por eso el rol se calcula
+aparte, en `YamlParser.js` (`classifyZoneRole()`), independiente del renderer.
+
+| Rol | Cuándo se asigna |
+|---|---|
+| `header` | `condition: {when: before, on: report}` |
+| `nav` | ídem, con `layout: nav` (o el alias deprecado `horizontal-scroll`, ver §5.1) |
+| `footer` | `condition: {when: after, on: report}`, sin ninguna expresión `aggregate` |
+| `total` | ídem, pero con al menos una expresión `aggregate` |
+| `separator` | `condition: {when: before, on: [campo(s)]}` |
+| `subtotal` | `condition: {when: after, on: [campo(s)]}` |
+| `body` | sin `condition` — zona de detalle, una vez por registro |
+
+Roles legales por `kind` (`ZONE_ROLES_BY_KIND` en `YamlParser.js` — copiado
+del código, no reconstruido de memoria):
+
+| `kind` | Roles permitidos |
+|---|---|
+| `document` | `header`, `nav`, `separator`, `footer`, `body` |
+| `ledger` | `header`, `separator`, `subtotal`, `total`, `footer`, `body` |
+
+Una zona con rol fuera del set de su `kind` — ej. una zona `nav` en un
+`ledger`, o una zona `total` en un `document` — tira el mismo tipo de error
+que un `kind` faltante, nombrando la zona ofensora.
+
+**Pendiente, documentado a propósito y no por omisión:**
+
+- **`ReportEngine.renderDetail()` no soporta múltiples zonas de rol `body`
+  sobre `dataSource`s independientes** dentro de un mismo reporte — itera
+  solo el `dataSource` de la primera, y aplica todas sobre esos registros.
+  Ningún reporte real lo ejercita hoy (`estado_taller.yaml` fue reescrito
+  para usar un solo `dataSource` + corte por campo en vez de esto). Ver el
+  comentario inline en `ReportEngine.js` (método `renderDetail`, fecha
+  2026-07-24) para el detalle — no se arregló por falta de caso vivo, no por
+  descuido.
+- **Agrupar por un valor calculado** (ej. combinar dos valores crudos de un
+  campo en una sola sección, lo que `estado_taller.yaml` intentaba con un
+  filtro `IN(...)` que nunca funcionó) **no está soportado, y es una
+  decisión consciente, no una omisión.** `groupByCategory()` agrupa sobre
+  `record[breakField]` crudo, antes de evaluar cualquier `expression`. Se
+  evaluó agregarlo (Fase 5 de la reestructuración de 2026-07) y se descartó:
+  el único caso que lo hubiera necesitado agrupaba contra un valor que ni
+  siquiera existe en los datos reales del dominio ("Para Revisar" no es un
+  `estado` real en `servicio_tecnico.db`). No hay caso de uso real
+  pendiente — si aparece uno, es una feature nueva a evaluar entonces, no
+  una que "faltó terminar" acá.
+- **`nil-audit.yaml`/`nil-users.yaml`** fueron sacados del motor de reportes
+  (no son `document` ni `ledger` — eran listados planos sobre datos vivos
+  con `rowTemplate`, sin cortes ni agregación). `report.html` los rechaza
+  con un mensaje que apunta a `docs/02-architecture/DATA-GRID-PROPOSAL.md`,
+  donde está la spec de columnas/filtros para el data-grid que los
+  reemplaza — no implementado todavía.
 
 ---
 
@@ -492,18 +632,35 @@ El parsing markdown varía según la zone:
 | Tipo de zone | Parser usado | Elementos disponibles |
 |---|---|---|
 | `lines` | `marked.parse()` | Todos (inline + bloque) |
-| `header`, `footer`, `subtotal` | `marked.parseInline()` | Solo inline |
+| `header`, `footer`, `subtotal` | `marked.parseInline()` + strip de `#` líder | Solo inline (ver nota) |
 
-**Consecuencia importante:** en zones `header`/`footer`/`subtotal`, los elementos de bloque (`#`, `---`, `- lista`) **se muestran como texto literal**. El estilo de título en un `header` lo provee el CSS — no se necesita `#`:
+> **Corrección — 2026-07-24.** `marked.parseInline()` nunca procesa sintaxis de
+> bloque (`#`, `---`, `- lista`) — eso sigue siendo cierto para `---` y listas,
+> que en `header`/`footer`/`subtotal` se muestran como texto literal, sin
+> tratamiento especial. Pero un `#`/`##`/`###` líder es un caso aparte: como
+> estas tres zonas ya se detectó que se usan casi siempre para una única línea
+> de "título", `ReportRenderer.js` las hace pasar por `_markedLine()`
+> (`ReportRenderer.js:512`) antes de `parseInline()`, que recorta el prefijo
+> `#{1,6}\s+` con una regex — no lo convierte en `<h1>-<h6>` (eso generaría
+> un margin propio del navegador que duplicaría el spacing que ya da el CSS
+> del contenedor). Consecuencia: **el `#` inicial ya no aparece literal**, se
+> descarta en silencio y el resto de la línea se procesa como inline normal.
+> El estilo de "título" lo sigue dando el CSS del contenedor
+> (`.report-header-line:first-child`, etc.), con o sin `#` en el YAML.
 
 ```yaml
-# ✅ correcto en zona header — CSS aplica estilo de título
+# ✅ recomendado — sin '#', el CSS del contenedor ya da el estilo de título
 template:
   - "FLUJO DE CAJA MENSUAL"
 
-# ❌ incorrecto — el # aparece literalmente en la pantalla
+# también válido desde 2026-07-24 — el '#' se recorta, mismo resultado visual
 template:
   - "# FLUJO DE CAJA MENSUAL"
+
+# el resto de sintaxis de bloque SÍ sigue mostrándose literal en estas 3 zonas
+template:
+  - "---"          # → guion-guion-guion literal, no <hr>
+  - "- item"        # → guion-item literal, no <li>
 ```
 
 #### Construcciones soportadas
@@ -628,6 +785,27 @@ Propiedad opcional de zona que habilita la generación de una fila de tabla GFM 
 #### Fallback DIY
 
 Si el CDN no está disponible, el renderer usa un parser interno que cubre Fases 1-2 (inline + `---` + headers + listas). Las tablas GFM requieren marked.js.
+
+#### Ancho de columna y overflow (agregado 2026-07-24)
+
+La tabla que produce `rowTemplate` **no trunca ni recorta contenido** — cada
+columna toma el ancho de su contenido más largo (`table-layout: auto`, celdas
+`white-space: nowrap`, sin `max-width`). Si la suma de columnas es más ancha
+que el reporte (`.report-container`, 800px), la tabla **no desborda la
+página**: queda contenida en su propia caja con scroll horizontal
+(`.report-lines-md { overflow-x: auto }`), independiente del resto del
+reporte (header/footer no se mueven).
+
+El scroll admite tanto la barra nativa como **arrastre directo con mouse**
+sobre la tabla (`report.html`, handler de `pointerdown`/`pointermove`
+delegado en `#report-container`) — no hace falta bajar hasta la scrollbar.
+Un click normal (sin arrastre, <4px de movimiento) no dispara el drag, así
+que no interfiere con selección de texto ni con otros controles.
+
+No hay forma de definir un ancho de columna manual en `rowTemplate` (a
+diferencia de `layout: table`, que sí tiene `columns: [{width, align}]`) —
+si una tabla GFM necesita columnas angostas fijas, es candidato a migrar a
+`layout: table`.
 
 ---
 

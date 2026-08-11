@@ -1986,6 +1986,12 @@ body.dark-mode .report-card {
 .report-lines-md {
     font-family: var(--label-font);
     line-height: 1.5;
+    overflow-x: auto;
+    cursor: grab;
+}
+.report-lines-md.is-dragging {
+    cursor: grabbing;
+    user-select: none;
 }
 .report-lines-md p {
     margin: 0.15em 0;
@@ -2023,6 +2029,7 @@ body.dark-mode .report-card {
 }
 .report-lines-md table {
     width: 100%;
+    table-layout: auto;
     border-collapse: collapse;
     font-family: var(--font-family);
     font-size: 0.9em;
@@ -2037,8 +2044,6 @@ body.dark-mode .report-card {
 .report-lines-md td {
     padding: 3px 6px;
     border-bottom: 1px solid var(--input-border);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 /* Inline markdown elements (active in all zones when markdown: true) */

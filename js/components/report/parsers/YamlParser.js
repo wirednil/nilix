@@ -20,6 +20,47 @@ async function loadJsYaml() {
     }
 }
 
+// ── kind / zone role ─────────────────────────────────────────────────────────
+// `role` is a semantic classification independent of `layout`. `layout` only
+// controls how a zone is drawn (lines/table/vertical/nav); it does not say
+// what the zone is FOR. Most real reports set `layout: lines`
+// on nearly every zone (manual alignment via `||`), which collapses the
+// renderer's own zoneType to 'lines' for ~90% of zones regardless of role —
+// confirmed against all 10 shipped reports during the report-engine
+// restructuring inventory (2026-07-24). `role` is derived purely from
+// `condition.when`/`condition.on` + whether the zone has an aggregate
+// expression, so it stays meaningful even when `layout: lines` is set.
+const ZONE_ROLES_BY_KIND = {
+    document: new Set(['header', 'nav', 'separator', 'footer', 'body']),
+    ledger:   new Set(['header', 'separator', 'subtotal', 'total', 'footer', 'body'])
+};
+
+function classifyZoneRole(layout, printCondition, expressions) {
+    if (!printCondition) return 'body'; // no condition = repeats once per record
+
+    const { when, triggers } = printCondition;
+    const hasReportTrigger = triggers.some(t => t.type === 'report');
+    const hasFieldTrigger = triggers.some(t => t.type === 'field');
+
+    if (hasReportTrigger && when === 'before') {
+        // 'horizontal-scroll' is a deprecated alias for 'nav' — see ReportRenderer.js.
+        return (layout === 'nav' || layout === 'horizontal-scroll') ? 'nav' : 'header';
+    }
+    if (hasReportTrigger && when === 'after') {
+        const hasAggregate = (expressions || []).some(e => !!e.aggregate);
+        return hasAggregate ? 'total' : 'footer';
+    }
+    if (hasFieldTrigger && when === 'before') return 'separator';
+    if (hasFieldTrigger && when === 'after') return 'subtotal';
+
+    return 'body';
+}
+
+function inferKind(zones) {
+    const decidingZone = zones.find(z => z.role === 'subtotal' || z.role === 'total');
+    return decidingZone ? 'ledger' : 'document';
+}
+
 export class YamlParser {
     constructor() {
         this.useSimpleParser = false;
@@ -199,15 +240,40 @@ export class YamlParser {
     buildSchema(raw) {
         if (!raw) raw = {};
 
+        const name = raw.name || 'report';
+        const zones = this.buildZones(raw.zones);
+
+        const kind = raw.kind;
+        if (kind !== 'document' && kind !== 'ledger') {
+            const guess = inferKind(zones);
+            const problem = kind === undefined
+                ? 'no declara "kind"'
+                : `declara kind: "${kind}", que no es un valor válido`;
+            throw new Error(
+                `Reporte "${name}" ${problem}. Los valores válidos son "document" o "ledger". ` +
+                `A partir de sus zonas, este reporte parece ser "${guess}" — probá agregando "kind: ${guess}" al YAML.`
+            );
+        }
+
+        const legalRoles = ZONE_ROLES_BY_KIND[kind];
+        const illegalZone = zones.find(z => !legalRoles.has(z.role));
+        if (illegalZone) {
+            throw new Error(
+                `Reporte "${name}" (kind: ${kind}): la zona "${illegalZone.name}" tiene rol "${illegalZone.role}", ` +
+                `no permitido para este kind. Roles válidos para "${kind}": ${[...legalRoles].join(', ')}.`
+            );
+        }
+
         return {
-            name: raw.name || 'report',
+            name,
             description: raw.description || '',
             public: raw.public === true,
+            kind,
             params: this.buildParams(raw.params),
             config: this.buildConfig(raw.config || {}),
             fields: this.buildFields(raw.fields),
             dataSources: this.buildDataSources(raw.dataSources || {}),
-            zones: this.buildZones(raw.zones),
+            zones,
             meta: raw.meta || {}
         };
     }
@@ -283,11 +349,9 @@ export class YamlParser {
             return [];
         }
         
-        return zones.map(z => ({
-            name: z.name || 'zone',
-            dataSource: z.dataSource,
-            layout: z.layout || 'vertical',
-            expressions: Array.isArray(z.expressions) ? z.expressions.map(e => ({
+        return zones.map(z => {
+            const layout = z.layout || 'vertical';
+            const expressions = Array.isArray(z.expressions) ? z.expressions.map(e => ({
                 name: e.name,
                 field: e.field,
                 value: e.value,
@@ -299,17 +363,26 @@ export class YamlParser {
                 argument: e.argument,
                 scope: e.scope || null,
                 filter: e.filter || null
-            })) : [],
-            printCondition: z.condition ? {
+            })) : [];
+            const printCondition = z.condition ? {
                 when: z.condition.when,
                 triggers: this.buildTriggers(z.condition.on)
-            } : null,
-            ifCondition: z.ifCondition || null,
-            template: this.buildTemplate(z.template),
-            rowTemplate: this.buildTemplate(z.rowTemplate),
-            columns: Array.isArray(z.columns) ? z.columns : null,
-            noPrint: z.noPrint === true
-        }));
+            } : null;
+
+            return {
+                name: z.name || 'zone',
+                dataSource: z.dataSource,
+                layout,
+                expressions,
+                printCondition,
+                role: classifyZoneRole(layout, printCondition, expressions),
+                ifCondition: z.ifCondition || null,
+                template: this.buildTemplate(z.template),
+                rowTemplate: this.buildTemplate(z.rowTemplate),
+                columns: Array.isArray(z.columns) ? z.columns : null,
+                noPrint: z.noPrint === true
+            };
+        });
     }
 
     buildTriggers(on) {

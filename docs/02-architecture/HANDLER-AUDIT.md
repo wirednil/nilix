@@ -4,6 +4,20 @@
 **Auditor:** T0.3 del Plan de Producción
 **Alcance:** todos los handlers activos del motor y de la app de demo
 
+> **⚠️ CORRECCIÓN — 2026-07-24.** El veredicto de `precios_handler.js` de abajo
+> quedó desactualizado: es correcto para SQL injection, pero la metodología
+> original (puntos 1-3) nunca preguntó por scope de tenant. `db.prepare()`
+> ahí ejecuta un `DELETE`/`UPDATE` sobre `demo_productos` **sin `empresa_id`
+> en el WHERE**, y esa tabla es multi-tenant real (3 empresas, confirmado
+> contra `pizzeria.db`: `SELECT empresa_id, COUNT(*) ... GROUP BY empresa_id`
+> → `[[1,49],[2,34],[3,39]]`). Cualquier usuario autenticado en un tenant
+> puede borrar o repricear productos de otro tenant mandando su `id`. Ver
+> **punto 4 de "Metodología"** (agregado hoy) y `HANDLER-API-PROPOSAL.md`
+> para el diseño que cierra esto agregando `update()`/`remove()` con la
+> misma auto-inyección de `empresa_id` que ya tienen `find()`/`insert()`.
+> El resto de esta auditoría (SQLi) sigue siendo válido — se deja el texto
+> original sin reescribir para no perder el rastro de qué se revisó cuándo.
+
 ---
 
 ## Metodología
@@ -13,6 +27,7 @@ Para cada handler se revisa:
 1. **API DB usada** — `ScopedDb` (seguro, parametrizado internamente) vs `db.prepare()`/`db.exec()` (escape hatch, requiere revisión manual)
 2. **Interpolación de datos de usuario** — ¿algún valor de `data` llega a SQL sin casting o sanitización?
 3. **Manejo de errores** — ¿puede un input malformado causar un crash no manejado?
+4. **Scope de tenant** *(agregado 2026-07-24)* — si la tabla tiene `empresa_id`, ¿el `WHERE` de cada `db.prepare()`/`db.exec()` lo incluye? `find()`/`findAll()`/`insert()` de ScopedDb lo auto-inyectan; `prepare()`/`exec()` son passthrough crudo y **no lo hacen nunca** — cualquier handler que los use sobre una tabla multi-tenant tiene que agregarlo a mano, y nada se lo recuerda si no lo hace.
 
 **Veredictos posibles:**
 
@@ -47,7 +62,8 @@ Para cada handler se revisa:
 | **Ubicación** | `$NIL_APP_DIR/apps/precios_handler.js` |
 | **Propósito** | Gestión de precios en bulk via multifield. Permite eliminar y actualizar precios de productos en una sola operación. |
 | **API DB usada** | `db.findAll()` (ScopedDb) + `db.prepare()` (escape hatch) |
-| **Veredicto** | ⚠️ SAFE-MINOR |
+| **Veredicto (SQLi)** | ⚠️ SAFE-MINOR |
+| **Veredicto (tenant scope)** | 🔴 **UNSAFE — cross-tenant DELETE/UPDATE, ver corrección arriba** |
 
 **Análisis detallado:**
 
@@ -150,16 +166,16 @@ db.insert('ventas', {
 
 ## Resumen
 
-| Handler | Veredicto | Usa `db.prepare()` | Fix requerido |
-|---------|-----------|-------------------|---------------|
-| `nil-users.js` | ✅ SAFE | No | — |
-| `precios_handler.js` | ⚠️ SAFE-MINOR | **Sí** (2 queries) | `JSON.parse` sin try/catch |
-| `producto_nuevo.handler.js` | ✅ SAFE | No | — |
-| `venta_handler.js` | ✅ SAFE | No | — |
+| Handler | Veredicto SQLi | Veredicto tenant | Usa `db.prepare()` | Fix requerido |
+|---------|-----------|-------------------|-------------------|---------------|
+| `nil-users.js` | ✅ SAFE | N/A | No | — |
+| `precios_handler.js` | ⚠️ SAFE-MINOR | 🔴 **UNSAFE** | **Sí** (2 queries) | `JSON.parse` sin try/catch **+ agregar `empresa_id` al WHERE de ambos `prepare()` (o migrar a `update()`/`remove()` — ver `HANDLER-API-PROPOSAL.md`)** |
+| `producto_nuevo.handler.js` | ✅ SAFE | ✅ SAFE | No | — |
+| `venta_handler.js` | ✅ SAFE | ✅ SAFE | No | — |
 
-**Resultado: 0 handlers UNSAFE. 0 handlers NEEDS-REVIEW.**
+**Resultado original (solo SQLi): 0 handlers UNSAFE.** Con el chequeo de tenant agregado (2026-07-24): **1 handler UNSAFE** (`precios_handler.js`, cross-tenant DELETE/UPDATE — ver corrección al inicio del documento).
 
-El único uso de `db.prepare()` (escape hatch) está correctamente parametrizado con `?` y los valores están casteados a tipos numéricos antes del bind. No hay interpolación de strings en SQL.
+El único uso de `db.prepare()` (escape hatch) está correctamente parametrizado con `?` y los valores están casteados a tipos numéricos antes del bind — **no hay riesgo de SQL injection**. El riesgo es otro: esas dos queries nunca filtran por `empresa_id`, y `demo_productos` es una tabla compartida por 3 tenants con datos reales.
 
 ---
 
@@ -172,6 +188,7 @@ Para mantener este nivel de seguridad, cualquier handler nuevo debe seguir estas
 3. **Castear siempre los tipos numéricos** antes de `bind()`: `parseInt()`, `parseFloat()`.
 4. **Envolver `JSON.parse()` en try/catch** cuando parsea data de usuario.
 5. **No usar `db.exec()`** con contenido derivado de datos del formulario.
+6. **Si la tabla tiene `empresa_id`, todo `db.prepare()`/`db.exec()` sobre ella tiene que incluirlo en el WHERE explícitamente.** `find`/`findAll`/`insert` lo hacen solos; `prepare`/`exec` no, nunca — es la causa directa del hallazgo de `precios_handler.js`. Si la tabla necesita `UPDATE`/`DELETE` por PK, es señal de que hace falta `update()`/`remove()` en `ScopedDb` (ver `HANDLER-API-PROPOSAL.md`), no una excusa para usar `prepare()` con cuidado.
 
 ---
 

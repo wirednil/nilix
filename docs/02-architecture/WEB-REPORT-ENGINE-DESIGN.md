@@ -5,6 +5,43 @@
 **Autor:** Análisis de arquitectura basado en NILIX RDL  
 **Revisión:** Extensiones para múltiples datasources, interactividad y caso carta digital
 
+> **⚠️ DOCUMENTO HISTÓRICO — 2026-07-25.** No describe el motor implementado.
+> El motor real es JS vanilla + `report.html`, documentado en
+> `docs/03-reference/NIL-REPORT.md` (autoridad vigente sobre YAML/zonas/`kind`).
+> No se reescribe este archivo — queda como registro de qué se evaluó y por
+> qué el motor terminó siendo otra cosa. Detalle de qué sigue sirviendo y qué no:
+>
+> **Arquitectura descartada, no construida así:**
+> - §1-2, §7 — mapeo Zona→componente React, interfaces TypeScript, consideraciones
+>   de implementación React. El motor real no usa React ni TS en el engine de
+>   reportes (`ReportEngine.js`/`ReportRenderer.js` son JS + DOM directo).
+> - §6 — algoritmo `group with` (mantener zonas juntas al paginar). No
+>   implementado — confirmado ❌ en `NIL-REPORT.md` §10 (equivalencias RDL→YAML).
+> - `before`/`after page`, `eject`, paginación real — el motor solo tiene
+>   `paginationMode: scroll` (`NIL-REPORT.md` §2, §6). Cualquier sección de
+>   este doc que asuma paginación por páginas no aplica.
+> - §10 "Caso de Uso: Carta Digital Pizzería" — el nombre de archivo de
+>   ejemplo usado ahí (`carta.yaml`) **no es un archivo real** y nunca lo fue;
+>   ya causó una referencia rota en una sesión de trabajo posterior que lo dio
+>   por existente. Si necesitás un ejemplo real de `kind: document`, usar
+>   `electro-pos/reports/comprobante_*.yaml`.
+>
+> **Análisis que sigue siendo válido — es sobre el RDL legado, no sobre el
+> diseño web, y no depende de qué se terminó construyendo:**
+> - "Hallazgos de la Gramática" (abajo) — `resetaccum`, orden `before`/`after`,
+>   aliases de expresión, patrones WYSIWYG del lexer, `$VARNAME`, límites de
+>   `rgen.h` (`MAX_FIELDS`, etc.). Viene de leer `rgenpar.y`/`rgenlex.l`
+>   directamente — sigue siendo la fuente más completa sobre esa parte del
+>   RDL, independientemente del motor web.
+> - §9.1 (modelo de `dataSources`/`joins`/`orderBy`) — la forma general
+>   (declarar dataSources con `table`/`orderBy`/`filter`/`joins`) sí se
+>   adoptó, y hoy coincide bastante con `NIL-REPORT.md` §4. No asumas que el
+>   resto de §9 (interactividad, multi-datasource independiente) se implementó
+>   igual sin comparar contra el código — en particular, el motor real **no**
+>   soporta hoy múltiples zonas de detalle repitiendo sobre `dataSource`s
+>   independientes en un mismo reporte (ver `ReportEngine.js`, comentario
+>   inline en `renderDetail()`, 2026-07-24).
+
 ---
 
 ## Introducción

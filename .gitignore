@@ -24,6 +24,9 @@ dist/
 # Knowledge graph (generado por graphify skill)
 graphify-out/
 
+# Scratch / debug temporal de sesiones de trabajo
+.scratch-*
+
 # OS
 .DS_Store
 Thumbs.db

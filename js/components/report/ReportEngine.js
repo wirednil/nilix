@@ -351,6 +351,17 @@ export class ReportEngine {
         });
     }
 
+    // KNOWN LIMITATION: this fires every zone without `condition` against the
+    // SAME `record`, regardless of that zone's own `dataSource`. A report with
+    // two no-condition zones pointing at two different dataSources would have
+    // the second zone rendered with records from the first — there is no
+    // support for independently repeating multiple dataSources in one report.
+    // Found + confirmed while rewriting estado_taller.yaml (2026-07-24), which
+    // was the only report ever exercising this path; the rewrite moved it to a
+    // single dataSource + break-by-field instead of fixing this method, since
+    // no report exercises it now — see report-engine kind/document/ledger
+    // restructuring notes. Fix here if a real report needs multiple
+    // independently-repeating dataSources again.
     renderDetail(container, record) {
         const detailZones = this.schema.zones.filter(z => !z.printCondition);
 
