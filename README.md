@@ -8,6 +8,15 @@ A terminal-aesthetic business application engine. Forms, reports, explorers, dat
 
 ---
 
+## Building something with an AI agent, or new to this repo?
+
+Read [`AGENTS.md`](AGENTS.md) before writing any form XML, report YAML, or
+handler — nilix's syntax is its own, not HTML/Django/Angular/Jinja, and the
+examples below are deliberately minimal. Full spec and getting-started guide:
+[`docs/01-getting-started/README.md`](docs/01-getting-started/README.md).
+
+---
+
 ## Submodules
 
 | Module | Role |
@@ -67,6 +76,9 @@ Nilix follows a layered, declarative philosophy:
 - **Reports** are YAML. Data sources, zones, expressions — declared, not programmed.
 - **Handlers** are minimal. Only custom logic. The engine handles the rest.
 - **Multi-tenant** by default. Every query is scoped by `empresa_id`. Handlers never touch it.
+  Opting out is per-table, not a config flag: a table with no `empresa_id`
+  column is simply never scoped (`schemaService.hasColumn()` decides this
+  per query — there is nothing to switch off).
 - **Terminal aesthetic**. Monospace, brutalist, no JS frameworks. The UI is a tool, not a product.
 
 The engine expands from nil — a menu file, a form file, and a handler if you need one. Everything else is derived.
@@ -75,44 +87,81 @@ The engine expands from nil — a menu file, a form file, and a handler if you n
 
 ## Form XML Example
 
+Fields live inside `<layout>` → `<container>` (never flat under `<form>`).
+The key field is marked with `keyField="true"` on the `<field>` itself — not
+a form-level attribute. Options and validation are child elements, not flat
+string attributes:
+
 ```xml
-<form title="Products" database="products" keyField="id" handler="none">
-    <field id="id"      type="number" label="ID"    skip="true"/>
-    <field id="name"    type="text"   label="Name"  required="true"/>
-    <field id="price"   type="number" label="Price"/>
-    <field id="active"  type="check"  label="Active"/>
+<form id="products" title="Products" database="products" handler="none">
+    <layout>
+        <container type="horizontal">
+            <field id="id" label="ID" type="number" keyField="true" size="6"/>
+        </container>
+        <container type="vertical">
+            <field id="name" label="Name" type="text" size="50">
+                <validation><required>true</required></validation>
+            </field>
+            <field id="price" label="Price" type="number" decimals="2"/>
+            <field id="category" label="Category" type="select">
+                <options>
+                    <option value="1">Tools</option>
+                    <option value="2">Parts</option>
+                </options>
+            </field>
+            <field id="active" label="Active" type="checkbox" default="true"/>
+        </container>
+    </layout>
 </form>
 ```
 
-Menu entry:
+There is no `depends=`/conditional-field-visibility attribute — it's not
+implemented (see `AGENTS.md` for the full list of syntax that looks
+plausible but isn't real).
+
+Menu entry — the tag is `<option>`, never `<item>` (a different tag is
+silently ignored, not an error):
 
 ```xml
-<item type="form" label="Products" target="/path/to/your/app/forms/products.xml"
-      permissions="RADU"/>
+<option type="form" label="Products" target="form/products.xml"
+        permissions="RADU"/>
 ```
 
 ---
 
 ## Report YAML Example
 
+Zones use `name`/`layout`/`template` — not `id`/`type`/`content`. Every
+report declares `kind: document` or `kind: ledger` (required):
+
 ```yaml
 name: products
 description: Product Listing
+kind: document
 
 dataSources:
   products:
     table: products
-  categories:
-    table: categories
+    orderBy: [name]
 
 zones:
-  - id: list
-    type: table
+  - name: header
+    condition: { when: before, on: report }
+    template: ["PRODUCT LISTING"]
+
+  - name: detalle
+    layout: lines
     dataSource: products
-    columns:
-      - field: name
-      - field: price
+    expressions:
+      - { name: precio_fmt, field: price, format: currency }
+    template: ["{name}   {precio_fmt}"]
 ```
+
+`layout: table` (HTML `<table>` with typed `columns:`) only works as a
+detail zone — no `condition:` — one row per record, not a multi-row summary
+table; see `docs/03-reference/NIL-REPORT.md` §5.3 for the confirmed gap and
+the `rowTemplate` alternative for a real multi-row table. Full spec,
+including `kind`/zone roles: [`docs/03-reference/NIL-REPORT.md`](docs/03-reference/NIL-REPORT.md).
 
 ---
 
