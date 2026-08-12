@@ -3,6 +3,36 @@
 **Fuente:** Capítulo 18 del Manual de NILENGINE
 **Propósito:** Referencia para implementar sistema de menús en Nilix
 
+> **⚠️ CORRECCIÓN — 2026-08-12.** Todo lo que sigue, desde "🔄 Adaptación a
+> Nilix" en adelante, es una **propuesta de mapeo escrita el 2026-02-15,
+> antes de que el parser real existiera** — nunca se actualizó para
+> reflejar lo que efectivamente se implementó, y en al menos un punto
+> **contradice directamente el código real**: causó que un agente externo
+> (validado en una sesión de auditoría — ver `AGENTS.md`) generara un
+> `menu.xml` roto siguiendo esta spec al pie de la letra.
+>
+> **Lo que implementó Nilix, confirmado contra `src/services/menuService.js`
+> y ejemplos reales del propio repo (`sys/nil-sys.xml:21,24`,
+> `docs/01-getting-started/README.md:258`):**
+>
+> ```xml
+> <option label="Ventas" type="report" target="reports/ventas.yaml" permissions="R"/>
+> ```
+>
+> - Reportes usan **`type="report"`** — no `type="api"` como dice la tabla
+>   de mapeo de abajo (`PIPE → type="api"`). `type="api"` no existe en el
+>   parser real.
+> - Los permisos son **RADU** (Read/Add/Delete/Update, per-tabla, ver
+>   `src/utils/radu.js`) — no `RWD` como propone la sección "Propuesta de
+>   Permisos" de abajo.
+> - El único nodeName que el parser acepta es `<option>`
+>   (`menuService.js:30` — `if (node.nodeName !== 'option') continue;`).
+>
+> El resto de la spec (tipos `MENU`→`form`, `WCMD`→`modal`, `BUILTIN`→
+> `builtin`) no se validó contra código real en esta corrección — tratala
+> como propuesta histórica, no como fuente de verdad, hasta que alguien la
+> confirme contra `menuService.js` línea por línea.
+
 ---
 
 ## 📋 Definición de Menús
