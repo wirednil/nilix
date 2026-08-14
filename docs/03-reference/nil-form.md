@@ -4,9 +4,9 @@
 >
 > 1. **`help="ID"` y `default="valor"` como atributos de `<field>` no se leen.** El renderer vivo solo lee `<help>ID</help>` y `<default>valor</default>` como **elementos hijos** del `<field>` (`LayoutProcessor.js` → `querySelector('attributes help')` / `querySelector('help')`, ídem `default`). Todos los ejemplos de este documento que usan `help="..."`/`default="..."` como atributo están escritos en la sintaxis muerta — cópialos con la forma de elemento hijo, no como atributo. `js/app.js` sí lee algunos de estos como atributo, pero es un renderer legacy **deshabilitado** (`index.html` tiene su `<script>` comentado).
 > 2. **`<window>`, `<confirm>`, `<display-status>` dentro de `<form-attributes>` no los lee nada del renderer vivo** (confirmado por grep exhaustivo en `js/components/form/`) — son decorativos hoy. La confirmación de borrado real es un `confirm()` nativo del navegador, incondicional, no configurable desde el XML (`Multifield.js`).
-> 3. **`<check>` con operadores relacionales (`>=`, `<=`, etc.) rompe en dos casos verificados en vivo:** (a) si se combina con `and`/`or` en la misma expresión — siempre evalúa `false`, sin importar el valor; y (b) si compara dos campos `type="date"` — siempre evalúa `true`, sin importar el valor (el motor hace `parseFloat()` sobre un objeto `Date`, que da `NaN`→`0`). Solo son confiables las comparaciones relacionales simples entre campos numéricos. Ver la sección "Atributos de Check" más abajo para el detalle.
+> 3. **Solo `<required>true</required>` bloquea el guardado.** `<min>`, `<max>`, `<pattern>` y `<check>` son informativos — corren al perder el foco del campo y nunca llaman `setCustomValidity()`. `<check>` además solo es confiable con un único operador relacional entre dos campos numéricos: combinado con `and`/`or` siempre evalúa `false`, y comparando dos campos `type="date"` siempre evalúa `true` (verificado en vivo en ambos casos — el motor hace `parseFloat()` sobre valores no numéricos, que da `NaN`→`0`). Ver la sección "Qué bloquea el guardado y qué no" más abajo para el detalle y la causa común.
 >
-> Para validación cruzada entre campos, usá el handler (`beforeSave`), no `<check>`.
+> Para validación cruzada entre campos, o cualquier cosa que deba impedir guardar, usá el handler (`validate()`/`beforeSave()`), no `<check>`.
 
 ## Introducción
    
@@ -606,7 +606,7 @@ Asocia el campo a una tabla de base de datos para validación y autocompletado. 
 </field>
 ```
 
-⚠️ Esta forma simple (un solo operador relacional, campos numéricos) es la única combinación verificada como confiable. Ver la nota siguiente para las dos formas que no funcionan.
+⚠️ Esta forma simple (un solo operador relacional, campos numéricos) es la única combinación verificada como confiable — y, aun así, no bloquea el guardado. Ver "Qué bloquea el guardado y qué no" más abajo.
 
 **`between valor1 and valor2` → `<min>` + `<max>`**
 
@@ -643,6 +643,25 @@ Para validar algo como "precio dentro de un rango Y precio×cantidad dentro de o
     </validation>
 </field>
 ```
+
+### Qué bloquea el guardado y qué no
+
+Regla general, verificada contra `InputField.js`/`ValidationCoordinator.js`/`SubmitManager.js`, que reemplaza las notas puntuales de más arriba:
+
+**Solo `<required>true</required>` se traduce a un atributo HTML real** (`inputEl.required = true` — es la única línea de `InputField.js` que mapea una validación del XML a algo que el navegador entiende, confirmado por grep exhaustivo del archivo) y por lo tanto es lo único que bloquea el `submit` vía `checkValidity()` nativo.
+
+**`<min>`, `<max>`, `<pattern>` y `<check>` son puramente informativos**: `validateFieldValue()` (`ValidationCoordinator.js`) corre al perder el foco (`blur`) del campo y, si falla, solo agrega un mensaje visual (`showErrorOnField`) — nunca llama `setCustomValidity()`. Si el operador nunca pasa por ese campo, o corrige el valor después del error sin volver a salir del campo, el formulario se guarda igual. No son un gate, son una sugerencia.
+
+Sobre `<check>` en particular, el motor (`ExpressionEngine.js`) solo es confiable en un caso: **un único operador relacional, ambos lados numéricos.** Fuera de ese caso, verificado en vivo que rompe de dos formas distintas y opuestas:
+
+- **Compuesto con `and`/`or`** (ej. `this <= 1000 and cantidad * this <= 100000`) → siempre **`false`**. `evaluate()` detecta el operador relacional antes que el lógico y nunca llega a partir por `and`/`or`.
+- **Relacional simple comparando dos campos `type="date"`** (ej. `this >= fecha`) → siempre **`true`**. `evaluateArithmetic()` hace `parseFloat()` sobre cada token; el campo `type="date"` llega como objeto `Date` al contexto (no como string), y `parseFloat(Date)` da `NaN` → se reemplaza por `0` → la comparación queda contra `0`, que cualquier valor no vacío gana.
+
+La misma coerción rompe también comparaciones de texto (`tipo == 'Ingreso'` evalúa `0 == 0` porque ninguno de los dos lados es numérico) — no es una lista cerrada de casos, es una única causa (`evaluateArithmetic` fuerza todo lo no-numérico a `0`) con síntomas distintos según el tipo de dato.
+
+**Para cualquier validación que realmente importe** — cruzar dos campos, comparar fechas, verificar texto, o cualquier cosa que deba impedir guardar un dato inválido — la única vía confiable es el handler: `validate(data)` (corre antes de persistir, puede rechazar el guardado con un error real) o `beforeSave(data, db)`.
+
+---
 
 **`in table` → `<in-table>`**
 
@@ -973,7 +992,7 @@ Sobre un campo hijo de un multifield se puede indicar `unique="true"`. nil-form 
 
 Los campos agrupados son un conjunto de campos sucesivos que generan un campo virtual para realizar validaciones cruzadas entre sus componentes (por ejemplo: fecha-desde debe ser menor que fecha-hasta).
 
-> ❌ **No implementado en nil-form v2.3.0.** Las validaciones cruzadas entre campos deben implementarse en el handler (`beforeSave`). **No uses `<check>this >= desde</check>` para esto si `desde` es un campo `type="date"`** — verificado en vivo que esa comparación siempre da `true`, sin importar los valores (ver corrección al inicio del documento y sección "Atributos de Check"). Para campos numéricos, `<check>` con un único operador relacional sí es confiable.
+> ❌ **No implementado en nil-form v2.3.0.** Las validaciones cruzadas entre campos deben implementarse en el handler (`validate()`/`beforeSave()`) — y no solo porque `<check>` esté ausente como estructura declarativa: aunque lo escribas a mano sobre un campo individual, no bloquea el guardado y, si compara fechas o texto, ni siquiera evalúa bien. Ver "Qué bloquea el guardado y qué no" más arriba.
 
 ## Atributos para Campos Agrupados
 
