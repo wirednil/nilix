@@ -2,28 +2,28 @@
 <form id="ordenes" title="Órdenes de Clientes" database="app" table="ordenes" handler="none">
 
     <form-attributes>
-        <window border="single"/>
-        <confirm>delete</confirm>
-        <display-status>true</display-status>
         <messages>
             <message id="HELP_ORDERNO">Número de orden — clave primaria</message>
             <message id="HELP_CLIENO">Número de cliente — busca en tabla de clientes</message>
-            <message id="HELP_FENTR">Fecha de entrega — debe ser mayor o igual a la fecha de la orden</message>
+            <message id="HELP_FENTR">Fecha de entrega prevista</message>
         </messages>
     </form-attributes>
 
     <layout>
 
         <container type="horizontal">
-            <field id="orderno" label="N° Orden" type="number" keyField="true" size="5"
-                   help="HELP_ORDERNO">
+            <field id="orderno" label="N° Orden" type="number" keyField="true" size="5">
+                <help>HELP_ORDERNO</help>
                 <validation><min>1</min></validation>
             </field>
-            <field id="fecha" label="Fecha" type="date" default="today"/>
+            <field id="fecha" label="Fecha" type="date">
+                <default>today</default>
+            </field>
         </container>
 
         <container type="horizontal">
-            <field id="clieno" label="Cliente" type="number" size="5" help="HELP_CLIENO">
+            <field id="clieno" label="Cliente" type="number" size="5">
+                <help>HELP_CLIENO</help>
                 <in-table table="clientes" key="clieno" display="nombre">
                     <copy from="nombre" to="clie_nom"/>
                 </in-table>
@@ -35,12 +35,16 @@
         <field id="valor" label="Valor" type="number" size="12"/>
 
         <container type="horizontal">
-            <field id="fentr" label="Fecha Entrega" type="date" default="today"
-                   help="HELP_FENTR">
-                <validation>
-                    <check>this >= fecha</check>
-                    <message>La fecha de entrega debe ser posterior a la fecha de la orden</message>
-                </validation>
+            <!--
+              La validación "fecha de entrega >= fecha de orden" NO se hace acá con <check>:
+              <check> compara dos campos type="date" haciendo parseFloat() sobre un objeto Date,
+              lo que da NaN->0 y la comparación siempre resulta true (verificado en vivo contra
+              ExpressionEngine.js — ver docs/03-reference/nil-form.md, sección "Atributos de Check").
+              Si esta validación se vuelve necesaria, va en un handler (beforeSave), no en el XML.
+            -->
+            <field id="fentr" label="Fecha Entrega" type="date">
+                <help>HELP_FENTR</help>
+                <default>today</default>
             </field>
             <field id="mentr" label="Modo Entrega" type="select">
                 <options>

@@ -89,6 +89,8 @@ desmiente.
 | Zona de reporte con `id`/`type`/`content` | Zona con `name`/`layout`/`template`/`condition` — claves distintas, estructura distinta | `NIL-REPORT.md` §5 |
 | Filtro de reporte tipo array: `tabla[tabla.campo='x'].otro` | `filter: "campo = valor"` a nivel de `dataSource`, sin `IN`/`LIKE`/compuestos; agregación vía `expressions: [{aggregate, argument}]`, no como propiedad de columna | `NIL-REPORT.md` §4.1, §8 |
 | Un flag de config para desactivar multi-tenant | No existe. Una tabla es single-tenant si simplemente **no tiene columna `empresa_id`** — es una propiedad del schema, no un switch | `src/services/schemaService.js` (`hasColumn`) |
+| `help="ID"` / `default="valor"` como atributos de `<field>` (y así aparecen en `dev/form/*.xml` y en buena parte de `nil-form.md`) | El renderer vivo (`LayoutProcessor.js`) solo lee `<help>ID</help>` y `<default>valor</default>` como **elementos hijos**. Los atributos se ignoran en silencio — no hay error, simplemente el help-text nunca aparece y el campo arranca vacío. Esta es la trampa más peligrosa de las dos: los ejemplos "reales" del propio repo enseñan la sintaxis rota | `LayoutProcessor.js` (`querySelector('attributes help')`/`querySelector('help')`, ídem `default`); confirmado que `js/app.js` (el único que sí lee esos atributos) está deshabilitado — `<script src="js/app.js">` comentado en `index.html:61` |
+| `<check>` con `and`/`or` combinado con un operador relacional (`this <= 1000 and cantidad * this <= 100000`, tal como lo mostraba `nil-form.md` antes de esta revisión) | Rota: siempre evalúa `false`, para cualquier valor. `ExpressionEngine.evaluate()` detecta el operador relacional antes que el lógico y nunca llega a partir por `and`/`or`. Tampoco sirve `<check>` con un solo operador relacional si compara dos campos `type="date"` — ahí siempre da `true` (`parseFloat(Date)` → `NaN` → `0`). Verificado en vivo en ambos casos. Para cross-field, usar el handler (`beforeSave`) | `js/utils/ExpressionEngine.js` (orden de detección en `evaluate()`, líneas ~21-52); ver `docs/03-reference/nil-form.md`, sección "Atributos de Check" |
 
 ## 4. Si no podés verificar algo contra un archivo real, decilo — y si es crítico, parate
 
@@ -104,3 +106,28 @@ reporte). En ese caso: **frená antes de entregar el archivo final** y pedí
 confirmación o el archivo real que falta, en vez de entregar algo completo
 pero con una pieza central inventada. Etiquetar + entregar igual solo mueve
 el problema al lector; parar antes de la parte crítica lo evita.
+
+## 5. Leer la doc y los ejemplos reales no alcanza — pueden estar mal ellos mismos
+
+La sección 2 dice "leé la doc antes de escribir". Es necesario pero no
+suficiente: **`help="ID"` y `default="today"` como atributos** (la fila de la
+sección 3 sobre esto) no las inventó ningún modelo por generalizar de otro
+framework — las copió textual de `dev/form/clientes.xml`, `ordenes.xml`,
+`nil-form.md` §"Atributos Válidos". Un agente que hizo exactamente lo que
+este archivo pide (leer ejemplos reales del repo, citar la fuente) produjo
+XML que no funciona, porque la fuente misma estaba desactualizada contra el
+renderer vivo (`dev/form/*.xml` apuntaba a un renderer legacy, `js/app.js`,
+que está deshabilitado desde `index.html`).
+
+La única salida que no depende de que alguien ya haya encontrado y corregido
+el error específico: **antes de dar por buena una sintaxis de campo
+(atributo vs. elemento hijo, qué tags leen qué), confirmá con grep que el
+renderer vivo la lee** — `LayoutProcessor.js`, `validator.js`,
+`ExpressionEngine.js`, `ValidationCoordinator.js` para formularios;
+`YamlParser.js`/`ReportRenderer.js` para reportes — y, si es viable, abrí el
+form en el navegador antes de entregarlo. Esto no reemplaza la sección 2:
+la doc y los ejemplos siguen siendo el punto de partida correcto y aciertan
+en la mayoría de los casos (estructura de `<layout>`, `<validation>`,
+`<in-table>`, etc.) — pero cuando la pieza es crítica (una condición de
+validación, un default que si falla deja el form invalidable), la
+verificación contra el código fuente vivo no es opcional.

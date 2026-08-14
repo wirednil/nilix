@@ -2,9 +2,6 @@
 <form id="clientes" title="Tabla de Clientes" database="app" table="clientes" handler="none">
 
     <form-attributes>
-        <window border="single"/>
-        <confirm>delete</confirm>
-        <display-status>true</display-status>
         <messages>
             <message id="HELP_CLIENO">Número de cliente — clave primaria</message>
             <message id="HELP_SALDO">Saldo pendiente del cliente en pesos</message>
@@ -14,12 +11,16 @@
     <layout>
 
         <container type="horizontal">
-            <field id="clieno" label="N° Cliente" type="number" keyField="true" size="5"
-                   help="HELP_CLIENO">
+            <field id="clieno" label="N° Cliente" type="number" keyField="true" size="5">
+                <help>HELP_CLIENO</help>
                 <validation><min>1</min></validation>
             </field>
-            <field id="fealta" label="Fecha Alta" type="date" default="today"/>
-            <field id="activo" label="Activo" type="checkbox" default="true"/>
+            <field id="fealta" label="Fecha Alta" type="date">
+                <default>today</default>
+            </field>
+            <field id="activo" label="Activo" type="checkbox">
+                <default>true</default>
+            </field>
         </container>
 
         <field id="nombre" label="Nombre" type="text" size="40">
@@ -41,7 +42,9 @@
             <field id="cp" label="CP" type="number" size="5"/>
         </container>
 
-        <field id="saldo" label="Saldo" type="number" size="12" help="HELP_SALDO"/>
+        <field id="saldo" label="Saldo" type="number" size="12">
+            <help>HELP_SALDO</help>
+        </field>
 
     </layout>
 

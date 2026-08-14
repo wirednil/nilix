@@ -1,4 +1,13 @@
 # NIL-FORM
+
+> ⚠️ **Corrección (verificado contra el renderer vivo, `js/components/form/LayoutProcessor.js` + `js/utils/ExpressionEngine.js`, 2026-08):** este documento describe el diseño nil-form (linaje FDL) y en varios puntos no coincide con la implementación actual. Concretamente:
+>
+> 1. **`help="ID"` y `default="valor"` como atributos de `<field>` no se leen.** El renderer vivo solo lee `<help>ID</help>` y `<default>valor</default>` como **elementos hijos** del `<field>` (`LayoutProcessor.js` → `querySelector('attributes help')` / `querySelector('help')`, ídem `default`). Todos los ejemplos de este documento que usan `help="..."`/`default="..."` como atributo están escritos en la sintaxis muerta — cópialos con la forma de elemento hijo, no como atributo. `js/app.js` sí lee algunos de estos como atributo, pero es un renderer legacy **deshabilitado** (`index.html` tiene su `<script>` comentado).
+> 2. **`<window>`, `<confirm>`, `<display-status>` dentro de `<form-attributes>` no los lee nada del renderer vivo** (confirmado por grep exhaustivo en `js/components/form/`) — son decorativos hoy. La confirmación de borrado real es un `confirm()` nativo del navegador, incondicional, no configurable desde el XML (`Multifield.js`).
+> 3. **`<check>` con operadores relacionales (`>=`, `<=`, etc.) rompe en dos casos verificados en vivo:** (a) si se combina con `and`/`or` en la misma expresión — siempre evalúa `false`, sin importar el valor; y (b) si compara dos campos `type="date"` — siempre evalúa `true`, sin importar el valor (el motor hace `parseFloat()` sobre un objeto `Date`, que da `NaN`→`0`). Solo son confiables las comparaciones relacionales simples entre campos numéricos. Ver la sección "Atributos de Check" más abajo para el detalle.
+>
+> Para validación cruzada entre campos, usá el handler (`beforeSave`), no `<check>`.
+
 ## Introducción
    
 Uno de los aspectos más importantes en un programa de aplicación es la interfaz con el usuario. nil-form provee una forma para diseñar fácilmente las pantallas de formularios de     
@@ -270,19 +279,19 @@ Esta sección es opcional y especifica características generales del formulario
 <!-- nil-form: se configura en menu.xml con permissions="RU" -->
 ```
 
-**`<confirm>`** — Operaciones que piden confirmación antes de ejecutarse. Valores posibles: `add`, `update`, `delete`, `end`:
+**`<confirm>`** ⚠️ **no leído por el renderer vivo** (ver corrección al inicio del documento) — la confirmación real de borrado es un `confirm()` nativo del navegador, incondicional. Valores documentados originalmente: `add`, `update`, `delete`, `end`:
 
 ```xml
 <confirm>update, end</confirm>
 ```
 
-**`<window>`** — Controla el borde de la ventana del formulario:
+**`<window>`** ⚠️ **no leído por el renderer vivo** — controlaba el borde de la ventana del formulario en el diseño original:
 
 ```xml
 <window border="single"/>   <!-- opciones: single | double | none -->
 ```
 
-**`<messages>`** — Define mensajes de error o ayuda asociados a campos. Se muestran al hacer foco en un campo o al producirse un error de validación:
+**`<messages>`** — Define mensajes de error o ayuda asociados a campos. Se muestran al hacer foco en un campo o al producirse un error de validación. Esta sí es leída por el renderer vivo:
 
 ```xml
 <messages>
@@ -291,13 +300,15 @@ Esta sección es opcional y especifica características generales del formulario
 </messages>
 ```
 
-Los mensajes se referencian desde `<field>` mediante el atributo `help`:
+Los mensajes se referencian desde `<field>` mediante el elemento hijo `<help>` (no el atributo `help=`):
 
 ```xml
-<field id="codigo" label="Código" type="number" help="HELP_COD"/>
+<field id="codigo" label="Código" type="number">
+    <help>HELP_COD</help>
+</field>
 ```
 
-**`<display-status>`** — Muestra al pie del formulario el estado del registro en proceso (alta, modificación, lectura):
+**`<display-status>`** ⚠️ **no leído por el renderer vivo** — mostraba al pie del formulario el estado del registro en proceso (alta, modificación, lectura) en el diseño original:
 
 ```xml
 <display-status>true</display-status>
@@ -396,17 +407,17 @@ Ejemplo completo de `<form-attributes>` con todas las cláusulas activas:
 <form id="libros" title="Libros de la Biblioteca" database="app" table="libros" handler="none">
     <form-attributes>
         <use>libros</use>
-        <confirm>end, update</confirm>
         <messages>
             <message id="HELP1">Código del libro</message>
             <message id="ERROR">El título ya existe</message>
         </messages>
-        <window border="single"/>
-        <display-status>true</display-status>
+        <!-- <confirm>, <window>, <display-status> no los lee el renderer vivo — ver corrección al inicio -->
     </form-attributes>
     <layout>
         <container type="vertical">
-            <field id="codigo"    label="Código del Libro"  type="number" keyField="true" size="10" help="HELP1"/>
+            <field id="codigo"    label="Código del Libro"  type="number" keyField="true" size="10">
+                <help>HELP1</help>
+            </field>
             <field id="titulo"    label="Título de la Obra" type="text"   size="30"/>
             <field id="cod_autor" label="Código del Autor"  type="number" size="10"/>
             <field id="edicion"   label="Edición"           type="number" size="5"/>
@@ -445,10 +456,10 @@ Existen tres categorías de campo:
 
 ### Tipos de Valor en Atributos
 
-**`[string]`** — Cadena de caracteres entre comillas dobles:
+**`[string]`** — Cadena de caracteres. En nil-form actual, va como contenido de un elemento hijo, no como atributo (ver corrección al inicio del documento):
 
 ```xml
-default="Pendiente"
+<default>Pendiente</default>
 ```
 
 **`[valor]`** — Constante del tipo adecuado al campo:
@@ -459,7 +470,8 @@ default="Pendiente"
 - Hora: cadena en formato `HH:MM` o `HH:MM:SS`. La constante `hour` refiere a la hora actual.
 
 ```xml
-<field id="vencimiento" type="date" default="today">
+<field id="vencimiento" type="date">
+    <default>today</default>
     <validation><min>01/01/2020</min><max>31/12/2099</max></validation>
 </field>
 
@@ -482,12 +494,14 @@ El campo debe tener un valor:
 </field>
 ```
 
-**`descr MSG` → `help="MSG_ID"`**
+**`descr MSG` → `<help>MSG_ID</help>`** (elemento hijo, no atributo — ver corrección al inicio del documento)
 
 Muestra un mensaje en la barra inferior de la pantalla mientras el usuario está sobre el campo. El mensaje debe estar definido en `<messages>`:
 
 ```xml
-<field id="codigo" type="number" help="HELP_COD"/>
+<field id="codigo" type="number">
+    <help>HELP_COD</help>
+</field>
 ```
 
 **`display only` → `display-only="true"`**
@@ -518,12 +532,14 @@ El campo se omite en el recorrido de ingreso de datos. También aplica a multifi
 
 ### Atributos para Campos Simples
 
-**`on help MSG` → `help="MSG_ID"`**
+**`on help MSG` → `<help>MSG_ID</help>`** (elemento hijo, no atributo)
 
 Al hacer foco en el campo se muestra el mensaje definido en `<messages>`:
 
 ```xml
-<field id="cod_libro" type="number" help="HELP1"/>
+<field id="cod_libro" type="number">
+    <help>HELP1</help>
+</field>
 ```
 
 **`on error MSG` → `<message>` dentro de `<validation>`**
@@ -539,14 +555,14 @@ Mensaje de error personalizado cuando el dato ingresado no pasa la validación:
 </field>
 ```
 
-**`default <valor>` → `default="valor"`**
+**`default <valor>` → `<default>valor</default>`** (elemento hijo, no atributo — ver corrección al inicio del documento)
 
 Valor por defecto al inicializar el formulario:
 
 ```xml
-<field id="estado"  type="text"   default="Activo"/>
-<field id="fecha"   type="date"   default="today"/>
-<field id="cant"    type="number" default="1"/>
+<field id="estado"  type="text">   <default>Activo</default></field>
+<field id="fecha"   type="date">   <default>today</default></field>
+<field id="cant"    type="number"> <default>1</default></field>
 ```
 
 **`length / size` → `size="n"`**
@@ -590,6 +606,8 @@ Asocia el campo a una tabla de base de datos para validación y autocompletado. 
 </field>
 ```
 
+⚠️ Esta forma simple (un solo operador relacional, campos numéricos) es la única combinación verificada como confiable. Ver la nota siguiente para las dos formas que no funcionan.
+
 **`between valor1 and valor2` → `<min>` + `<max>`**
 
 ```xml
@@ -613,12 +631,14 @@ Lista de valores estáticos aceptados. Al solicitar ayuda se despliega una lista
 
 **`check expresión` → `<check>`**
 
-Condiciones compuestas que involucran el campo actual (`this`) y otros campos del formulario:
+⚠️ **Roto en la implementación actual — no usar expresiones compuestas.** `ExpressionEngine.evaluate()` decide si una expresión es relacional o lógica mirando primero si contiene un operador relacional (`>=`,`<=`,`==`,`!=`,`>`,`<`); si lo encuentra, nunca llega a evaluar el `and`/`or`. El ejemplo que este documento mostraba antes (`this <= 1000 and cantidad * this <= 100000`) se probó en vivo contra `ExpressionEngine.js` y **da `false` siempre**, para cualquier valor — el `!=`/`<=` aparece más de una vez y el split interno no produce las dos partes que la función espera. No hay ninguna expresión `<check>` compuesta (relacional + `and`/`or`) que funcione hoy en este motor.
+
+Para validar algo como "precio dentro de un rango Y precio×cantidad dentro de otro rango", usá `<min>`/`<max>` para cada condición simple por separado, o resolvé la combinación en el `beforeSave` del handler:
 
 ```xml
 <field id="precio" type="number" label="Precio">
     <validation>
-        <check>this &lt;= 1000 and cantidad * this &lt;= 100000</check>
+        <max>1000</max>
         <message>Precio fuera de rango permitido</message>
     </validation>
 </field>
@@ -784,7 +804,7 @@ En nil-form, los atributos se definen directamente en el XML. Los equivalentes a
 |---|---|
 | `not null` | `<required>true</required>` en `<validation>` |
 | `longitud` | `size="n"` en `<field>` |
-| `default` | `default="valor"` en `<field>` |
+| `default` | `<default>valor</default>` como hijo de `<field>` (no atributo) |
 | `check expresión` | `<check>...</check>` en `<validation>` |
 | `between` | `<min>` + `<max>` en `<validation>` |
 | `in tabla` | `<in-table table="..." key="..." display="..."/>` |
@@ -818,7 +838,8 @@ Ejemplo de precedencia explícita en XML nil-form:
 
 ```xml
 <!-- El handler puede sobreescribir el default en tiempo de ejecución -->
-<field id="fecha" label="Fecha de edición" type="date" default="today">
+<field id="fecha" label="Fecha de edición" type="date">
+    <default>today</default>
     <validation><min>01/01/1984</min></validation>
 </field>
 ```
@@ -856,7 +877,8 @@ Los subformularios permiten desplegar un formulario secundario en forma dinámic
 El elemento `<subform>` se anida dentro del `<field>` de tipo select:
 
 ```xml
-<field id="choose" label="ACCION" type="select" default="1">
+<field id="choose" label="ACCION" type="select">
+    <default>1</default>
     <options>
         <option value="1">EXISTENTE</option>
         <option value="2">NUEVO</option>
@@ -951,7 +973,7 @@ Sobre un campo hijo de un multifield se puede indicar `unique="true"`. nil-form 
 
 Los campos agrupados son un conjunto de campos sucesivos que generan un campo virtual para realizar validaciones cruzadas entre sus componentes (por ejemplo: fecha-desde debe ser menor que fecha-hasta).
 
-> ❌ **No implementado en nil-form v2.3.0.** Las validaciones cruzadas entre campos deben implementarse en el handler (`beforeSave`) o en `<validation><check>this >= desde</check></validation>` sobre el campo individual. Ver 🚧 Pendiente.
+> ❌ **No implementado en nil-form v2.3.0.** Las validaciones cruzadas entre campos deben implementarse en el handler (`beforeSave`). **No uses `<check>this >= desde</check>` para esto si `desde` es un campo `type="date"`** — verificado en vivo que esa comparación siempre da `true`, sin importar los valores (ver corrección al inicio del documento y sección "Atributos de Check"). Para campos numéricos, `<check>` con un único operador relacional sí es confiable.
 
 ## Atributos para Campos Agrupados
 
