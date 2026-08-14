@@ -211,6 +211,7 @@ Un reporte se define en YAML:
 
 ```yaml
 name: ventas_diario
+kind: ledger
 config:
   schema: catalogs
   outputTo: display
