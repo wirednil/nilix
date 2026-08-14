@@ -1,6 +1,15 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.6 — agrega §10 "Límites y garantías del motor" (un solo nivel
+**Versión:** 1.7 — §10 ampliada a 7 puntos tras revisión independiente
+(agente con herramientas reales, sin acceso previo a §10): `kind` obligatorio
+como primer punto (10.1, el bug más repetido), por qué una `VIEW` no sirve
+para combinar tablas (10.5, `schemaService.tableExists` filtra `type='table'`
+únicamente), `filter:` no acepta rangos de fecha (10.7). También: warning
+agregado dentro de `sys/report/nil-audit.yaml`/`nil-users.yaml` — esos
+archivos no tienen `kind:` y no deberían copiarse como plantilla, algo que
+antes solo decía la doc y no el archivo mismo. 2026-08-13.
+
+Versión 1.6 — agrega §10 "Límites y garantías del motor" (un solo nivel
 de quiebre, `scope: dataset` global vs `scope: lookahead` sin filter, joins
 sin agregación cruzada, apertura real de reportes desde el menú) — hechos
 que antes solo vivían en el código fuente del motor, no en este documento.
@@ -949,7 +958,29 @@ cinco es un bug: son restricciones de diseño reales, documentadas acá para
 que dejen de costar una relectura completa del motor cada vez que alguien
 las necesita.
 
-### 10.1 Un solo nivel de quiebre — no hay agrupar por dos campos a la vez
+### 10.1 `kind` es obligatorio — su ausencia no es un warning, es un `Error` que corta la carga
+
+El error más fácil de cometer, y el que más cuesta si no lo sabés de
+antemano: un YAML sin `kind: document`/`kind: ledger` válido no se degrada
+ni infiere nada — `YamlParser.buildSchema()` tira `Error` y **el reporte
+entero no carga**, sin importar qué tan bien esté el resto del archivo.
+
+```js
+// js/components/report/parsers/YamlParser.js:246-256
+if (kind !== 'document' && kind !== 'ledger') {
+    throw new Error(`Reporte "${name}" no declara "kind". Los valores
+        válidos son "document" o "ledger". ...`);
+}
+```
+
+**No copies la estructura de `sys/report/nil-audit.yaml`/`nil-users.yaml`
+como plantilla** — ninguno de los dos tiene `kind:`, porque a ambos se los
+sacó del motor de reportes (§9, `report.html`'s `NOT_A_REPORT`) antes de que
+`kind` existiera. Son ejemplos de sintaxis de `rowTemplate`, no reportes que
+efectivamente cargan hoy. Confirmado en la práctica: es el bug más repetido
+al escribir un reporte nuevo desde cero.
+
+### 10.2 Un solo nivel de quiebre — no hay agrupar por dos campos a la vez
 
 `groupByCategory()` arma los grupos usando **solo el primer campo** de
 `condition.on` de todas las zonas del reporte — no hay agrupamiento anidado
@@ -964,7 +995,7 @@ const breakField = breakFields.length > 0 ? breakFields[0] : null;
 el mismo `breakFields[0]` consistentemente — no es un descuido puntual, es
 el modelo de quiebre del motor entero.
 
-### 10.2 `scope: dataset` es global al reporte, no por grupo
+### 10.3 `scope: dataset` es global al reporte, no por grupo
 
 Un expression con `scope: dataset` sí acepta `filter:`, pero el `filter` se
 aplica sobre **todo el dataset del reporte**, no sobre el grupo/quiebre
@@ -981,7 +1012,7 @@ const rows = expr.filter
     : data;
 ```
 
-### 10.3 `scope: lookahead` no soporta `filter` en absoluto
+### 10.4 `scope: lookahead` no soporta `filter` en absoluto
 
 A diferencia de `scope: dataset`, `precomputeGroupAggregates()`
 (`ReportEngine.js:239-273`, la función que resuelve `scope: lookahead`)
@@ -990,7 +1021,7 @@ todo el método. Un `lookahead` con `filter:` en el YAML no tira error; el
 `filter:` se ignora en silencio y el agregado suma sobre todos los registros
 del grupo sin filtrar.
 
-### 10.4 Los `joins` son a nivel de registro — nunca agregación cruzada entre tablas
+### 10.5 Los `joins` son a nivel de registro — nunca agregación cruzada entre tablas
 
 ```js
 // QueryBuilder.js:104
@@ -1008,7 +1039,26 @@ soportada es **mantener una tabla resumen ya combinada** (vía triggers de
 SQLite en el schema de la app, o un handler) y que el reporte lea esa tabla
 —no intentar expresarlo en YAML.
 
-### 10.5 Abrir un reporte desde el menú no renderiza el reporte directamente
+**Tiene que ser una tabla real, no una `VIEW`.** SQLite soporta `CREATE
+VIEW` con la misma agregación, y sería la solución más limpia (se calcula
+sola, sin triggers) — pero `schemaService.tableExists()` filtra
+`sqlite_master` por `type='table'` exclusivamente:
+
+```js
+// src/services/schemaService.js:9-18
+// SELECT name FROM sqlite_master WHERE type='table' AND name = ?
+```
+
+Una `VIEW` tiene `type='view'` — `tableExists()` devuelve `false`, y
+`catalogService.getAll()` (lo que usa `/api/catalogs/:table`, la vía por la
+que un reporte lee cualquier tabla) tira `TABLE_NOT_FOUND` antes de llegar a
+ejecutar ningún `SELECT`. Por eso la tabla-resumen-combinada tiene que
+mantenerse con triggers `AFTER INSERT/UPDATE/DELETE` (que sí escriben una
+tabla real), no con una `VIEW` — es una limitación de una sola línea de
+código, pero cierra por completo el camino "obvio" y no está anunciada en
+ningún lado hasta acá.
+
+### 10.6 Abrir un reporte desde el menú no renderiza el reporte directamente
 
 Un ítem de menú `type="report"` no navega al reporte al clickearlo — abre
 una tarjeta con el link público, botón de copiar, QR, y un botón **"ABRIR"**
@@ -1026,6 +1076,20 @@ Esto es interfaz real de la aplicación, no un detalle interno — un agente o
 un humano probando el sistema desde el menú puede asumir razonablemente que
 el reporte se abre solo, y quedarse bloqueado pensando que `type="report"`
 no funciona (pasó exactamente eso en la sesión que motivó esta sección).
+
+### 10.7 `filter:` no acepta rangos — "este mes" no es un filtro de fecha, es una columna
+
+Ya documentado en §4.1 como sintaxis (`filter: "campo = valor"`, sin
+`IN`/`LIKE`/`>`/`<`/compuestos), pero vale repetirlo acá como consecuencia de
+diseño: **no hay forma de pedirle a un `dataSource` "los registros de este
+mes"** vía `filter` — un rango de fechas no es una comparación de igualdad.
+Si tu reporte necesita agrupar o filtrar por mes, la única vía soportada es
+tener una **columna propia** con el valor ya recortado (`mes: 'YYYY-MM'`,
+calculada en un trigger o handler al guardar) y usar esa columna en
+`condition.on`/`filter` — no intentar derivarla del campo `fecha` dentro del
+YAML, porque no hay ningún mecanismo de expresión a nivel de `dataSource`
+para eso (los `formula:`/`is=` son de renderizado, corren después de que los
+datos ya se cargaron).
 
 ---
 

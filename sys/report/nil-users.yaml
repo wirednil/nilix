@@ -1,3 +1,9 @@
+# ⚠️ NO USAR COMO PLANTILLA PARA UN REPORTE NUEVO — este archivo está
+# excluido del motor de reportes (report.html's NOT_A_REPORT, ver
+# docs/02-architecture/DATA-GRID-PROPOSAL.md) y por eso nunca se actualizó
+# con "kind:", que hoy es obligatorio (YamlParser.js — sin kind, el reporte
+# no carga). Sirve como referencia de sintaxis de rowTemplate/markdown, no
+# como reporte que funciona tal cual. Ver docs/03-reference/NIL-REPORT.md §10.1.
 name: Usuarios del sistema
 config:
   paginationMode: scroll
