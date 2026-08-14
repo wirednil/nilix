@@ -1,6 +1,12 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.5 — agrega `kind`/rol de zona (§5.4), corrige `layout` (`nav`
+**Versión:** 1.6 — agrega §10 "Límites y garantías del motor" (un solo nivel
+de quiebre, `scope: dataset` global vs `scope: lookahead` sin filter, joins
+sin agregación cruzada, apertura real de reportes desde el menú) — hechos
+que antes solo vivían en el código fuente del motor, no en este documento.
+2026-08-13.
+
+Versión 1.5 — agrega `kind`/rol de zona (§5.4), corrige `layout` (`nav`
 reemplaza a `horizontal-scroll`, `grid` no es un valor real de `layout`),
 corrige el ejemplo de §5.3 (`layout: table` con `condition` no renderiza),
 corrige §7.5 (`#` en zonas header/footer/subtotal ya no se muestra literal).
@@ -24,8 +30,9 @@ Reestructuración kind/document/ledger, 2026-07-24/25.
    - [7.5 `rowTemplate` — tabla GFM iterada](#rowtemplate--tabla-gfm-con-datos-iterados)
 8. [Funciones de agregación](#8-funciones-de-agregación)
 9. [Acceso público y multi-tenant](#9-acceso-público-y-multi-tenant)
-10. [Equivalencias RDL → YAML](#10-equivalencias-rdl--yaml)
-11. [Funcionalidades pendientes](#11-funcionalidades-pendientes)
+10. [Límites y garantías del motor](#10-límites-y-garantías-del-motor--lo-que-no-podés-asumir-sin-leer-código)
+11. [Equivalencias RDL → YAML](#11-equivalencias-rdl--yaml)
+12. [Funcionalidades pendientes](#12-funcionalidades-pendientes)
 
 ---
 
@@ -925,7 +932,104 @@ Con `public: true`, el reporte es accesible sin login usando el `public_token` d
 
 ---
 
-## 10. Equivalencias RDL → YAML
+## 10. Límites y garantías del motor — lo que no podés asumir sin leer código
+
+*(Agregada 2026-08-13.)* Las secciones anteriores documentan cada feature en
+aislamiento — qué hace `scope: dataset`, qué hace un `join`, cómo se abre un
+reporte — y cada una es correcta. El problema es otro: **este documento nunca
+había dicho qué combinaciones de esas features son válidas o inválidas**, y
+esa frontera solo vive en el código fuente del motor
+(`js/components/report/*.js`). Se detectó al auditar, en la misma sesión, un
+intento de implementación real (un tablero mensual que cruza `ventas` +
+`gastos`) hecho por un agente que **sí** leyó toda la documentación disponible
+y **no inventó ninguna sintaxis falsa** — y aun así tuvo que releer
+`AccumulatorManager.js`/`ReportEngine.js`/`BreakDetector.js` línea por línea
+para descubrir, por prueba y error, los cinco puntos de abajo. Ninguno de los
+cinco es un bug: son restricciones de diseño reales, documentadas acá para
+que dejen de costar una relectura completa del motor cada vez que alguien
+las necesita.
+
+### 10.1 Un solo nivel de quiebre — no hay agrupar por dos campos a la vez
+
+`groupByCategory()` arma los grupos usando **solo el primer campo** de
+`condition.on` de todas las zonas del reporte — no hay agrupamiento anidado
+(ej. mes → luego canal dentro de cada mes) en un mismo reporte.
+
+```js
+// ReportEngine.js:143
+const breakField = breakFields.length > 0 ? breakFields[0] : null;
+```
+
+`renderAfterCategory`/`updateAccumulators` (líneas 122, 130, 205, 336) usan
+el mismo `breakFields[0]` consistentemente — no es un descuido puntual, es
+el modelo de quiebre del motor entero.
+
+### 10.2 `scope: dataset` es global al reporte, no por grupo
+
+Un expression con `scope: dataset` sí acepta `filter:`, pero el `filter` se
+aplica sobre **todo el dataset del reporte**, no sobre el grupo/quiebre
+actual — no hay forma de pedir "el total de este mes con este filtro" con
+`scope: dataset`, solo "el total de todo el reporte con este filtro".
+
+```js
+// ReportEngine.js:109 — data es el dataset completo del reporte, no un grupo
+const datasetMap = this.precomputeDatasetAggregates(data, this.schema.zones);
+
+// ReportEngine.js:288-290 — el filtro corre sobre ese mismo `data` completo
+const rows = expr.filter
+    ? data.filter(r => this._matchSimpleFilter(r, expr.filter))
+    : data;
+```
+
+### 10.3 `scope: lookahead` no soporta `filter` en absoluto
+
+A diferencia de `scope: dataset`, `precomputeGroupAggregates()`
+(`ReportEngine.js:239-273`, la función que resuelve `scope: lookahead`)
+**nunca lee `expr.filter`** — no hay ninguna rama condicional para eso en
+todo el método. Un `lookahead` con `filter:` en el YAML no tira error; el
+`filter:` se ignora en silencio y el agregado suma sobre todos los registros
+del grupo sin filtrar.
+
+### 10.4 Los `joins` son a nivel de registro — nunca agregación cruzada entre tablas
+
+```js
+// QueryBuilder.js:104
+`LEFT JOIN ${joinTable} ${joinAlias} ON ${fromAlias}.${joinFromDb} = ${joinAlias}.${joinField}`
+```
+
+Un `join:` trae columnas de otra tabla fila por fila (típicamente para
+resolver un FK a su nombre legible). **No existe ninguna forma de sumar
+una tabla contra otra dentro de un reporte** — no hay agregación cruzada,
+no hay "total de ventas menos total de gastos del mismo mes" en un solo
+reporte, sin importar cuántos `dataSources:` declares. Si tu reporte
+necesita combinar matemáticamente datos de más de una tabla (ej. un
+tablero de contribución/ganancia que resta gastos a ventas), la única vía
+soportada es **mantener una tabla resumen ya combinada** (vía triggers de
+SQLite en el schema de la app, o un handler) y que el reporte lea esa tabla
+—no intentar expresarlo en YAML.
+
+### 10.5 Abrir un reporte desde el menú no renderiza el reporte directamente
+
+Un ítem de menú `type="report"` no navega al reporte al clickearlo — abre
+una tarjeta con el link público, botón de copiar, QR, y un botón **"ABRIR"**
+recién ahí navega a `report.html?file=...`.
+
+```js
+// js/components/Workspace.js:46
+this.showYamlInfo(item.target);
+// showYamlInfo() arma la tarjeta de compartir — no renderiza el YAML.
+// La navegación real ocurre cuando el usuario clickea "ABRIR" (línea 96-97,
+// localUrl → /report.html?file=<nombre>).
+```
+
+Esto es interfaz real de la aplicación, no un detalle interno — un agente o
+un humano probando el sistema desde el menú puede asumir razonablemente que
+el reporte se abre solo, y quedarse bloqueado pensando que `type="report"`
+no funciona (pasó exactamente eso en la sesión que motivó esta sección).
+
+---
+
+## 11. Equivalencias RDL → YAML
 
 | Concepto RDL | YAML nilix | Estado |
 |---|---|---|
@@ -967,7 +1071,7 @@ Con `public: true`, el reporte es accesible sin login usando el `public_token` d
 
 ---
 
-## 11. Funcionalidades pendientes
+## 12. Funcionalidades pendientes
 
 Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordenadas por impacto estimado.
 

@@ -58,7 +58,7 @@ comunes: ubicarlo en el directorio equivocado, y omitir el parámetro `db`.
 |---|---|
 | Un `<form>` XML (campos, validación, condicionales) | [`docs/03-reference/nil-form.md`](docs/03-reference/nil-form.md) |
 | Un `menu.xml` | [`docs/05-specs/MENUS-SPEC.md`](docs/05-specs/MENUS-SPEC.md) |
-| Un reporte YAML | [`docs/03-reference/NIL-REPORT.md`](docs/03-reference/NIL-REPORT.md) |
+| Un reporte YAML | [`docs/03-reference/NIL-REPORT.md`](docs/03-reference/NIL-REPORT.md) — **si el reporte combina más de una tabla o necesita agrupar por más de un campo, leé también §10 antes de diseñar las zonas** |
 | Un handler JS | `nil-form.md`, sección "Interfaz con Handlers" |
 
 Estos archivos tienen ejemplos completos y reales, no fragmentos. Si vas a
