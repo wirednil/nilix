@@ -131,15 +131,17 @@ function makeMenuXml(name) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!--
   ${name} — main menu
-  item types: form | report | separator | menu (submenu)
+  Every entry is a <option> tag — <item> is silently ignored by the parser
+  (src/services/menuService.js), the menu would render empty.
+  types: form | report | separator | menu (submenu)
   permissions: R=read  A=add  D=delete  U=update
                RADU = full access  |  R = read-only
 -->
-<menu>
-    <item type="separator" label="${name.toUpperCase()}"/>
+<menu id="${name}" title="${name.toUpperCase()}">
+    <option type="separator" label="${name.toUpperCase()}"/>
     <!--
-    <item type="form"   label="Example"      target="form/example.xml"      permissions="RADU"/>
-    <item type="report" label="Example Rep"  target="reports/example.yaml"  permissions="R"/>
+    <option type="form"   label="Example"      target="form/example.xml"      permissions="RADU"/>
+    <option type="report" label="Example Rep"  target="reports/example.yaml"  permissions="R"/>
     -->
 </menu>
 `;

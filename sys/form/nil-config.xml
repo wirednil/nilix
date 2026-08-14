@@ -31,9 +31,11 @@
       <container type="horizontal">
         <field id="audit_activo" label="Registrar auditoría" type="checkbox"/>
         <field id="audit_mode"   label="Registrar"           type="select" size="20">
-          <option value="todo">Todo</option>
-          <option value="escrituras">Solo escrituras</option>
-          <option value="errores">Solo errores</option>
+          <options>
+            <option value="todo">Todo</option>
+            <option value="escrituras">Solo escrituras</option>
+            <option value="errores">Solo errores</option>
+          </options>
         </field>
       </container>
     </border>

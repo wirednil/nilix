@@ -1,6 +1,14 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.7 — §10 ampliada a 7 puntos tras revisión independiente
+**Versión:** 1.8 — §10.8 nuevo: `if(cond, verdadero, falso)` no evalúa
+aritmética compuesta en sus ramas — solo nombre de campo / literal / string.
+Verificado en vivo: rompe silenciosamente cálculos como el punto de
+equilibrio (`if(ventas>0, formula_compuesta, 0)`) sin ningún error en
+consola. Encontrado auditando un plan de implementación real que usaba
+exactamente ese patrón. Workaround documentado (precomputar aparte, elegir
+con `if()` entre campos ya resueltos). 2026-08-14.
+
+Versión 1.7 — §10 ampliada a 7 puntos tras revisión independiente
 (agente con herramientas reales, sin acceso previo a §10): `kind` obligatorio
 como primer punto (10.1, el bug más repetido), por qué una `VIEW` no sirve
 para combinar tablas (10.5, `schemaService.tableExists` filtra `type='table'`
@@ -1090,6 +1098,43 @@ calculada en un trigger o handler al guardar) y usar esa columna en
 YAML, porque no hay ningún mecanismo de expresión a nivel de `dataSource`
 para eso (los `formula:`/`is=` son de renderizado, corren después de que los
 datos ya se cargaron).
+
+### 10.8 `if(cond, verdadero, falso)` no evalúa aritmética compuesta en sus ramas
+
+`formula: "a - b - c"` (aritmética pura, sin `if()`) sustituye nombres de
+campo por valores y evalúa la expresión completa — funciona con cualquier
+combinación de `+ - * / ( )`. Pero dentro de un `if(cond, verdadero, falso)`,
+las ramas verdadero/falso **no pasan por ese mismo camino**: se resuelven con
+`_resolveVal()`, que solo entiende tres casos — un string entre comillas, un
+**nombre de campo exacto** presente en el contexto, o un número literal.
+Una expresión aritmética compuesta ahí adentro no se evalúa, se devuelve
+**tal cual, como string, sin ningún error**:
+
+```js
+// ExpressionEvaluator.js:212-219 — _resolveVal()
+if (context[valStr] !== undefined) return context[valStr];   // nombre exacto
+const n = parseFloat(valStr);                                  // número literal
+return isNaN(n) ? valStr : n;   // si no es ninguno de los dos: el string SIN evaluar
+```
+
+Verificado en vivo: `if(ventas > 0, (ventas - materia_prima - mano_obra - envios) / ventas * 100, 0)`
+devuelve el string literal `"(ventas - materia_prima - mano_obra - envios) / ventas * 100"`
+cuando `ventas > 0` — no un número. Con `format:` aplicado encima, eso
+renderiza vacío o basura, sin ningún error en consola que lo delate.
+
+**Patrón correcto — calcular aparte, elegir con `if()` entre campos ya
+resueltos:**
+
+```yaml
+expressions:
+  - { name: porc_raw,          formula: "(ventas - materia_prima - mano_obra - envios) / ventas * 100" }
+  - { name: porc_contribucion, formula: "if(ventas > 0, porc_raw, 0)", format: "0.1" }
+```
+
+Las expresiones de una misma zona ven los valores crudos (pre-`format`) de
+las expresiones anteriores — mismo mecanismo que usa `scope: lookahead`
+(§8.2) — así que `porc_raw` ya está disponible como campo simple cuando se
+evalúa el `if()`. Confirmado en vivo que este patrón sí funciona.
 
 ---
 
