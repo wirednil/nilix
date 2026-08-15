@@ -23,6 +23,33 @@ function resolveAuthDbPath() {
     return AUTH_DB_PATH;
 }
 
+/**
+ * Adds the "extended" usuarios columns (password lifecycle, last_login, etc.)
+ * that setupController.js's bootstrap CREATE TABLE doesn't include.
+ * Migration-safe (ALTER TABLE ADD COLUMN, try/catch per column) and a no-op
+ * if usuarios doesn't exist yet — must be called AFTER the table is created,
+ * both from initAuthDatabase() (existing installs, table already exists) and
+ * from setupController.ensureCoreSchema() (fresh installs — without this,
+ * the very first login right after the setup wizard 500s on "no such column:
+ * last_login", because initAuthDatabase() already ran once before usuarios
+ * existed and its ALTERs silently no-op; only a server restart used to add
+ * the columns).
+ */
+function ensureExtendedUsuariosColumns(db) {
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN estado       TEXT    NOT NULL DEFAULT 'activo'`); } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN force_change INTEGER NOT NULL DEFAULT 0`);        } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN never_exp    INTEGER NOT NULL DEFAULT 1`);        } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN exp_days     INTEGER`);                           } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN pass_from    TEXT`);                             } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN pass_to      TEXT`);                             } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN warn_date    TEXT`);                             } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN warn_days    INTEGER`);                          } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN allow_change TEXT    NOT NULL DEFAULT 'always'`); } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN creator_id   INTEGER`);                          } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN modifier_id  INTEGER`);                          } catch { /* exists */ }
+    try { db.run(`ALTER TABLE usuarios ADD COLUMN last_login   TEXT`);                             } catch { /* exists */ }
+}
+
 async function initAuthDatabase() {
     if (db) return db;
 
@@ -109,18 +136,7 @@ async function initAuthDatabase() {
     } catch { /* table may not exist yet */ }
 
     // Extended usuarios columns (migration-safe)
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN estado       TEXT    NOT NULL DEFAULT 'activo'`); } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN force_change INTEGER NOT NULL DEFAULT 0`);        } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN never_exp    INTEGER NOT NULL DEFAULT 1`);        } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN exp_days     INTEGER`);                           } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN pass_from    TEXT`);                             } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN pass_to      TEXT`);                             } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN warn_date    TEXT`);                             } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN warn_days    INTEGER`);                          } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN allow_change TEXT    NOT NULL DEFAULT 'always'`); } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN creator_id   INTEGER`);                          } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN modifier_id  INTEGER`);                          } catch { /* exists */ }
-    try { db.run(`ALTER TABLE usuarios ADD COLUMN last_login   TEXT`);                             } catch { /* exists */ }
+    ensureExtendedUsuariosColumns(db);
     // Prune expired tokens on startup
     db.run(`DELETE FROM token_blacklist WHERE expires_at < ${Math.floor(Date.now() / 1000)}`);
 
@@ -262,6 +278,7 @@ module.exports = {
     getAuthDatabase,
     saveAuthDatabase,
     closeAuthDatabase,
+    ensureExtendedUsuariosColumns,
     getUserPermisos,
     getNilConfig,
     setNilConfig,

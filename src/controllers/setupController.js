@@ -9,7 +9,7 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { getAuthDatabase, saveAuthDatabase } = require('../services/authDatabase');
+const { getAuthDatabase, saveAuthDatabase, ensureExtendedUsuariosColumns } = require('../services/authDatabase');
 const logger = require('../services/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +68,12 @@ function ensureCoreSchema(db) {
             updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
         )
     `);
+
+    // Sin esto, el primer login inmediatamente después del wizard falla con
+    // "no such column: last_login" — initAuthDatabase() ya corrió una vez al
+    // arrancar el server, antes de que esta tabla existiera, así que sus
+    // ALTER TABLE de columnas extendidas no-opearon en silencio.
+    ensureExtendedUsuariosColumns(db);
 }
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
