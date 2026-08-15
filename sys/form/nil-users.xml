@@ -65,12 +65,20 @@
         </border>
 
         <border label="[ ESTADO ]">
+            <!--
+              Los tres campos de abajo son solo informativos: activo,
+              failed_attempts y last_login no están en EDITABLE_FIELDS de
+              authRecordService.js — cualquier intento de guardarlos se
+              descarta en el handler (@auth:nil-users) antes de llegar a la
+              base. Reactivar un usuario o desbloquear intentos fallidos
+              necesita un endpoint propio que todavía no existe.
+            -->
             <container type="horizontal">
-                <field id="activo"          label="Activo"            type="checkbox" default="1"/>
-                <field id="failed_attempts" label="Intentos fallidos" type="text" skip="true" size="6"/>
+                <field id="activo"          label="Activo"            type="checkbox" display-only="true"/>
+                <field id="failed_attempts" label="Intentos fallidos" type="text" display-only="true" skip="true" size="6"/>
             </container>
-            <field id="last_login"  label="Último login" type="text" skip="true" size="20"/>
-            <field id="created_at"  label="Creado"       type="text" skip="true" size="20"/>
+            <field id="last_login"  label="Último login" type="text" display-only="true" skip="true" size="20"/>
+            <field id="created_at"  label="Creado"       type="text" display-only="true" skip="true" size="20"/>
         </border>
 
     </layout>
