@@ -131,3 +131,34 @@ en la mayoría de los casos (estructura de `<layout>`, `<validation>`,
 `<in-table>`, etc.) — pero cuando la pieza es crítica (una condición de
 validación, un default que si falla deja el form invalidable), la
 verificación contra el código fuente vivo no es opcional.
+
+## 6. Cuánto perseguir una duda, y cuándo confiás demasiado rápido
+
+Tres reglas de proceso, no de sintaxis — para decidir cuánto esfuerzo de
+verificación le corresponde a cada cosa, no solo qué verificar:
+
+**Perseguí una duda hasta el final solo si la respuesta decide si un pilar
+del diseño funciona.** Si la respuesta solo decide si algo queda un poco más
+incómodo (un paso extra, una recarga manual), anotalo como limitación
+conocida y seguí — no hace falta cerrar cada cabo suelto con la misma
+profundidad. El criterio no es "¿es infraestructura del motor?" (eso lleva a
+no parar nunca) ni "¿es tema del negocio?" (eso lleva a no abrir un archivo
+que sí importa) — es si el diseño elegido se sostiene o no sin esa respuesta.
+
+**El umbral de cuánta evidencia alcanza para confirmar algo no puede bajar
+porque confirmarlo te convenga.** Es más barato verificar algo que solo
+agrega capacidad al plan (no obliga a rediseñar nada ya escrito) que
+verificar algo que, si resulta cierto, te obliga a tirar y rehacer una parte
+ya entregada — y por eso mismo el segundo caso es exactamente donde más
+tentador es conformarse con media verificación. Si encontraste evidencia que
+contradice lo que ya escribiste (un archivo que citaste como fuente, pero no
+leíste la línea exacta que importa), no la reconcilies hacia lo que ya
+tenías — seguila hasta el final aunque implique rehacer.
+
+**Lo que descartás rápido por "no encaja con la filosofía del sistema"
+también necesita una verificación mínima**, no cero. Descartar una
+alternativa en segundos porque suena mal es razonable como primer filtro,
+pero si vas a nombrarla en una respuesta o plan como "descartada", confirmá
+con al menos una lectura de código por qué no sirve — no asumas que la razón
+que te parece obvia es la razón real. Una alternativa puede estar mal por un
+motivo distinto (o más contundente) del que ibas a citar de memoria.
