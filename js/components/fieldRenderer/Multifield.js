@@ -7,6 +7,7 @@
 import { createElement } from '../../utils/domUtils.js';
 import { createLabel, createHelpTooltip } from './Label.js';
 import { createFieldWrapper, createInputElement, renderInputField } from './InputField.js';
+import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 
 // ============================================
@@ -42,16 +43,21 @@ export const isGridMultifield = (multifieldXml) => {
  * Lee metadatos de columnas desde los <th> del thead
  */
 function _getColumns(thead) {
-    return Array.from(thead.querySelectorAll('th[data-field-id]')).map(th => ({
-        id: th.getAttribute('data-field-id'),
-        label: th.textContent.trim(),
-        isSkip: th.getAttribute('data-skip') === 'true',
-        isUnique: th.getAttribute('data-unique') === 'true',
-        type: th.getAttribute('data-type') || 'text',
-        isExpr: th.getAttribute('data-is-expr') || null,
-        check: th.getAttribute('data-check') || null,
-        size:  parseInt(th.getAttribute('data-size')) || null
-    }));
+    return Array.from(thead.querySelectorAll('th[data-field-id]')).map(th => {
+        const lookupRaw = th.getAttribute('data-lookup');
+        return {
+            id: th.getAttribute('data-field-id'),
+            label: th.textContent.trim(),
+            isSkip: th.getAttribute('data-skip') === 'true',
+            isReadonly: th.getAttribute('data-readonly') === 'true',
+            isUnique: th.getAttribute('data-unique') === 'true',
+            type: th.getAttribute('data-type') || 'text',
+            isExpr: th.getAttribute('data-is-expr') || null,
+            check: th.getAttribute('data-check') || null,
+            size:  parseInt(th.getAttribute('data-size')) || null,
+            lookupConfig: lookupRaw ? JSON.parse(lookupRaw) : null
+        };
+    });
 }
 
 /**
@@ -135,6 +141,51 @@ function _buildStepperCell(multifieldId, col, rowData, absoluteIndex) {
 }
 
 /**
+ * Construye una celda catálogo (autocomplete buscable) para una columna
+ * type="select" con <in-table> — reutiliza Autocomplete.js tal cual la usan
+ * los campos normales del formulario. `rowEl` es la <tr> en construcción:
+ * todavía puede no tener sus otras celdas anexadas en este punto, pero
+ * attachAutocompleteHandlers solo la usa dentro de closures que corren en
+ * una interacción futura del usuario (selectItem, etc.), momento en el que
+ * la fila ya está completa — querySelector busca en el DOM vivo, no en una
+ * foto de cuando se llamó.
+ */
+function _buildCatalogCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
+    const id = `${multifieldId}_${col.id}_${absoluteIndex}`;
+
+    // copyFields del XML apuntan a un nombre de columna genérico (ej. "producto");
+    // acá se traduce a la celda real de ESTA fila (ej. "items_producto_3").
+    const rowLookupConfig = {
+        ...col.lookupConfig,
+        copyFields: (col.lookupConfig.copyFields || []).map(c => ({
+            from: c.from,
+            to: `${multifieldId}_${c.to}_${absoluteIndex}`
+        }))
+    };
+
+    const { wrapper, inputEl } = createAutocomplete({
+        id,
+        size: col.size,
+        isRequired: false,
+        isSkip: false,
+        lookupConfig: rowLookupConfig,
+        selectOptions: null,
+        defaultValue: null
+    });
+
+    inputEl.name = id;
+    inputEl.classList.add('multifield-cell-input');
+    inputEl.dataset.colId = col.id;
+    if (rowData && rowData[col.id] != null) inputEl.value = rowData[col.id];
+
+    const btnEl = wrapper.querySelector('.autocomplete-btn');
+    const dropdownEl = wrapper.querySelector('.autocomplete-dropdown');
+    attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, rowLookupConfig, rowEl, null, {});
+
+    return wrapper;
+}
+
+/**
  * Construye un <tr> completo para una fila con inputs y botón eliminar
  */
 function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
@@ -148,6 +199,8 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
 
         if (col.type === 'stepper') {
             td.appendChild(_buildStepperCell(multifieldId, col, rowData, absoluteIndex));
+        } else if (col.type === 'select' && col.lookupConfig) {
+            td.appendChild(_buildCatalogCell(multifieldId, col, rowData, absoluteIndex, row));
         } else {
             const input = createElement('input');
             input.type = col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text';
@@ -158,7 +211,7 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             input.dataset.colId = col.id;
             input.value = rowData ? (rowData[col.id] ?? '') : '';
 
-            if (col.isSkip) {
+            if (col.isSkip || col.isReadonly) {
                 input.readOnly = true;
                 input.classList.add('readonly-field');
             }
@@ -457,12 +510,14 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
     childFields.forEach(field => {
         const fieldId = field.getAttribute('id');
         const isSkip = field.getAttribute('skip') === 'true';
+        const isReadonly = field.getAttribute('readonly') === 'true';
         const isUnique = field.getAttribute('unique') === 'true';
         const fieldType = field.getAttribute('type') || 'text';
         const isExpr = field.getAttribute('is') || null;
         const th = createElement('th', '', field.getAttribute('label') || fieldId);
         th.setAttribute('data-field-id', fieldId);
         if (isSkip) th.setAttribute('data-skip', 'true');
+        if (isReadonly) th.setAttribute('data-readonly', 'true');
         if (isUnique) th.setAttribute('data-unique', 'true');
         th.setAttribute('data-type', fieldType);
         if (isExpr) th.setAttribute('data-is-expr', isExpr);
@@ -470,6 +525,28 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
         if (checkExpr) th.setAttribute('data-check', checkExpr);
         const fieldSize = parseInt(field.getAttribute('size')) || null;
         if (fieldSize) th.setAttribute('data-size', String(fieldSize));
+
+        // Columna catálogo: mismo <in-table> anidado en <validation> que usa
+        // ValidationCoordinator.js para campos normales (ver AGENTS.md — el
+        // hijo directo de <field> no lo lee nada, esto replica esa convención
+        // a propósito, no por descuido).
+        if (fieldType === 'select') {
+            const inTableEl = field.querySelector('validation in-table');
+            if (inTableEl) {
+                const copyFields = Array.from(inTableEl.querySelectorAll('copy')).map(c => ({
+                    from: c.getAttribute('from'),
+                    to: c.getAttribute('to')
+                }));
+                th.setAttribute('data-lookup', JSON.stringify({
+                    table: inTableEl.getAttribute('table') || null,
+                    url: inTableEl.getAttribute('url') || null,
+                    key: inTableEl.getAttribute('key'),
+                    displayField: inTableEl.getAttribute('display') || inTableEl.getAttribute('key'),
+                    copyFields
+                }));
+            }
+        }
+
         headerRow.appendChild(th);
     });
     // Encabezado columna de acción
