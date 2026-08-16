@@ -55,7 +55,8 @@ function _getColumns(thead) {
             isExpr: th.getAttribute('data-is-expr') || null,
             check: th.getAttribute('data-check') || null,
             size:  parseInt(th.getAttribute('data-size')) || null,
-            lookupConfig: lookupRaw ? JSON.parse(lookupRaw) : null
+            lookupConfig: lookupRaw ? JSON.parse(lookupRaw) : null,
+            defaultValue: th.getAttribute('data-default') || null
         };
     });
 }
@@ -209,7 +210,13 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             input.name = `${multifieldId}_${col.id}_${absoluteIndex}`;
             input.className = 'multifield-cell-input';
             input.dataset.colId = col.id;
-            input.value = rowData ? (rowData[col.id] ?? '') : '';
+            // rowData es {} (truthy) para una fila recién agregada vía "+ AGR"
+            // (_addRow hace allRows.push({})), no null — así que hay que chequear
+            // la propiedad puntual, no la truthiness de todo rowData. Con el chequeo
+            // viejo (rowData ? ... : default), una fila nueva agregada dinámicamente
+            // nunca aplicaba el default (probado en vivo: "cantidad" quedaba en "0"
+            // en vez de "1", y precio_total se calculaba con cantidad=0).
+            input.value = (rowData && rowData[col.id] != null) ? rowData[col.id] : (col.defaultValue ?? '');
 
             if (col.isSkip || col.isReadonly) {
                 input.readOnly = true;
@@ -525,6 +532,10 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
         if (checkExpr) th.setAttribute('data-check', checkExpr);
         const fieldSize = parseInt(field.getAttribute('size')) || null;
         if (fieldSize) th.setAttribute('data-size', String(fieldSize));
+        // <default> como elemento hijo, misma convención que un <field> normal
+        // (LayoutProcessor.js — no como atributo, ver AGENTS.md).
+        const defaultVal = field.querySelector('default')?.textContent?.trim();
+        if (defaultVal) th.setAttribute('data-default', defaultVal);
 
         // Columna catálogo: mismo <in-table> anidado en <validation> que usa
         // ValidationCoordinator.js para campos normales (ver AGENTS.md — el

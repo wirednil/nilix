@@ -160,12 +160,14 @@ export class LayoutProcessor {
 
         const recompute = () => {
             try {
-                const context = {};
-                formEl.querySelectorAll('input[name], select[name], textarea[name]').forEach(field => {
-                    if (field === el) return;
-                    context[field.name] = parseFloat(field.value) || 0;
-                });
-                const result = ExpressionEngine.evaluateArithmetic(expr, context);
+                // evaluateValue detecta expresiones tipo sum(colId)/avg(colId)/etc.
+                // y las resuelve contra las celdas de un multifield (ver
+                // ExpressionEngine.isAggregateExpression/evaluateAggregate) — sin
+                // esto, "sum(...)" caía en evaluateArithmetic como si fuera
+                // aritmética simple y evaluaba siempre a 0 (probado en vivo antes
+                // de este fix). Para expresiones no agregadas, evaluateValue cae
+                // al mismo camino de siempre (createContextFromForm + evaluateArithmetic).
+                const result = ExpressionEngine.evaluateValue(expr, formEl);
                 if (typeof result === 'number') {
                     el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
                 } else {
