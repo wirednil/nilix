@@ -24,9 +24,11 @@
         <container type="horizontal">
             <field id="clieno" label="Cliente" type="number" size="5">
                 <help>HELP_CLIENO</help>
-                <in-table table="clientes" key="clieno" display="nombre">
-                    <copy from="nombre" to="clie_nom"/>
-                </in-table>
+                <validation>
+                    <in-table table="clientes" key="clieno" display="nombre">
+                        <copy from="nombre" to="clie_nom"/>
+                    </in-table>
+                </validation>
             </field>
             <field id="clie_nom" label="Nombre" type="text" size="30"
                    readonly="true" skip="true"/>
