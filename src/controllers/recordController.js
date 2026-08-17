@@ -124,10 +124,17 @@ async function createRecord(req, res) {
             delete transformedData.__output;
         }
 
-        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar
+        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar.
+        // `data` sigue siendo el objeto original pasado a beforeSave(data, db) —
+        // si el handler mutó data.__output / data.<keyField> antes de retornar
+        // null (ej. para abrir un reporte de salida con el id recién insertado
+        // a mano), eso viaja acá. Antes de este fix se devolvía {} hardcodeado,
+        // descartando cualquier cosa que el handler hubiera dejado en `data`.
         if (handler && transformedData === null) {
             handlerService.afterSaveWithHandler(handler, data, false);
-            return res.json({ data: {}, updated: true });
+            const output = (data && typeof data === 'object' && data.__output) || null;
+            if (data && typeof data === 'object') delete data.__output;
+            return res.json({ data: data || {}, output, updated: true });
         }
 
         const result = recordService.insert(table, transformedData, req.empresaId);
@@ -216,10 +223,14 @@ async function createRecord(req, res) {
             delete transformedData.__output;
         }
 
-        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar
+        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar.
+        // Ver el mismo comentario en createRecord — `data` puede traer
+        // __output/<keyField> seteados a mano por el handler.
         if (handler && transformedData === null) {
             handlerService.afterSaveWithHandler(handler, data, false);
-            return res.json({ data: {}, updated: true });
+            const output = (data && typeof data === 'object' && data.__output) || null;
+            if (data && typeof data === 'object') delete data.__output;
+            return res.json({ data: data || {}, output, updated: true });
         }
 
         const result = recordService.upsert(table, keyField, transformedData, req.empresaId);
@@ -294,10 +305,13 @@ async function updateRecord(req, res) {
             saveDatabase();
         }
 
-        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar
+        // Handler devuelve null → manejó todo internamente, omitir CRUD estándar.
+        // Ver el mismo comentario en createRecord.
         if (handler && transformedData === null) {
             handlerService.afterSaveWithHandler(handler, data, false);
-            return res.json({ data: {}, updated: true });
+            const output = (data && typeof data === 'object' && data.__output) || null;
+            if (data && typeof data === 'object') delete data.__output;
+            return res.json({ data: data || {}, output, updated: true });
         }
 
         const result = recordService.update(table, keyField, id, transformedData, req.empresaId);

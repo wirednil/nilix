@@ -1,6 +1,19 @@
 # NIL-REPORT — Manual de Reportes Nilix
 
-**Versión:** 1.8 — §10.8 nuevo: `if(cond, verdadero, falso)` no evalúa
+**Versión:** 1.9 — **corrige §10.8 y agrega §10.9**: la CSP real del servidor
+(`helmet`, `scriptSrc` sin `'unsafe-eval'` — ver `server.js`) bloquea
+`new Function()`, que es como `ExpressionEvaluator.js` evalúa TODA
+aritmética (`formula:` fuera de un `if()`) y toda condición compuesta
+(el fallback de `if()` con `and`/`or`, y `zone.ifCondition` sin excepción).
+§10.8 (v1.8) decía que `formula:` con aritmética pura "funciona con
+cualquier combinación" y proponía precomputarla aparte como workaround del
+bug de `if()` — verificado en Node.js, sin CSP. **Ese workaround también
+está roto en producción real**, confirmado ahora contra el servidor con la
+CSP tal cual la sirve — hasta agregar un reporte de prueba mínimo y verlo
+fallar en un navegador real. Encontrado armando un reporte de factura real,
+no de forma hipotética. 2026-08-16.
+
+Versión 1.8 — §10.8 nuevo: `if(cond, verdadero, falso)` no evalúa
 aritmética compuesta en sus ramas — solo nombre de campo / literal / string.
 Verificado en vivo: rompe silenciosamente cálculos como el punto de
 equilibrio (`if(ventas>0, formula_compuesta, 0)`) sin ningún error en
@@ -1101,14 +1114,12 @@ datos ya se cargaron).
 
 ### 10.8 `if(cond, verdadero, falso)` no evalúa aritmética compuesta en sus ramas
 
-`formula: "a - b - c"` (aritmética pura, sin `if()`) sustituye nombres de
-campo por valores y evalúa la expresión completa — funciona con cualquier
-combinación de `+ - * / ( )`. Pero dentro de un `if(cond, verdadero, falso)`,
-las ramas verdadero/falso **no pasan por ese mismo camino**: se resuelven con
-`_resolveVal()`, que solo entiende tres casos — un string entre comillas, un
-**nombre de campo exacto** presente en el contexto, o un número literal.
-Una expresión aritmética compuesta ahí adentro no se evalúa, se devuelve
-**tal cual, como string, sin ningún error**:
+Dentro de un `if(cond, verdadero, falso)`, las ramas verdadero/falso **no
+evalúan aritmética**: se resuelven con `_resolveVal()`, que solo entiende
+tres casos — un string entre comillas, un **nombre de campo exacto**
+presente en el contexto, o un número literal. Una expresión aritmética
+compuesta ahí adentro no se evalúa, se devuelve **tal cual, como string,
+sin ningún error**:
 
 ```js
 // ExpressionEvaluator.js:212-219 — _resolveVal()
@@ -1122,19 +1133,78 @@ devuelve el string literal `"(ventas - materia_prima - mano_obra - envios) / ven
 cuando `ventas > 0` — no un número. Con `format:` aplicado encima, eso
 renderiza vacío o basura, sin ningún error en consola que lo delate.
 
-**Patrón correcto — calcular aparte, elegir con `if()` entre campos ya
-resueltos:**
+> ⚠️ **La versión anterior de este punto (v1.8) proponía como "patrón
+> correcto" precomputar la aritmética aparte con `formula:` y recién ahí
+> elegir con `if()`.** Ese workaround está **roto también** — ver §10.9. La
+> única solución real es calcular el valor **fuera del reporte**, en SQL
+> (trigger o columna `GENERATED ALWAYS AS`) o en el handler, y que el YAML
+> solo haga `field: valor_ya_calculado` — nunca aritmética.
+
+---
+
+### 10.9 Ninguna aritmética ni condición compuesta funciona en un servidor real — CSP bloquea `new Function()`
+
+`ExpressionEvaluator.js` evalúa **toda** aritmética y **toda** condición
+compuesta con `new Function(...)`, en cuatro puntos distintos del archivo:
+`evaluateFormula()` (la rama aritmética de `formula:`, fuera de `if()`),
+`_evalCond()` (el fallback para condiciones compuestas dentro de un `if()`,
+del tipo `a > 0 and b > 0`), `evaluateCondition()` (el `ifCondition` de una
+zona completa) y el mismo `evaluateFormula()` otra vez para el propio `if(...)`
+cuando la condición no matchea el parser simple de comparación directa.
+
+El servidor real sirve con `helmet` y una CSP que **no incluye
+`'unsafe-eval'`** en `scriptSrc` (`server.js`):
+
+```js
+scriptSrc: ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'",
+            "https://cdn.jsdelivr.net", "https://esm.sh"]
+```
+
+`new Function(...)` viola esa política. El navegador lanza
+`EvalError: Content Security Policy... 'unsafe-eval' is not an allowed
+source`, que estas cuatro funciones capturan en su propio `catch` y
+convierten en un resultado silencioso — sin ningún error visible en el
+reporte:
+
+| Función | Qué devuelve si CSP bloquea |
+|---|---|
+| `evaluateFormula()` — aritmética fuera de `if()` | `''` (string vacío) |
+| `_evalCond()` — condición compuesta dentro de `if()` | `false` (rama falsa siempre) |
+| `evaluateCondition()` — `ifCondition` de zona | `true` (**fail-open** — la zona se muestra igual, nunca se oculta) |
+
+**Esto se probó en Node.js (`node --input-type=module`) durante la sesión
+que escribió la v1.8 de este documento — un entorno sin CSP alguna — y
+pareció funcionar.** Reproducido de nuevo contra un servidor real (mismo
+`server.js`, mismo `helmet`) con un reporte mínimo:
 
 ```yaml
 expressions:
-  - { name: porc_raw,          formula: "(ventas - materia_prima - mano_obra - envios) / ventas * 100" }
-  - { name: porc_contribucion, formula: "if(ventas > 0, porc_raw, 0)", format: "0.1" }
+  - { name: porc_raw,   formula: "(100 - 20 - 10 - 5) / 100 * 100" }
+  - { name: porc_final, formula: "if(100 > 0, porc_raw, 0)" }
 ```
 
-Las expresiones de una misma zona ven los valores crudos (pre-`format`) de
-las expresiones anteriores — mismo mecanismo que usa `scope: lookahead`
-(§8.2) — así que `porc_raw` ya está disponible como campo simple cuando se
-evalúa el `if()`. Confirmado en vivo que este patrón sí funciona.
+Resultado real en el navegador: `porc_raw` vacío, `porc_final` en `0` (la
+condición sí es simple — `100 > 0` — así que **no** cae al fallback de
+`new Function()`, pero como `porc_raw` en el contexto es el string vacío
+que dejó el paso anterior, el resultado final tampoco sirve).
+
+**Lo único que sí funciona sin `new Function()`, verificado:**
+- `field: columna` — lectura directa, sin cálculo.
+- `aggregate: sum/count/avg/min/max` — usa `AccumulatorManager`, no eval.
+- Un valor **precalculado fuera del reporte** (SQL, trigger, columna
+  generada, o handler) y leído con `field:`.
+
+**Lo que no funciona en ningún servidor con esta CSP (o cualquier CSP sin
+`'unsafe-eval'`):**
+- `formula:` con cualquier operador aritmético, dentro o fuera de un `if()`.
+- `if()` con condición compuesta (`and`/`or`, o cualquier cosa que no sea
+  `campo operador valor` simple).
+- `zone.ifCondition`, sin excepción — no tiene ningún camino sin eval.
+
+Si necesitás replicar esto vos mismo: correrlo con `node --input-type=module`
+directo (sin servidor) **no sirve como verificación** — hay que probarlo
+contra un servidor real levantado con `helmet`, en un navegador real, con la
+consola abierta.
 
 ---
 
