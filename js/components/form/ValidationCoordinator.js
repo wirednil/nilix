@@ -175,11 +175,11 @@ export class ValidationCoordinator {
         try {
             Object.entries(record).forEach(([fieldId, value]) => {
                 const field = this.ctx.getField(fieldId) || this.ctx.container?.querySelector(`#${fieldId}`);
-                if (!field || value == null) return;
+                if (!field) return;
                 if (field.type === 'checkbox') {
                     field.checked = value === 1 || value === true || value === '1';
                 } else {
-                    field.value = value;
+                    field.value = value == null ? '' : value;
                 }
                 field.dispatchEvent(new Event('change', { bubbles: true }));
             });
