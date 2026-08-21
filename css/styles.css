@@ -938,7 +938,15 @@ textarea.multifield-textarea {
     width: 100%;
     padding: 0.3rem;
     border: 1px solid var(--input-border);
-    background: var(--input-bg);
+    /* background-color, no el shorthand "background": el shorthand resetea
+       background-image/repeat/position a sus valores iniciales, lo que le
+       gana (por especificidad de clase) a la flecha de <select> en modo
+       claro y deja el background-repeat en "repeat" — cuando body.dark-mode
+       select vuelve a poner la imagen (mayor especificidad), queda esa
+       imagen tileada en vez de una sola flecha (visto en columnas
+       type="choice" del multifield, el primer <select> real con esta
+       clase). */
+    background-color: var(--input-bg);
     color: var(--text-color);
     font: inherit;
     font-size: 0.85rem;
@@ -949,7 +957,7 @@ textarea.multifield-textarea {
 .multifield-cell-input:focus {
     outline: none;
     border-color: var(--border-color);
-    background: var(--bg-color);
+    background-color: var(--bg-color);
 }
 
 .multifield-cell-input.readonly-field {
@@ -1180,7 +1188,7 @@ body.dark-mode .computed-field {
         flex: 1;
         border: none;
         border-bottom: 1px solid var(--input-border);
-        background: var(--bg-color);
+        background-color: var(--bg-color);
         padding: 0.1rem 0.2rem;
         font-size: 0.85rem;
         color: var(--text-color);

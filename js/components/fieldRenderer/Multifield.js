@@ -45,6 +45,7 @@ export const isGridMultifield = (multifieldXml) => {
 function _getColumns(thead) {
     return Array.from(thead.querySelectorAll('th[data-field-id]')).map(th => {
         const lookupRaw = th.getAttribute('data-lookup');
+        const choiceRaw = th.getAttribute('data-choice');
         return {
             id: th.getAttribute('data-field-id'),
             label: th.textContent.trim(),
@@ -56,6 +57,7 @@ function _getColumns(thead) {
             check: th.getAttribute('data-check') || null,
             size:  parseInt(th.getAttribute('data-size')) || null,
             lookupConfig: lookupRaw ? JSON.parse(lookupRaw) : null,
+            choiceConfig: choiceRaw ? JSON.parse(choiceRaw) : null,
             defaultValue: th.getAttribute('data-default') || null
         };
     });
@@ -187,12 +189,90 @@ function _buildCatalogCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
 }
 
 /**
+ * Reconstruye las <option> de una celda type="choice" leyendo directo la
+ * fila de catálogo que dejó la última selección de una columna vecina
+ * type="select" (rowEl.dataset.catalogRow — lo pone Autocomplete.js, ver
+ * "container.dataset.catalogRow" ahí). col.choiceConfig.options[].from es
+ * el nombre de columna DE LA TABLA del catálogo (ej. "precio_mayor"), no el
+ * id de un field del multifield — no hace falta ningún <copy> intermedio a
+ * un field propio solo para que choice tenga de dónde leer.
+ *
+ * Se llama tanto al construir la fila como cada vez que la columna catálogo
+ * hermana cambia (ver _setupChangeTracking).
+ */
+function _populateChoiceOptions(select, rowEl, col, preferredValue) {
+    let catalogRow = {};
+    try { catalogRow = JSON.parse(rowEl.dataset.catalogRow || '{}'); } catch { catalogRow = {}; }
+
+    const options = (col.choiceConfig.options || [])
+        .map(opt => ({ from: opt.from, suffix: opt.suffix || '', value: parseFloat(catalogRow[opt.from]) }))
+        .filter(o => !isNaN(o.value));
+
+    // Fila existente (editar un registro guardado): no hay catalogRow todavía
+    // (no se re-selecciona el producto solo por cargar la fila — mismo límite
+    // ya conocido de que el multifield no repuebla desde el catálogo al
+    // editar), pero sí sabemos el valor guardado — mostrarlo como única
+    // opción en vez de dejar el <select> vacío.
+    if (options.length === 0 && preferredValue != null && preferredValue !== '') {
+        const v = parseFloat(preferredValue);
+        if (!isNaN(v)) options.push({ from: null, suffix: '', value: v });
+    }
+
+    const touched = select.dataset.touched === '1';
+    const currentFrom = select.selectedOptions && select.selectedOptions[0]
+        ? select.selectedOptions[0].dataset.from : null;
+
+    select.innerHTML = '';
+    options.forEach((o, i) => {
+        const label = o.suffix ? `${o.value} ${o.suffix}` : String(o.value);
+        const optEl = createElement('option', '', `${i + 1}- ${label}`);
+        optEl.value = o.value;
+        optEl.dataset.from = o.from;
+        select.appendChild(optEl);
+    });
+
+    let target = null;
+    if (preferredValue != null) target = options.find(o => String(o.value) === String(preferredValue));
+    if (!target && touched && currentFrom) target = options.find(o => o.from === currentFrom);
+    if (!target) target = options.find(o => o.from === col.choiceConfig.defaultFrom);
+    if (!target) target = options[0];
+    if (target) select.value = String(target.value);
+}
+
+/**
+ * Construye una celda type="choice": un <select> con dos (o más) opciones
+ * cuyo valor sale de la fila de catálogo que trajo una columna vecina
+ * type="select" (ver _populateChoiceOptions) — no de un <copy> a un field
+ * propio.
+ */
+function _buildChoiceCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
+    const id = `${multifieldId}_${col.id}_${absoluteIndex}`;
+    const select = createElement('select');
+    select.id = id;
+    select.name = id;
+    select.className = 'multifield-cell-input';
+    select.dataset.colId = col.id;
+
+    const preferred = rowData && rowData[col.id] != null ? rowData[col.id] : null;
+    _populateChoiceOptions(select, rowEl, col, preferred);
+
+    return select;
+}
+
+/**
  * Construye un <tr> completo para una fila con inputs y botón eliminar
  */
 function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
     const row = createElement('tr');
     row.setAttribute('data-row-index', absoluteIndex);
     if (!rowData) row.dataset.empty = 'true';
+    // Restaurar la fila de catálogo de la última selección (ver
+    // _setupChangeTracking) — _rerenderGrid crea un <tr> nuevo cada vez
+    // (agregar/borrar fila, paginar), así que sin esto una columna "choice"
+    // ya elegida se quedaría sin opciones al re-renderizar.
+    if (rowData && rowData.__catalogRow) {
+        row.dataset.catalogRow = JSON.stringify(rowData.__catalogRow);
+    }
 
     columns.forEach(col => {
         const td = createElement('td');
@@ -202,6 +282,8 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             td.appendChild(_buildStepperCell(multifieldId, col, rowData, absoluteIndex));
         } else if (col.type === 'select' && col.lookupConfig) {
             td.appendChild(_buildCatalogCell(multifieldId, col, rowData, absoluteIndex, row));
+        } else if (col.type === 'choice' && col.choiceConfig) {
+            td.appendChild(_buildChoiceCell(multifieldId, col, rowData, absoluteIndex, row));
         } else {
             const input = createElement('input');
             input.type = col.type === 'date' ? 'date' : col.type === 'number' ? 'number' : 'text';
@@ -339,6 +421,39 @@ function _setupChangeTracking(gridContainer) {
         const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
         while (allRows.length <= currentIdx) allRows.push({});
         allRows[currentIdx][colId] = input.value;
+
+        const multifieldId = gridContainer.getAttribute('data-multifield-id');
+        const allColumns = _getColumns(gridContainer.querySelector('thead'));
+
+        // Marcar esta celda "choice" como elegida a mano solo si el cambio lo
+        // disparó el usuario (no el refresh programático de abajo, que se
+        // identifica con dataset.autoSet — ver _populateChoiceOptions).
+        const thisCol = allColumns.find(c => c.id === colId);
+        if (thisCol && thisCol.type === 'choice') {
+            if (input.dataset.autoSet === '1') delete input.dataset.autoSet;
+            else input.dataset.touched = '1';
+        }
+
+        // Si la celda que cambió es ella misma una columna catálogo
+        // (type="select" + lookupConfig), Autocomplete.js ya dejó la fila
+        // completa en rowEl.dataset.catalogRow — reconstruir las <option> de
+        // cualquier columna "choice" hermana con esos valores. Se persiste
+        // en allRows (__catalogRow) para que sobreviva un re-render del grid
+        // (agregar/borrar fila, paginar), que crea un <tr> nuevo y perdería
+        // el dataset si no.
+        if (thisCol && thisCol.type === 'select' && thisCol.lookupConfig) {
+            try { allRows[currentIdx].__catalogRow = JSON.parse(rowEl.dataset.catalogRow || '{}'); }
+            catch { /* dataset inválido, no persistir */ }
+
+            allColumns.filter(c => c.type === 'choice' && c.choiceConfig).forEach(choiceCol => {
+                const choiceSelect = rowEl.querySelector(`#${multifieldId}_${choiceCol.id}_${currentIdx}`);
+                if (choiceSelect) {
+                    _populateChoiceOptions(choiceSelect, rowEl, choiceCol, null);
+                    choiceSelect.dataset.autoSet = '1';
+                    choiceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }
 
         _recomputeRowExprs(rowEl, allRows, currentIdx);
         gridContainer.dataset.allRows = JSON.stringify(allRows);
@@ -558,8 +673,28 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
             }
         }
 
+        // Columna "choice": <select> cuyas opciones salen de la fila de
+        // catálogo que trajo una columna vecina type="select" (ver
+        // _populateChoiceOptions) — option.from es un nombre de columna de
+        // ESA tabla, no el id de otro field del multifield. Misma convención
+        // de anidar en <validation> que <in-table>.
+        if (fieldType === 'choice') {
+            const choiceEl = field.querySelector('validation choice');
+            if (choiceEl) {
+                const options = Array.from(choiceEl.querySelectorAll('option')).map(o => ({
+                    from: o.getAttribute('from'),
+                    suffix: o.getAttribute('suffix') || ''
+                }));
+                th.setAttribute('data-choice', JSON.stringify({
+                    options,
+                    defaultFrom: choiceEl.getAttribute('default-from') || (options[0] && options[0].from) || null
+                }));
+            }
+        }
+
         headerRow.appendChild(th);
     });
+
     // Encabezado columna de acción
     const actionTh = createElement('th', 'multifield-action-header', '');
     headerRow.appendChild(actionTh);

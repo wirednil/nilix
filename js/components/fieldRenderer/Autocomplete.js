@@ -182,7 +182,16 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         const keyValue = rowData[keyField];
         inputEl.value = keyValue;
         inputEl.dataset.selectedKey = keyValue;
-        
+
+        // Fila completa del catálogo disponible en el contenedor (la <tr> de
+        // un multifield) — así una columna type="choice" hermana puede leer
+        // cualquier campo de esa fila (ej. precio_mayor/precio_menor)
+        // directo, sin necesitar un <copy> a un field intermedio solo para
+        // pasarle el dato.
+        if (container && container.dataset) {
+            container.dataset.catalogRow = JSON.stringify(rowData);
+        }
+
         if (lookupConfig && lookupConfig.isKeyField) {
             loadAndCopyRecord(keyValue);
         } else if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
@@ -223,7 +232,11 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         } else {
             row = await LookupService.loadRecord(lookupConfig.table, lookupConfig.key, keyValue);
         }
-        
+
+        if (row && container && container.dataset) {
+            container.dataset.catalogRow = JSON.stringify(row);
+        }
+
         if (row && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
             lookupConfig.copyFields.forEach(copy => {
                 const targetField = container.querySelector(`#${copy.to}`);
@@ -326,6 +339,9 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                         );
                         
                         if (match) {
+                            if (container && container.dataset) {
+                                container.dataset.catalogRow = JSON.stringify(match);
+                            }
                             if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
                                 lookupConfig.copyFields.forEach(copy => {
                                     const targetField = container.querySelector(`#${copy.to}`);

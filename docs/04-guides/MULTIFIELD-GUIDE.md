@@ -126,6 +126,92 @@ Multifield original:
 
 ---
 
+## 🧩 Tipos de columna dentro de un grid
+
+Además de texto/número/fecha simples, una columna del multifield (`<field>`
+hijo) puede ser una de estas tres cosas — el `type` del `<field>` decide
+cuál:
+
+| `type` | Config (siempre anidada en `<validation>`) | Qué hace |
+|---|---|---|
+| `stepper` | — | Input numérico con botones ▼/▲, relleno con ceros a la izquierda según `size` |
+| `select` + `<in-table>` | `<in-table table="..." key="..." display="...">` con `<copy from= to=>` | Autocomplete de catálogo (reutiliza `Autocomplete.js`) — busca en otra tabla y copia campos a celdas hermanas |
+| `choice` | `<choice default-from="...">` con `<option from="..." suffix="...">` | `<select>` cuyas opciones salen de la fila de catálogo que trajo una columna vecina `select`+`<in-table>` |
+
+### `<choice>` vs `<options>` — no son el mismo tag
+
+`<options>` ya existe para selects **de nivel superior** (fuera de un
+multifield) con una lista de valores **fijos**, como hijo directo de
+`<field>` (sin `<validation>`):
+
+```xml
+<field id="como_pago" type="select">
+    <validation><required>true</required></validation>
+    <options>
+        <option value="Efectivo">Efectivo</option>
+        <option value="Transferencia">Transferencia</option>
+    </options>
+</field>
+```
+
+`<choice>` es otra cosa: existe **solo dentro de columnas de multifield**,
+y cada `<option>` no trae un valor fijo — trae `from="columna_de_la_tabla"`,
+el nombre de una columna de la **misma tabla de catálogo** que ya consultó
+una columna vecina `select`+`<in-table>` de esta fila. No apunta a otro
+`<field>` del multifield ni a un `<copy>` — lee directo de la fila que el
+catálogo ya trajo.
+
+```xml
+<field id="id_producto" type="select">
+    <validation>
+        <in-table table="productos" key="id" display="nombre">
+            <copy from="nombre" to="producto"/>
+        </in-table>
+    </validation>
+</field>
+<field id="producto" type="text" readonly="true" skip="true"/>
+<field id="precio_unitario" type="choice">
+    <validation>
+        <choice default-from="precio_menor">
+            <option from="precio_mayor" suffix="(x mayor)"/>
+            <option from="precio_menor" suffix="(x menor)"/>
+        </choice>
+    </validation>
+</field>
+```
+
+`precio_mayor`/`precio_menor` acá son columnas de la tabla `productos` —
+las mismas que se podrían usar en un `<copy from=...>`, pero **no hace
+falta copiarlas a ningún lado**: cuando el usuario elige un producto,
+`Autocomplete.js` guarda la fila completa del catálogo en
+`rowEl.dataset.catalogRow` (la `<tr>` de esa fila, no un `<field>` nuevo), y
+`Multifield.js` la lee directo desde ahí para armar las opciones de
+cualquier `<choice>` hermano. No hay campo intermedio, oculto o visible, que
+declarar ni mantener sincronizado — antes de esto existía un paso de
+`<copy to="precio_mayor_ref">` + una columna auxiliar solo para pasarle el
+dato a `<choice>`; se sacó porque era una capa que no aportaba nada, solo
+plomería.
+
+Render final de cada `<option>`: `{valor} {suffix}` — en el ejemplo, algo
+como `12000 (x mayor)`, con un `1- `/`2- ` de índice agregado
+automáticamente por columna (`_populateChoiceOptions()`, `Multifield.js`).
+
+`default-from` elige qué opción queda seleccionada por defecto (la primera
+declarada si se omite). Si el usuario elige una opción a mano, esa elección
+se respeta en cambios posteriores de la columna catálogo vecina
+(`dataset.touched`) — no se pisa con cada recálculo. La selección de
+`<choice>` también sobrevive un re-render del grid (agregar/borrar fila,
+paginar) — la fila de catálogo se persiste junto con el resto de la fila
+(`allRows[i].__catalogRow`) y se restaura en el `<tr>` nuevo.
+
+**Regla práctica: si el valor es un literal fijo, es `<options>`+`value=`;
+si el valor sale de una columna del catálogo que ya trajo otra celda de la
+fila, es `<choice>`+`from=`.** No se puede mezclar — `<choice>` no soporta
+`value=` literal, y `<options>` no se lee dentro de un multifield en
+absoluto.
+
+---
+
 ## 🔍 Detección Automática
 
 Nilix usa esta lógica:
@@ -297,4 +383,4 @@ open http://localhost:3000/?form=test-multifield
 
 ---
 
-**Última actualización:** 2026-02-01
+**Última actualización:** 2026-08-18 — agregada sección "Tipos de columna avanzados" (`stepper`, catálogo, `choice` vs `options`) — `<choice>` lee directo de `rowEl.dataset.catalogRow`, sin campos intermedios ni `hidden`
