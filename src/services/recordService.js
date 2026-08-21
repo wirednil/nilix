@@ -68,7 +68,16 @@ function insert(tableName, data, empresaId) {
     }
     const filteredData = filterValidFields(tableName, data);
     const db = (0, database_1.getDatabase)();
-    const fields = Object.keys(filteredData).filter(f => filteredData[f] !== undefined);
+    const pkCol = schemaService_1.default.getPrimaryKey(tableName);
+    // FormData siempre manda el input del keyField aunque esté vacío ('', no
+    // undefined/null) — un <field type="number" keyField="true"> sin valor
+    // llega como data.id = ''. Sin este chequeo, ese '' entraba tal cual al
+    // INSERT sobre una columna INTEGER PRIMARY KEY AUTOINCREMENT y SQLite
+    // tira "datatype mismatch" en vez de dejar autoincrementar (probado en
+    // vivo con productos.xml — ventas.xml no lo sufre porque su handler arma
+    // el INSERT a mano sin pasar id).
+    const isEmptyPk = (v) => v === undefined || v === null || v === '';
+    const fields = Object.keys(filteredData).filter(f => filteredData[f] !== undefined && !(f === pkCol && isEmptyPk(filteredData[f])));
     const placeholders = fields.map(() => '?').join(', ');
     const values = fields.map(f => filteredData[f]);
     const sql = `INSERT INTO ${tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
@@ -78,8 +87,7 @@ function insert(tableName, data, empresaId) {
         stmt.step();
         stmt.free();
         // Inject auto-generated PK back into result data
-        const pkCol = schemaService_1.default.getPrimaryKey(tableName);
-        if (pkCol && filteredData[pkCol] == null) {
+        if (pkCol && isEmptyPk(filteredData[pkCol])) {
             const rowidRows = db.exec('SELECT last_insert_rowid()');
             const rowid = rowidRows[0]?.values[0]?.[0];
             if (rowid != null)
