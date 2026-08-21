@@ -15,6 +15,8 @@ import { LayoutProcessor } from './form/LayoutProcessor.js';
 import { ValidationCoordinator } from './form/ValidationCoordinator.js';
 import { HandlerBridge } from './form/HandlerBridge.js';
 import { SubmitManager } from './form/SubmitManager.js';
+import { StatusBar } from './form/StatusBar.js';
+import logger from '../utils/clientLogger.js';
 
 class FormRenderer {
     constructor() {
@@ -38,73 +40,93 @@ class FormRenderer {
         // Clean up previous form if any
         this.destroy();
 
-        const { formNode, messagesNode, layoutNode } = xmlParser.parseFormXml(xmlString);
-
-        // 1. Create context
-        const ctx = new FormContext(formNode, messagesNode, layoutNode);
-        ctx.container = container;
-        ctx.permissions = options.permissions || null;
-        ctx.formPath = options.formPath || null;
-        this.ctx = ctx;
-
-        // Backward compat sync
-        this.messages = ctx.messages;
-        this.formId = ctx.formId;
-        this.container = container;
-        this.tableConfig = ctx.tableConfig;
-
-        // 2. Create coordinators
-        const validationCoord = new ValidationCoordinator(ctx);
-        const handlerBridge = new HandlerBridge(ctx);
-        const submitManager = new SubmitManager(ctx);
-        submitManager.setCoordinator(validationCoord);
-
-        // 3. Layout processor with field-rendered callback
-        const layoutProcessor = new LayoutProcessor(ctx, (fieldXml, fieldId) => {
-            validationCoord.attach(fieldXml, fieldId, handlerBridge);
-        });
-
-        // 4. Build DOM
+        // Build the outer shell first so parse/render errors below have
+        // somewhere to be shown instead of failing silently.
         container.innerHTML = '';
         const windowDiv = createElement('div', 'terminal-window');
-
-        windowDiv.appendChild(
-            uiComponents.createHeader({
-                title: ctx.title,
-                database: ctx.database
-            })
-        );
-
-        const formEl = createElement('form', 'form-vertical');
-        layoutProcessor.processLayout(ctx.layoutNode, formEl);
-        submitManager.addFormActions(formEl);
-
-        windowDiv.appendChild(formEl);
         container.appendChild(windowDiv);
 
-        // Pre-fill from load= URL (settings forms without keyField)
-        if (ctx.formLoad) validationCoord.initLoad();
+        const statusBar = new StatusBar();
 
-        // Sync tableConfig back (may have been set by extractFieldConfig)
-        this.tableConfig = ctx.tableConfig;
+        try {
+            const { formNode, messagesNode, layoutNode } = xmlParser.parseFormXml(xmlString);
 
-        // Tooltip listeners tied to this form's lifecycle
-        const signal = ctx.signal;
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.help-icon') && !e.target.closest('.help-tooltip')) {
-                document.querySelectorAll('.help-tooltip').forEach(tooltip => {
-                    tooltip.style.display = 'none';
-                });
-            }
-        }, { signal });
+            // 1. Create context
+            const ctx = new FormContext(formNode, messagesNode, layoutNode);
+            ctx.container = container;
+            ctx.permissions = options.permissions || null;
+            ctx.formPath = options.formPath || null;
+            ctx.statusBar = statusBar;
+            this.ctx = ctx;
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.help-tooltip').forEach(tooltip => {
-                    tooltip.style.display = 'none';
-                });
-            }
-        }, { signal });
+            // Backward compat sync
+            this.messages = ctx.messages;
+            this.formId = ctx.formId;
+            this.container = container;
+            this.tableConfig = ctx.tableConfig;
+
+            // 2. Create coordinators
+            const validationCoord = new ValidationCoordinator(ctx);
+            const handlerBridge = new HandlerBridge(ctx);
+            const submitManager = new SubmitManager(ctx);
+            submitManager.setCoordinator(validationCoord);
+
+            // 3. Layout processor with field-rendered callback
+            const layoutProcessor = new LayoutProcessor(ctx, (fieldXml, fieldId) => {
+                validationCoord.attach(fieldXml, fieldId, handlerBridge);
+            });
+
+            // 4. Build DOM
+            windowDiv.appendChild(
+                uiComponents.createHeader({
+                    title: ctx.title,
+                    database: ctx.database
+                })
+            );
+
+            // This form's WARN/ERROR logs surface in its own status bar until
+            // the next render() (or workspace teardown) aborts ctx.signal.
+            logger.setStatusSink((level, _component, message) => {
+                statusBar.push(level === 'ERROR' ? 'error' : 'warning', message);
+            });
+            ctx.signal.addEventListener('abort', () => logger.clearStatusSink(), { once: true });
+
+            const formEl = createElement('form', 'form-vertical');
+            layoutProcessor.processLayout(ctx.layoutNode, formEl);
+            // Between the fields and the action buttons (ANT/SIG/ENVIAR/LIMPIAR)
+            formEl.appendChild(statusBar.el);
+            submitManager.addFormActions(formEl);
+
+            windowDiv.appendChild(formEl);
+
+            // Pre-fill from load= URL (settings forms without keyField)
+            if (ctx.formLoad) validationCoord.initLoad();
+
+            // Sync tableConfig back (may have been set by extractFieldConfig)
+            this.tableConfig = ctx.tableConfig;
+
+            // Tooltip listeners tied to this form's lifecycle
+            const signal = ctx.signal;
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.help-icon') && !e.target.closest('.help-tooltip')) {
+                    document.querySelectorAll('.help-tooltip').forEach(tooltip => {
+                        tooltip.style.display = 'none';
+                    });
+                }
+            }, { signal });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.help-tooltip').forEach(tooltip => {
+                        tooltip.style.display = 'none';
+                    });
+                }
+            }, { signal });
+        } catch (err) {
+            logger.error('FormRenderer', 'Error renderizando formulario', err);
+            if (!statusBar.el.isConnected) windowDiv.appendChild(statusBar.el);
+            statusBar.push('error', `No se pudo renderizar el formulario: ${err.message}`);
+        }
     }
 }
 

@@ -167,31 +167,37 @@ export class SubmitManager {
                 }, 2000);
 
             } catch (error) {
+                // logger.error already surfaces this in the form's status bar (see StatusBar sink)
                 logger.error('SubmitManager', `Error guardando tabla=${this.ctx.tableConfig?.table ?? '?'}`, error);
-                alert(`Error al guardar: ${error.message}`);
             }
         }, { signal });
     }
 
     showSubmitFeedback(submitBtn, submission = null) {
         const originalText = submitBtn.textContent;
+        let statusMsg;
 
         if (submission) {
             if (submission.created) {
                 submitBtn.textContent = `¡CREADO! (ID: ${submission.id})`;
+                statusMsg = `Registro creado (ID: ${submission.id})`;
             } else if (submission.updated) {
                 submitBtn.textContent = `¡ACTUALIZADO! (ID: ${submission.id})`;
+                statusMsg = `Registro actualizado (ID: ${submission.id})`;
             } else {
                 const stats = PersistenceService.getStats(this.ctx.formId);
                 submitBtn.textContent = `¡GUARDADO! (Total: ${stats.total})`;
+                statusMsg = `Guardado (Total: ${stats.total})`;
             }
         } else {
             submitBtn.textContent = "¡ENVIADO!";
+            statusMsg = 'Formulario enviado';
         }
 
         submitBtn.style.backgroundColor = "#4CAF50";
         submitBtn.style.borderColor = "#4CAF50";
         submitBtn.dataset.originalText = originalText;
+        this.ctx.statusBar?.push('success', statusMsg);
     }
 
     resetSubmitButton(submitBtn) {
@@ -312,7 +318,7 @@ export class SubmitManager {
     _openReport(hint, data, formEl) {
         const paramValue = data[hint.param];
         if (paramValue == null || paramValue === '') {
-            console.warn(`[SubmitManager] Output report "${hint.report}": param "${hint.param}" missing in saved data`);
+            logger.warn('SubmitManager', `Reporte "${hint.report}": falta el parámetro "${hint.param}" en los datos guardados`);
             return;
         }
         const url = `/report.html?file=${encodeURIComponent(hint.report)}&${encodeURIComponent(hint.param)}=${encodeURIComponent(paramValue)}`;
@@ -320,7 +326,7 @@ export class SubmitManager {
         if (!popup || popup.closed || typeof popup.closed === 'undefined') {
             this._showPopupFallback(url, hint.report, formEl);
         } else {
-            this._showToast(`Comprobante generado — revisá la nueva pestaña`, formEl);
+            this._showToast(`Comprobante generado — revisá la nueva pestaña`);
         }
     }
 
@@ -339,33 +345,18 @@ export class SubmitManager {
         link.textContent = `Abrir comprobante: ${reportName}`;
         link.style.cssText = 'display: block; margin-bottom: 0.25rem;';
         fallback.appendChild(link);
+        this.ctx.statusBar?.push('warning', `Popup bloqueado — usá el enlace para abrir "${reportName}"`);
     }
 
-    _showToast(msg, formEl) {
-        let toast = formEl.querySelector('.report-toast');
-        if (!toast) {
-            toast = document.createElement('p');
-            toast.className = 'report-toast';
-            toast.style.cssText = 'margin-top: 0.5rem; font-family: inherit; font-size: 0.85rem; color: var(--help-icon-color, #888);';
-            formEl.appendChild(toast);
-        }
-        toast.textContent = msg;
-        setTimeout(() => { toast.textContent = ''; }, 4000);
+    _showToast(msg) {
+        this.ctx.statusBar?.push('info', msg);
     }
 
     /**
-     * Shows an inline error message below the form (no alert()).
-     * Reuses existing error element if present.
+     * Shows an inline error for custom-action forms (e.g. login).
      */
     _showFormError(formEl, message) {
-        let errorEl = formEl.querySelector('.form-action-error');
-        if (!errorEl) {
-            errorEl = document.createElement('p');
-            errorEl.className = 'form-action-error';
-            errorEl.style.cssText = 'color: var(--error-color, #ff4444); margin-top: 0.5rem; font-family: inherit;';
-            formEl.appendChild(errorEl);
-        }
-        errorEl.textContent = message;
+        this.ctx.statusBar?.push('error', message);
     }
 }
 

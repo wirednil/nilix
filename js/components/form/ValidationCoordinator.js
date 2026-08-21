@@ -110,6 +110,7 @@ export class ValidationCoordinator {
                 if (this._handlerBridge) {
                     await this._handlerBridge.callAfterLoad(record);
                 }
+                this.ctx.statusBar?.push('success', `Registro ${value} cargado`);
             }
         } catch {
             // 404 = registro no existe → modo INSERT, no es un error
@@ -133,23 +134,11 @@ export class ValidationCoordinator {
         if (this._handlerBridge) {
             await this._handlerBridge.callAfter(keyField, record[keyField]);
         }
+        this.ctx.statusBar?.push('success', `Registro ${record[keyField]} cargado`);
     }
 
     _flashNav(msg) {
-        const formEl = this.ctx.container?.querySelector('form');
-        if (!formEl) return;
-        let el = formEl.querySelector('.nav-feedback');
-        if (!el) {
-            el = document.createElement('span');
-            el.className = 'nav-feedback';
-            el.style.cssText = 'display:inline-block;margin-left:0.5rem;font-size:0.8rem;color:var(--help-icon-color,#888);transition:opacity 0.3s;';
-            const nav = formEl.querySelector('.actions-nav');
-            (nav || formEl).appendChild(el);
-        }
-        el.textContent = msg;
-        el.style.opacity = '1';
-        clearTimeout(el._timer);
-        el._timer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
+        this.ctx.statusBar?.push('warning', msg);
     }
 
     /**

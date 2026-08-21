@@ -13,6 +13,11 @@
 const _queue = [];
 let _flushing = false;
 
+// Optional sink for the currently-rendered form's StatusBar. Only WARN/ERROR
+// route here — INFO is too routine (fires on every submit/nav) to surface
+// unprompted; success/info feedback is pushed explicitly at its call sites.
+let _statusSink = null;
+
 async function _flush() {
     if (_flushing || _queue.length === 0) return;
     _flushing = true;
@@ -37,6 +42,9 @@ function _send(level, component, message) {
     _queue.push({ level, component, message });
     // Micro-task flush to batch rapid calls
     Promise.resolve().then(_flush);
+    if (_statusSink && (level === 'WARN' || level === 'ERROR')) {
+        _statusSink(level, component, message);
+    }
 }
 
 const logger = {
@@ -54,6 +62,13 @@ const logger = {
             : (err !== undefined ? String(err) : '');
         console.error(`[${component}] ${message}`, err !== undefined ? err : '');
         _send('ERROR', component, detail ? `${message} | ${detail}` : message);
+    },
+    /** Registers the currently-active form's StatusBar as the WARN/ERROR sink. */
+    setStatusSink(fn) {
+        _statusSink = fn;
+    },
+    clearStatusSink() {
+        _statusSink = null;
     },
 };
 

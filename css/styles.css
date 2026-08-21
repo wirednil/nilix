@@ -46,7 +46,17 @@ body {
     
     --tree-hover: #e0e0e0;
     --tree-active: #cccccc;
-    
+
+    /* SEMANTIC STATUS COLORS */
+    --error-color: #d32f2f;
+    --error-bg: #ffebee;
+    --warning-color: #e0a000;
+    --warning-bg: #fff8e1;
+    --success-color: #2e7d32;
+    --success-bg: #e8f5e9;
+    --info-color: #555555;
+    --info-bg: #f1f1f1;
+
     /* NEOBRUTALIST HYBRID SHADOWS */
     --neo-shadow: 4px 4px 0 #000000;
     --neo-shadow-hover: 6px 6px 0 #000000;
@@ -85,7 +95,16 @@ body.dark-mode {
     
     --tree-hover: #111111;
     --tree-active: #222222;
-    
+
+    --error-color: #ff6b6b;
+    --error-bg: #381818;
+    --warning-color: #f0c419;
+    --warning-bg: #3a3010;
+    --success-color: #6fcf6f;
+    --success-bg: #163a16;
+    --info-color: #aaaaaa;
+    --info-bg: #111111;
+
     --neo-shadow: 4px 4px 0 #ffffff;
     --neo-shadow-hover: 6px 6px 0 #ffffff;
     --neo-shadow-active: 2px 2px 0 #ffffff;
@@ -520,6 +539,46 @@ body.dark-mode .readonly-field {
 .theme-toggle:active {
     box-shadow: 1px 1px 0 var(--border-color);
     transform: translate(1px, 1px);
+}
+
+/* Status bar: último error, warning o acción ejecutada del formulario */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+    padding: 0.4rem 0.6rem;
+    border: 2px solid var(--border-color);
+    background: var(--info-bg);
+    font-size: 0.85rem;
+}
+
+.status-bar[data-level="error"] { background: var(--error-bg); border-color: var(--error-color); }
+.status-bar[data-level="warning"] { background: var(--warning-bg); border-color: var(--warning-color); }
+.status-bar[data-level="success"] { background: var(--success-bg); border-color: var(--success-color); }
+.status-bar[data-level="info"] { background: var(--info-bg); border-color: var(--border-color); }
+
+.status-bar-message {
+    flex: 1;
+    color: var(--text-color);
+    word-break: break-word;
+}
+
+.status-bar-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 2px 7px;
+    cursor: pointer;
+    border-radius: 0;
+}
+
+.status-bar-btn:hover {
+    background: var(--input-bg);
 }
 
 /* Formulario vertical: una columna */
