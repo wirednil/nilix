@@ -72,7 +72,11 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         catalogData = null;
         
         if (selectOptions && selectOptions.length > 0) {
+            // Spread primero: preserva props extra que un caller le agregue a
+            // cada opción (ej. choice cells en Multifield.js llevan `from`)
+            // sin que loadCatalog() tenga que saber nada de ellas.
             catalogData = selectOptions.map(opt => ({
+                ...opt,
                 key: opt.value || opt.textContent,
                 display: opt.textContent
             }));
@@ -182,13 +186,22 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         const keyValue = rowData[keyField];
         inputEl.value = keyValue;
         inputEl.dataset.selectedKey = keyValue;
+        // Fila completa de la opción elegida, en el propio input — para que
+        // un caller (ej. choice cells en Multifield.js) pueda leer props
+        // extra (como `from`) sin colisionar con dataset.catalogRow, que es
+        // específico de selects catálogo (ver abajo).
+        inputEl.dataset.selectedRow = JSON.stringify(rowData);
 
         // Fila completa del catálogo disponible en el contenedor (la <tr> de
         // un multifield) — así una columna type="choice" hermana puede leer
         // cualquier campo de esa fila (ej. precio_mayor/precio_menor)
         // directo, sin necesitar un <copy> a un field intermedio solo para
-        // pasarle el dato.
-        if (container && container.dataset) {
+        // pasarle el dato. Solo para selects catálogo (lookupConfig): un
+        // select de opciones literales (<options>, o un type="choice" que
+        // ahora reusa este mismo widget) no tiene catálogo que aportar acá,
+        // y si comparte <tr> con una columna catálogo de verdad, pisaría su
+        // fila guardada.
+        if (lookupConfig && container && container.dataset) {
             container.dataset.catalogRow = JSON.stringify(rowData);
         }
 
@@ -339,7 +352,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                         );
                         
                         if (match) {
-                            if (container && container.dataset) {
+                            if (lookupConfig && container && container.dataset) {
                                 container.dataset.catalogRow = JSON.stringify(match);
                             }
                             if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
@@ -354,7 +367,9 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                                 });
                             }
                             inputEl.dataset.selectedKey = currentValue;
+                            inputEl.dataset.selectedRow = JSON.stringify(match);
                         } else {
+                            delete inputEl.dataset.selectedRow;
                             if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
                                 lookupConfig.copyFields.forEach(copy => {
                                     const targetField = container.querySelector(`#${copy.to}`);
@@ -419,6 +434,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         catalogLoadTime = Date.now();
         inputEl.value = '';
         delete inputEl.dataset.selectedKey;
+        delete inputEl.dataset.selectedRow;
         closeDropdown();
     }, listenerOpts);
 

@@ -189,7 +189,7 @@ function _buildCatalogCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
 }
 
 /**
- * Reconstruye las <option> de una celda type="choice" leyendo directo la
+ * Calcula las opciones type="choice" para esta fila, leyendo directo la
  * fila de catálogo que dejó la última selección de una columna vecina
  * type="select" (rowEl.dataset.catalogRow — lo pone Autocomplete.js, ver
  * "container.dataset.catalogRow" ahí). col.choiceConfig.options[].from es
@@ -197,14 +197,14 @@ function _buildCatalogCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
  * id de un field del multifield — no hace falta ningún <copy> intermedio a
  * un field propio solo para que choice tenga de dónde leer.
  *
- * Se llama tanto al construir la fila como cada vez que la columna catálogo
- * hermana cambia (ver _setupChangeTracking).
+ * Devuelve filas {key, display, from} — la misma forma que espera el
+ * catálogo interno de Autocomplete.js (ver loadCatalog() ahí).
  */
-function _populateChoiceOptions(select, rowEl, col, preferredValue) {
+function _choiceOptionRows(col, rowEl, preferredValue) {
     let catalogRow = {};
     try { catalogRow = JSON.parse(rowEl.dataset.catalogRow || '{}'); } catch { catalogRow = {}; }
 
-    const options = (col.choiceConfig.options || [])
+    const raw = (col.choiceConfig.options || [])
         .map(opt => ({ from: opt.from, suffix: opt.suffix || '', value: parseFloat(catalogRow[opt.from]) }))
         .filter(o => !isNaN(o.value));
 
@@ -212,51 +212,98 @@ function _populateChoiceOptions(select, rowEl, col, preferredValue) {
     // (no se re-selecciona el producto solo por cargar la fila — mismo límite
     // ya conocido de que el multifield no repuebla desde el catálogo al
     // editar), pero sí sabemos el valor guardado — mostrarlo como única
-    // opción en vez de dejar el <select> vacío.
-    if (options.length === 0 && preferredValue != null && preferredValue !== '') {
+    // opción en vez de dejar el campo vacío.
+    if (raw.length === 0 && preferredValue != null && preferredValue !== '') {
         const v = parseFloat(preferredValue);
-        if (!isNaN(v)) options.push({ from: null, suffix: '', value: v });
+        if (!isNaN(v)) raw.push({ from: null, suffix: '', value: v });
     }
 
-    const touched = select.dataset.touched === '1';
-    const currentFrom = select.selectedOptions && select.selectedOptions[0]
-        ? select.selectedOptions[0].dataset.from : null;
-
-    select.innerHTML = '';
-    options.forEach((o, i) => {
-        const label = o.suffix ? `${o.value} ${o.suffix}` : String(o.value);
-        const optEl = createElement('option', '', `${i + 1}- ${label}`);
-        optEl.value = o.value;
-        optEl.dataset.from = o.from;
-        select.appendChild(optEl);
-    });
-
-    let target = null;
-    if (preferredValue != null) target = options.find(o => String(o.value) === String(preferredValue));
-    if (!target && touched && currentFrom) target = options.find(o => o.from === currentFrom);
-    if (!target) target = options.find(o => o.from === col.choiceConfig.defaultFrom);
-    if (!target) target = options[0];
-    if (target) select.value = String(target.value);
+    // El widget ya antepone la key (el precio) antes del " - " (ver
+    // renderOptions() en Autocomplete.js) — el display acá no repite el
+    // valor, solo el sufijo (ej. fila completa: "1500 - (x mayor)").
+    return raw.map(o => ({
+        key: String(o.value),
+        display: o.suffix || String(o.value),
+        from: o.from
+    }));
 }
 
 /**
- * Construye una celda type="choice": un <select> con dos (o más) opciones
- * cuyo valor sale de la fila de catálogo que trajo una columna vecina
- * type="select" (ver _populateChoiceOptions) — no de un <copy> a un field
- * propio.
+ * Elige qué fila de `rows` debería quedar seleccionada: el valor guardado
+ * (preferredValue) si existe, si no lo que el usuario ya había elegido a
+ * mano (dataset.touched + el "from" de la selección previa, guardado por
+ * Autocomplete.js en dataset.selectedRow), si no el default-from del XML,
+ * si no la primera opción.
+ */
+function _resolveChoiceTarget(rows, col, inputEl, preferredValue) {
+    const touched = inputEl.dataset.touched === '1';
+    let currentFrom = null;
+    try { currentFrom = JSON.parse(inputEl.dataset.selectedRow || 'null')?.from ?? null; } catch { currentFrom = null; }
+
+    let target = null;
+    if (preferredValue != null) target = rows.find(r => r.key === String(preferredValue));
+    if (!target && touched && currentFrom) target = rows.find(r => r.from === currentFrom);
+    if (!target) target = rows.find(r => r.from === col.choiceConfig.defaultFrom);
+    if (!target) target = rows[0] || null;
+    return target;
+}
+
+function _applyChoiceSelection(inputEl, target) {
+    if (target) {
+        inputEl.value = target.key;
+        inputEl.dataset.selectedKey = target.key;
+        inputEl.dataset.selectedRow = JSON.stringify(target);
+    } else {
+        inputEl.value = '';
+        delete inputEl.dataset.selectedKey;
+        delete inputEl.dataset.selectedRow;
+    }
+}
+
+/**
+ * Construye una celda type="choice": el mismo widget "armado de cero"
+ * (Autocomplete.js) que usan los campos <options> — sin depender del
+ * <select> nativo del navegador. <choice> ES <options>, salvo que sus
+ * opciones no salen de un value= literal en el XML sino que se recalculan
+ * a partir de la fila de catálogo que trajo una columna vecina
+ * type="select" (ver _choiceOptionRows).
  */
 function _buildChoiceCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
     const id = `${multifieldId}_${col.id}_${absoluteIndex}`;
-    const select = createElement('select');
-    select.id = id;
-    select.name = id;
-    select.className = 'multifield-cell-input';
-    select.dataset.colId = col.id;
-
     const preferred = rowData && rowData[col.id] != null ? rowData[col.id] : null;
-    _populateChoiceOptions(select, rowEl, col, preferred);
 
-    return select;
+    const rows = _choiceOptionRows(col, rowEl, preferred);
+    const selectOptions = rows.map(r => ({ value: r.key, textContent: r.display, from: r.from }));
+
+    const { wrapper, inputEl } = createAutocomplete({
+        id, size: col.size, isRequired: false, isSkip: false,
+        lookupConfig: null, selectOptions, defaultValue: null
+    });
+    inputEl.name = id;
+    inputEl.classList.add('multifield-cell-input');
+    inputEl.dataset.colId = col.id;
+
+    const btnEl = wrapper.querySelector('.autocomplete-btn');
+    const dropdownEl = wrapper.querySelector('.autocomplete-dropdown');
+    attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, null, rowEl, selectOptions, {});
+
+    _applyChoiceSelection(inputEl, _resolveChoiceTarget(rows, col, inputEl, preferred));
+
+    return wrapper;
+}
+
+/**
+ * Recalcula las opciones de una celda type="choice" ya construida (cuando
+ * la columna catálogo hermana cambia — ver _setupChangeTracking), empujando
+ * el catálogo nuevo al widget vía el mismo evento sf:set-catalog que ya usa
+ * HandlerBridge.js para refrescar catálogos server-driven.
+ */
+function _refreshChoiceCell(inputEl, rowEl, col, preferredValue) {
+    const rows = _choiceOptionRows(col, rowEl, preferredValue);
+    const target = _resolveChoiceTarget(rows, col, inputEl, preferredValue);
+
+    inputEl.dispatchEvent(new CustomEvent('sf:set-catalog', { detail: { rows } }));
+    _applyChoiceSelection(inputEl, target);
 }
 
 /**
@@ -427,7 +474,7 @@ function _setupChangeTracking(gridContainer) {
 
         // Marcar esta celda "choice" como elegida a mano solo si el cambio lo
         // disparó el usuario (no el refresh programático de abajo, que se
-        // identifica con dataset.autoSet — ver _populateChoiceOptions).
+        // identifica con dataset.autoSet — ver _refreshChoiceCell).
         const thisCol = allColumns.find(c => c.id === colId);
         if (thisCol && thisCol.type === 'choice') {
             if (input.dataset.autoSet === '1') delete input.dataset.autoSet;
@@ -446,11 +493,11 @@ function _setupChangeTracking(gridContainer) {
             catch { /* dataset inválido, no persistir */ }
 
             allColumns.filter(c => c.type === 'choice' && c.choiceConfig).forEach(choiceCol => {
-                const choiceSelect = rowEl.querySelector(`#${multifieldId}_${choiceCol.id}_${currentIdx}`);
-                if (choiceSelect) {
-                    _populateChoiceOptions(choiceSelect, rowEl, choiceCol, null);
-                    choiceSelect.dataset.autoSet = '1';
-                    choiceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                const choiceInput = rowEl.querySelector(`#${multifieldId}_${choiceCol.id}_${currentIdx}`);
+                if (choiceInput) {
+                    _refreshChoiceCell(choiceInput, rowEl, choiceCol, null);
+                    choiceInput.dataset.autoSet = '1';
+                    choiceInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             });
         }
@@ -673,11 +720,11 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
             }
         }
 
-        // Columna "choice": <select> cuyas opciones salen de la fila de
-        // catálogo que trajo una columna vecina type="select" (ver
-        // _populateChoiceOptions) — option.from es un nombre de columna de
-        // ESA tabla, no el id de otro field del multifield. Misma convención
-        // de anidar en <validation> que <in-table>.
+        // Columna "choice": mismo widget autocomplete que <options>, cuyas
+        // opciones salen de la fila de catálogo que trajo una columna vecina
+        // type="select" (ver _choiceOptionRows) — option.from es un nombre
+        // de columna de ESA tabla, no el id de otro field del multifield.
+        // Misma convención de anidar en <validation> que <in-table>.
         if (fieldType === 'choice') {
             const choiceEl = field.querySelector('validation choice');
             if (choiceEl) {

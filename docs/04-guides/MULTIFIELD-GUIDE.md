@@ -136,9 +136,9 @@ cuál:
 |---|---|---|
 | `stepper` | — | Input numérico con botones ▼/▲, relleno con ceros a la izquierda según `size` |
 | `select` + `<in-table>` | `<in-table table="..." key="..." display="...">` con `<copy from= to=>` | Autocomplete de catálogo (reutiliza `Autocomplete.js`) — busca en otra tabla y copia campos a celdas hermanas |
-| `choice` | `<choice default-from="...">` con `<option from="..." suffix="...">` | `<select>` cuyas opciones salen de la fila de catálogo que trajo una columna vecina `select`+`<in-table>` |
+| `choice` | `<choice default-from="...">` con `<option from="..." suffix="...">` | Mismo widget autocomplete que `<options>` (`Autocomplete.js`, sin `<select>` nativo) — opciones que salen de la fila de catálogo que trajo una columna vecina `select`+`<in-table>` |
 
-### `<choice>` vs `<options>` — no son el mismo tag
+### `<choice>` vs `<options>` — mismo widget, distinto tag
 
 `<options>` ya existe para selects **de nivel superior** (fuera de un
 multifield) con una lista de valores **fijos**, como hijo directo de
@@ -160,6 +160,14 @@ el nombre de una columna de la **misma tabla de catálogo** que ya consultó
 una columna vecina `select`+`<in-table>` de esta fila. No apunta a otro
 `<field>` del multifield ni a un `<copy>` — lee directo de la fila que el
 catálogo ya trajo.
+
+Por dentro, `<choice>` renderiza con el mismo widget que `<options>`
+(`createAutocomplete`/`attachAutocompleteHandlers` de `Autocomplete.js`) —
+no un `<select>` nativo del navegador. La diferencia entre los dos tags no
+es de motor de render, sino de **de dónde sale el valor de cada opción**:
+`<options>` lo trae fijo en el XML (`value=`), `<choice>` lo calcula en
+tiempo real a partir de la fila de catálogo que trajo otra celda
+(`from=`).
 
 ```xml
 <field id="id_producto" type="select">
@@ -192,9 +200,15 @@ declarar ni mantener sincronizado — antes de esto existía un paso de
 dato a `<choice>`; se sacó porque era una capa que no aportaba nada, solo
 plomería.
 
-Render final de cada `<option>`: `{valor} {suffix}` — en el ejemplo, algo
-como `12000 (x mayor)`, con un `1- `/`2- ` de índice agregado
-automáticamente por columna (`_populateChoiceOptions()`, `Multifield.js`).
+Como el widget muestra cada fila del desplegable como `{valor} - {texto}`
+(la key antes del `-`, ver `renderOptions()` en `Autocomplete.js`), el
+`display` de cada `<choice>` no repite el valor — solo el `suffix`: la fila
+completa en el desplegable queda `12000 - (x mayor)`. Con el desplegable
+cerrado, el campo muestra el valor solo (`12000`), igual que cualquier otro
+campo autocomplete del motor (ej. un `id_cliente` cerrado muestra el
+número, no el nombre) — el `suffix` solo es visible mientras el
+desplegable está abierto. Se calcula en `_choiceOptionRows()`
+(`Multifield.js`).
 
 `default-from` elige qué opción queda seleccionada por defecto (la primera
 declarada si se omite). Si el usuario elige una opción a mano, esa elección
@@ -383,4 +397,4 @@ open http://localhost:3000/?form=test-multifield
 
 ---
 
-**Última actualización:** 2026-08-18 — agregada sección "Tipos de columna avanzados" (`stepper`, catálogo, `choice` vs `options`) — `<choice>` lee directo de `rowEl.dataset.catalogRow`, sin campos intermedios ni `hidden`
+**Última actualización:** 2026-08-21 — `<choice>` ahora renderiza con el mismo widget autocomplete que `<options>` (`Autocomplete.js`), sin `<select>` nativo del navegador; sigue leyendo directo de `rowEl.dataset.catalogRow`, sin campos intermedios ni `hidden`
