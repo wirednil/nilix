@@ -564,23 +564,6 @@ body.dark-mode .readonly-field {
     word-break: break-word;
 }
 
-.status-bar-btn {
-    flex-shrink: 0;
-    background: none;
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    font-family: inherit;
-    font-size: 0.85rem;
-    line-height: 1;
-    padding: 2px 7px;
-    cursor: pointer;
-    border-radius: 0;
-}
-
-.status-bar-btn:hover {
-    background: var(--input-bg);
-}
-
 /* Formulario vertical: una columna */
 .form-vertical {
     display: flex;

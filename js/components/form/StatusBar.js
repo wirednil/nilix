@@ -29,14 +29,7 @@ export class StatusBar {
 
         this._messageEl = createElement('span', 'status-bar-message');
 
-        this._dismissBtn = document.createElement('button');
-        this._dismissBtn.type = 'button';
-        this._dismissBtn.className = 'status-bar-btn status-bar-dismiss-btn';
-        this._dismissBtn.textContent = '×';
-        this._dismissBtn.title = 'Descartar';
-        this._dismissBtn.onclick = () => this._hideCurrent();
-
-        this.el.append(this._messageEl, this._dismissBtn);
+        this.el.append(this._messageEl);
     }
 
     /**
