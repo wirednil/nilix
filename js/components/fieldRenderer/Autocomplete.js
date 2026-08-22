@@ -230,7 +230,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             const keyField = getKeyField();
             row = (catalogData || []).find(r => String(r[keyField]) === String(keyValue)) ?? null;
         } else {
-            row = await LookupService.loadRecord(lookupConfig.table, lookupConfig.key, keyValue);
+            row = await LookupService.loadRecord(lookupConfig.table, lookupConfig.key, keyValue, lookupConfig.db);
         }
 
         if (row && container && container.dataset) {

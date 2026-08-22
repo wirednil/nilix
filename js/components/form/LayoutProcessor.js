@@ -223,7 +223,8 @@ export class LayoutProcessor {
                     copyFields: [],
                     isKeyField,
                     filterBy,
-                    filterField
+                    filterField,
+                    db: this.ctx.database
                 };
 
                 copyFields.forEach(copy => {

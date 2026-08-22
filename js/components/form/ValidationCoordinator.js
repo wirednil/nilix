@@ -70,15 +70,15 @@ export class ValidationCoordinator {
 
         const isKeyField = fieldXml.getAttribute('key') === 'true' || fieldXml.getAttribute('keyField') === 'true';
 
-        return { table, key, copyFields, isKeyField };
+        return { table, key, copyFields, isKeyField, db: this.ctx.database };
     }
 
     async validateInTable(fieldXml, inputEl, inTableConfig) {
-        const { table, key, copyFields, isKeyField } = inTableConfig;
+        const { table, key, copyFields, isKeyField, db } = inTableConfig;
         const value = inputEl.value.trim();
 
         try {
-            const result = await LookupService.validateAndCopy(table, key, value, copyFields, isKeyField);
+            const result = await LookupService.validateAndCopy(table, key, value, copyFields, isKeyField, db);
 
             if (!result.valid) {
                 validator.showErrorOnField(inputEl.id, `Valor no encontrado en tabla ${table}`);

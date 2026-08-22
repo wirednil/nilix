@@ -66,9 +66,9 @@ class LookupService {
         return await response.json();  // expects { rows: [...] }
     }
 
-    static async loadRecord(tableName, keyField, id) {
+    static async loadRecord(tableName, keyField, id, db = 'app') {
         const response = await authFetch(
-            `${RECORDS_API}/${tableName}?keyField=${encodeURIComponent(keyField)}&id=${encodeURIComponent(id)}`
+            `${RECORDS_API}/${db}/${tableName}?keyField=${encodeURIComponent(keyField)}&id=${encodeURIComponent(id)}`
         );
         
         if (!response.ok) {
@@ -94,12 +94,12 @@ class LookupService {
         };
     }
     
-    static async validateAndCopy(tableName, keyField, value, copyFields = [], useRecordApi = false) {
+    static async validateAndCopy(tableName, keyField, value, copyFields = [], useRecordApi = false, db = 'app') {
         let row = null;
         let valid = false;
-        
+
         if (useRecordApi) {
-            row = await this.loadRecord(tableName, keyField, value);
+            row = await this.loadRecord(tableName, keyField, value, db);
             valid = !!row;
         } else {
             const result = await this.validate(tableName, keyField, value);
