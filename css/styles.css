@@ -1286,10 +1286,13 @@ body.dark-mode textarea::placeholder {
    SISTEMA DE AYUDA ESTILO TERMINAL
    ============================================ */
 
-/* Icono de ayuda [?] estilo terminal dentro del label */
+/* Icono de ayuda [?] estilo terminal dentro del label.
+   #008000 en vez de #00ff00: verde puro sobre blanco da 1.37:1 (falla WCAG
+   AA, que exige 4.5:1) — #008000 da ~5.1:1, sigue leyendo "verde terminal"
+   pero es legible. El dark theme (#ffaa00, 11:1) ya pasaba, no se toca. */
 .help-icon {
     font-size: 0.75rem;
-    color: #00ff00;
+    color: #008000;
     cursor: pointer;
     user-select: none;
     padding: 0;
@@ -1302,11 +1305,11 @@ body.dark-mode textarea::placeholder {
 }
 
 .help-icon:hover {
-    text-shadow: 0 0 8px rgba(0, 255, 0, 0.6);
+    text-shadow: 0 0 8px rgba(0, 128, 0, 0.6);
 }
 
 .help-icon:focus {
-    outline: 1px dotted #00ff00;
+    outline: 1px dotted #008000;
     outline-offset: 2px;
 }
 
@@ -1784,7 +1787,7 @@ body.dark-mode select.field-error {
     }
     .actions-nav { flex-direction: column; gap: 0.8rem; }
     button { width: 100%; }
-    
+
     /* Header global responsive */
     .header-title { font-size: 1rem; letter-spacing: 1px; }
     #global-header { padding: 0 0.5rem; }
