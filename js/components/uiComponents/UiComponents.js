@@ -37,17 +37,13 @@ const uiComponents = {
      */
     createActionButtons() {
         const nav = createElement('nav', 'actions-nav');
-        
-        const resetBtn = createElement('button', '', 'LIMPIAR');
-        resetBtn.type = 'button';
-        
+
         const submitBtn = createElement('button', '', 'ENVIAR');
         submitBtn.type = 'submit';
 
-        nav.appendChild(resetBtn);
         nav.appendChild(submitBtn);
 
-        return { nav, resetBtn, submitBtn };
+        return { nav, submitBtn };
     }
 };
 

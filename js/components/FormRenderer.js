@@ -93,7 +93,7 @@ class FormRenderer {
 
             const formEl = createElement('form', 'form-vertical');
             layoutProcessor.processLayout(ctx.layoutNode, formEl);
-            // Between the fields and the action buttons (ANT/SIG/ENVIAR/LIMPIAR)
+            // Between the fields and the action buttons (ANT/SIG/ENVIAR)
             formEl.appendChild(statusBar.el);
             submitManager.addFormActions(formEl);
 

@@ -20,7 +20,7 @@ export class SubmitManager {
 
     addFormActions(formEl) {
         const radu = new RADU(this.ctx.permissions);
-        const { nav, resetBtn, submitBtn } = uiComponents.createActionButtons();
+        const { nav, submitBtn } = uiComponents.createActionButtons();
 
         if (this.ctx.tableConfig?.keyField && this.ctx.tableConfig?.table) {
             const antBtn = document.createElement('button');
@@ -36,12 +36,10 @@ export class SubmitManager {
             nav.appendChild(sigBtn);
         }
 
-        resetBtn.onclick = () => formEl.reset();
         formEl.appendChild(nav);
 
         if (!radu.canWrite()) {
             submitBtn.remove();
-            resetBtn.remove();
             setTimeout(() => {
                 formEl.querySelectorAll('input, textarea, select').forEach(el => {
                     el.disabled = true;
