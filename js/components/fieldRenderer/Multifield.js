@@ -753,8 +753,8 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
 
     // Controles de paginación y botón AGR
     const controls = createElement('div', 'multifield-controls');
-    const prevBtn = createElement('button', 'multifield-btn multifield-prev-btn', '← Anterior');
-    const nextBtn = createElement('button', 'multifield-btn multifield-next-btn', 'Siguiente →');
+    const prevBtn = createElement('button', 'multifield-btn multifield-prev-btn', '< ANT');
+    const nextBtn = createElement('button', 'multifield-btn multifield-next-btn', 'SIG >');
     const pageInfo = createElement('span', 'multifield-page-info', '0 de 0');
     const addBtn = createElement('button', 'multifield-btn multifield-add-btn', '+ AGR');
 
