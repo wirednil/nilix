@@ -1785,8 +1785,27 @@ body.dark-mode select.field-error {
         border-radius: 0; /* Brutalismo: ángulos rectos */
         align-items: center;
     }
-    .actions-nav { flex-direction: column; gap: 0.8rem; }
+    .actions-nav { flex-direction: row; flex-wrap: wrap; gap: 0.8rem; }
     button { width: 100%; }
+
+    /* Con los 3 botones (ANT, ENVIAR, SIG en ese orden de DOM): ANT/SIG
+       emparejados en una fila, ENVIAR solo en la suya abajo — separa la
+       navegación (par simétrico) del commit primario, y ahorra una fila de
+       alto en una pantalla ya corta. Los selectores nth-child+nth-last-child
+       solo matchean cuando hay exactamente 3 botones, así que un form sin
+       ANT/SIG (solo ENVIAR) sigue ocupando el 100% del ancho como antes. */
+    .actions-nav > button:nth-child(1):nth-last-child(3),
+    .actions-nav > button:nth-child(3):nth-last-child(1) {
+        width: auto;
+        flex: 1 1 calc(50% - 0.4rem);
+    }
+    .actions-nav > button:nth-child(1):nth-last-child(3) { order: 1; }
+    .actions-nav > button:nth-child(3):nth-last-child(1) { order: 2; }
+    .actions-nav > button:nth-child(2):nth-last-child(2) {
+        order: 3;
+        width: auto;
+        flex: 1 1 100%;
+    }
 
     /* Header global responsive */
     .header-title { font-size: 1rem; letter-spacing: 1px; }
