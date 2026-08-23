@@ -138,7 +138,40 @@ function loadDat(table) {
     }
 }
 
-function setupDevDb() {
+// Fixture para el form/multifield_test.xml: catálogo con precio_mayor/menor
+// (misma forma que productos.xml de thym-pos) + un pedido con un multifield
+// que combina una columna catálogo (select+in-table) y una columna choice
+// que lee ese catálogo — ver tests/e2e.test.js.
+async function seedMultifieldFixture() {
+    const SQL = await sql.default();
+    const db = new SQL.Database(fs.readFileSync(DEV_DB));
+
+    db.run(`CREATE TABLE IF NOT EXISTS mf_productos (
+        empresa_id   INTEGER NOT NULL,
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre       TEXT    NOT NULL,
+        precio_mayor REAL,
+        precio_menor REAL
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS mf_pedidos (
+        empresa_id INTEGER NOT NULL,
+        id         INTEGER PRIMARY KEY AUTOINCREMENT
+    )`);
+
+    const existing = db.exec(`SELECT id FROM mf_productos WHERE nombre = 'Tote Fixture'`);
+    if (!existing.length || !existing[0].values.length) {
+        db.run(`INSERT INTO mf_productos (empresa_id, nombre, precio_mayor, precio_menor) VALUES (${DEV_EMPRESA_ID}, 'Tote Fixture', 1500, 2500)`);
+        db.run(`INSERT INTO mf_productos (empresa_id, nombre, precio_mayor, precio_menor) VALUES (${DEV_EMPRESA_ID}, 'Mochila Fixture', 3000, 4500)`);
+        console.log('  ✓ mf_productos fixture (2 filas) creada');
+    } else {
+        console.log('  mf_productos fixture ya existe — skipped');
+    }
+
+    fs.writeFileSync(DEV_DB, Buffer.from(db.export()));
+    db.close();
+}
+
+async function setupDevDb() {
     console.log('\n── Dev DB ───────────────────────────────────────────────');
 
     if (fs.existsSync(DEV_DB)) {
@@ -149,6 +182,8 @@ function setupDevDb() {
     loadDat('items');     // tabla global (sin empresa_id)
     loadDat('clientes');  // tenant (empresa_id = 99)
     loadDat('ordenes');   // tenant (empresa_id = 99)
+
+    await seedMultifieldFixture();
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -157,7 +192,7 @@ async function main() {
     console.log('>>> init-dev');
 
     await setupAuthDb();
-    setupDevDb();
+    await setupDevDb();
 
     console.log('\n>>> Completado');
     console.log(`    Usuario:  ${DEV_USUARIO} / ${DEV_PASS}`);

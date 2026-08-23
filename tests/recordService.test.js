@@ -49,6 +49,17 @@ describe('recordService', async () => {
         assert.equal(res.data.empresa_id, EMP_A);
     });
 
+    it('insert() con keyField autoincrement en "" (FormData de un input vacío) no revienta con datatype mismatch', () => {
+        // Un <field type="number" keyField="true"> sin valor llega como
+        // data.id = '' (FormData nunca omite el campo). Antes del fix, ese ''
+        // pasaba tal cual al INSERT sobre INTEGER PRIMARY KEY AUTOINCREMENT y
+        // SQLite tiraba "datatype mismatch" — ver recordService.ts:99.
+        const res = recordService.insert('productos', { id: '', nombre: 'PKVacio', precio: 10 }, EMP_A);
+        assert.equal(res.success, true);
+        assert.equal(typeof res.data.id, 'number');
+        assert.ok(res.data.id > 0);
+    });
+
     it('insert() lanza TABLE_NOT_FOUND para tabla inexistente', () => {
         assert.throws(
             () => recordService.insert('no_existe', { nombre: 'x' }, EMP_A),

@@ -47,6 +47,16 @@ async function setupE2e() {
         }
     };
 
+    // Filas dedicadas para el test de fillForm() (ver test 8): un cliente
+    // con saldo NULL y otro con saldo real, ids fuera del rango de la data
+    // seed real de clientes.xml para no depender de sus valores.
+    const { getDatabase, saveDatabase } = require('../src/services/database');
+    const appDb = getDatabase();
+    appDb.run(`DELETE FROM clientes WHERE clieno IN (9001, 9002)`);
+    appDb.run(`INSERT INTO clientes (empresa_id, clieno, nombre, saldo) VALUES (99, 9001, 'E2E Sin Saldo', NULL)`);
+    appDb.run(`INSERT INTO clientes (empresa_id, clieno, nombre, saldo) VALUES (99, 9002, 'E2E Con Saldo', 500)`);
+    saveDatabase();
+
     addUser('operador', 'operador1234', 'Operador E2E', 'operador', 'RADU');
     // empresa_id=0, not 99 — authRecordController.js's authEmpresaId() now
     // requires rol='wizard' AND empresa_id=0 for global (cross-tenant) access.
@@ -167,7 +177,7 @@ describe('E2E — Dev Sandbox', async () => {
 
         const body = await page.textContent('body');
         assert.ok(body.includes('ENVIAR'));
-        assert.ok(body.includes('LIMPIAR'));
+        assert.ok(!body.includes('LIMPIAR'), 'LIMPIAR button was removed');
         assert.ok(body.includes('< ANT'));
         assert.ok(body.includes('SIG >'));
     });
@@ -307,5 +317,112 @@ describe('E2E — Dev Sandbox', async () => {
         const users = await usersRes.json();
         const found = users.rows.find(u => u.usuario === testUser);
         assert.ok(!found, `user ${testUser} should NOT have been created`);
+    });
+
+    it('8. fillForm() clears a field when navigating to a record where it is NULL', async () => {
+        // Regression test: fillForm() used to skip `field.value = value` whenever
+        // the incoming record had null/undefined for a field, leaving the DOM
+        // input showing the PREVIOUS record's value. Reproduced with clieno=9002
+        // (saldo=500) -> ANT -> clieno=9001 (saldo=NULL): saldo used to stay "500".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Clientes"))');
+        await page.waitForSelector('#clieno', { timeout: 10000 });
+
+        await page.fill('#clieno', '9002');
+        await page.press('#clieno', 'Tab');
+        await page.waitForTimeout(800);
+        assert.equal(await page.inputValue('#saldo'), '500', 'record 9002 should show saldo 500');
+
+        await page.click('text=< ANT');
+        await page.waitForTimeout(800);
+
+        assert.equal(await page.inputValue('#clieno'), '9001', 'should have navigated to record 9001');
+        assert.equal(await page.inputValue('#saldo'), '', 'saldo must be cleared, not stuck on the previous record\'s 500');
+    });
+
+    it('9. Self-referencing select+in-table fills the whole form, no 404', async () => {
+        // Regression test: LookupService.loadRecord() built /api/v1/records/{table}
+        // instead of /api/v1/records/{db}/{table} (missing the db segment), always
+        // 404ing. Only manifests when a type="select" field is BOTH the form's own
+        // keyField AND has its own <in-table> — see form/mf_productos.xml.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        const consoleErrors = [];
+        const onConsole = msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); };
+        page.on('console', onConsole);
+
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("MF Productos"))');
+            await page.waitForSelector('#id', { timeout: 10000 });
+            await page.waitForTimeout(300);
+
+            await page.click('#id');
+            await page.waitForTimeout(300);
+            const item = page.locator('.autocomplete-item', { hasText: 'Tote Fixture' }).first();
+            await item.click();
+            await page.waitForTimeout(500);
+
+            assert.equal(await page.inputValue('#nombre'), 'Tote Fixture', 'nombre should be auto-filled after picking the product');
+            assert.equal(await page.inputValue('#precio_mayor'), '1500', 'precio_mayor should be auto-filled');
+            assert.equal(await page.inputValue('#precio_menor'), '2500', 'precio_menor should be auto-filled');
+
+            const has404 = consoleErrors.some(e => e.includes('404'));
+            assert.ok(!has404, `expected no 404 console errors, got: ${JSON.stringify(consoleErrors)}`);
+        } finally {
+            page.off('console', onConsole);
+        }
+    });
+
+    it('10. <choice> cell renders as the Autocomplete widget (not a native <select>) and picks up the catalog row', async () => {
+        // Regression test: <choice> used to render a native <select>. It now
+        // reuses the same Autocomplete.js widget as <options> — see
+        // form/mf_pedidos.xml (id_producto catalog column + precio_unitario choice).
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("MF Pedidos"))');
+        await page.waitForSelector('[data-col-id="id_producto"]', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        const choiceTag = await page.$eval('[data-col-id="precio_unitario"]', el => el.tagName);
+        assert.equal(choiceTag, 'INPUT', 'choice cell must be an <input> (Autocomplete widget), not a native <select>');
+
+        // Pick "Tote Fixture" (precio_mayor=1500, precio_menor=2500) in the catalog column
+        await page.click('[data-col-id="id_producto"]');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Tote Fixture' }).first().click();
+        await page.waitForTimeout(500);
+
+        // default-from="precio_menor" -> should default to 2500
+        assert.equal(await page.inputValue('[data-col-id="precio_unitario"]'), '2500', 'choice should default to precio_menor (2500)');
+
+        // Manually pick "x mayor" (1500)
+        await page.click('[data-col-id="precio_unitario"]');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'x mayor' }).first().click();
+        await page.waitForTimeout(400);
+        assert.equal(await page.inputValue('[data-col-id="precio_unitario"]'), '1500', 'should now show precio_mayor (1500)');
+
+        // Switch product to "Mochila Fixture" (precio_mayor=3000) — the manual
+        // "mayor" choice should carry forward, not reset to precio_menor default
+        await page.click('[data-col-id="id_producto"]');
+        await page.waitForTimeout(300);
+        await page.fill('[data-col-id="id_producto"]', '');
+        await page.click('[data-col-id="id_producto"]');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.waitForTimeout(500);
+
+        assert.equal(await page.inputValue('[data-col-id="precio_unitario"]'), '3000',
+            'touched "mayor" choice should carry forward to Mochila Fixture\'s precio_mayor (3000)');
     });
 });

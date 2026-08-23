@@ -1,5 +1,7 @@
 <menu id="dev" title="Dev Sandbox">
-    <option label="Clientes" type="form"   target="form/clientes.xml" permissions="RADU"/>
-    <option label="Órdenes"  type="form"   target="form/ordenes.xml"  permissions="RADU"/>
-    <option label="Ítems"    type="form"   target="form/items.xml"    permissions="RADU"/>
+    <option label="Clientes"      type="form" target="form/clientes.xml"     permissions="RADU"/>
+    <option label="Órdenes"       type="form" target="form/ordenes.xml"      permissions="RADU"/>
+    <option label="Ítems"         type="form" target="form/items.xml"        permissions="RADU"/>
+    <option label="MF Productos"  type="form" target="form/mf_productos.xml" permissions="RADU"/>
+    <option label="MF Pedidos"    type="form" target="form/mf_pedidos.xml"   permissions="RADU"/>
 </menu>

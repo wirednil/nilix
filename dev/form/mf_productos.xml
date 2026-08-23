@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="mf_productos" title="Productos (fixture multifield)" database="app" table="mf_productos" handler="none">
+
+    <form-attributes>
+        <messages>
+            <message id="HELP_ID">N° autoincremental — dejar vacío para crear, elegir uno para editar.</message>
+        </messages>
+    </form-attributes>
+
+    <layout>
+        <field id="id" label="N°" type="select" keyField="true" size="5">
+            <help>HELP_ID</help>
+            <validation>
+                <in-table table="mf_productos" key="id" display="nombre"/>
+            </validation>
+        </field>
+
+        <field id="nombre" label="Nombre" type="text" size="30">
+            <validation><required>true</required></validation>
+        </field>
+
+        <container type="horizontal">
+            <field id="precio_mayor" label="Precio mayor" type="number" size="10"/>
+            <field id="precio_menor" label="Precio menor" type="number" size="10"/>
+        </container>
+    </layout>
+</form>
