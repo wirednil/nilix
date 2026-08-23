@@ -82,7 +82,14 @@ export const createInputElement = ({ id, type, isRequired, size, isSkip, default
     // Solo asignar valor si defaultValue existe
     if (defaultValue) {
         if (defaultValue === 'today' && type === 'date') {
-            inputEl.value = new Date().toISOString().split('T')[0];
+            // Fecha local, no vía .toISOString() (UTC): en UTC-3, cualquier
+            // carga entre las 21:00 y las 23:59 locales cruza la medianoche
+            // en UTC y trae el día siguiente.
+            const d = new Date();
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            inputEl.value = `${yyyy}-${mm}-${dd}`;
         } else if (defaultValue !== 'today') {
             inputEl.value = defaultValue;
         }
