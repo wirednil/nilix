@@ -11,7 +11,7 @@ const DROPDOWN_MAX_HEIGHT = '200px';
 
 export function createAutocomplete({ id, size, isRequired, isSkip, lookupConfig, selectOptions, defaultValue }) {
     const wrapper = createElement('div', 'autocomplete-wrapper');
-    
+
     const inputEl = createElement('input');
     inputEl.type = 'text';
     inputEl.id = id;
@@ -29,27 +29,42 @@ export function createAutocomplete({ id, size, isRequired, isSkip, lookupConfig,
             inputEl.classList.add('readonly-field');
         }
     }
-    
+
     if (size) {
         const sizeNum = parseInt(size);
         const effectiveSize = Math.max(sizeNum * 1.2, 8);
         inputEl.style.width = `${effectiveSize}ch`;
     }
-    
+
+    // El valor real (la clave, lo que se guarda) sigue siendo inputEl.value
+    // — sin tocar eso ningún caller existente se entera. Para catálogos
+    // reales (lookupConfig) se agrega una capa visual encima que muestra
+    // "clave - nombre" mientras el input no tiene foco; al hacer foco para
+    // buscar de nuevo, se oculta y se ve el input real (igual que siempre).
+    const inputBox = createElement('span', 'autocomplete-input-box');
+    inputBox.appendChild(inputEl);
+
+    let overlayEl = null;
+    if (lookupConfig) {
+        overlayEl = createElement('span', 'autocomplete-display-overlay');
+        overlayEl.hidden = true;
+        inputBox.appendChild(overlayEl);
+    }
+
     const btnEl = createElement('button', 'autocomplete-btn');
     btnEl.type = 'button';
     btnEl.tabIndex = -1;
     btnEl.innerHTML = '&#9660;';
     btnEl.setAttribute('aria-label', 'Abrir lista');
-    
+
     const dropdownEl = createElement('div', 'autocomplete-dropdown');
     dropdownEl.style.display = 'none';
-    
-    wrapper.appendChild(inputEl);
+
+    wrapper.appendChild(inputBox);
     wrapper.appendChild(btnEl);
     wrapper.appendChild(dropdownEl);
-    
-    return { wrapper, inputEl, btnEl, dropdownEl, defaultValue };
+
+    return { wrapper, inputEl, btnEl, dropdownEl, overlayEl, defaultValue };
 }
 
 export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupConfig, container, selectOptions, { signal } = {}) {
@@ -58,7 +73,25 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     let isOpen = false;
     let highlightedIndex = -1;
     let parentFilterValue = null; // cascade: value of parent field (null = no filter applied)
-    
+
+    // Capa "clave - nombre" para catálogos reales — ver createAutocomplete().
+    const overlayEl = lookupConfig ? inputEl.parentElement?.querySelector('.autocomplete-display-overlay') : null;
+
+    function refreshOverlay() {
+        if (!overlayEl) return;
+        let text = '';
+        try {
+            const row = JSON.parse(inputEl.dataset.selectedRow || 'null');
+            if (row) {
+                const kf = getKeyField();
+                const df = getDisplayField();
+                text = row[df] != null ? `${row[kf]} - ${row[df]}` : '';
+            }
+        } catch { text = ''; }
+        overlayEl.textContent = text;
+        overlayEl.hidden = !text;
+    }
+
     async function loadCatalog() {
         const invalidationTime = LookupService.getInvalidationTimestamp();
         // console.log(`🔍 Autocomplete loadCatalog: catalogLoadTime=${catalogLoadTime}, invalidationTime=${invalidationTime}`);
@@ -204,6 +237,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         if (lookupConfig && container && container.dataset) {
             container.dataset.catalogRow = JSON.stringify(rowData);
         }
+        refreshOverlay();
 
         if (lookupConfig && lookupConfig.isKeyField) {
             loadAndCopyRecord(keyValue);
@@ -248,6 +282,14 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
 
         if (row && container && container.dataset) {
             container.dataset.catalogRow = JSON.stringify(row);
+        }
+        if (row) {
+            // Ruta "tipear ID + Tab" (autorreferencia, ej. productos.xml):
+            // selectItem() no corrió, así que dataset.selectedRow nunca se
+            // seteó — sin esto la capa "clave - nombre" no tendría de dónde
+            // sacar el nombre para este camino.
+            inputEl.dataset.selectedRow = JSON.stringify(row);
+            refreshOverlay();
         }
 
         if (row && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
@@ -305,7 +347,17 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         if (!catalogData) {
             loadCatalog();
         }
+        // Foco = buscar de nuevo: mostrar el input real (con la clave cruda),
+        // igual que siempre — la capa "clave - nombre" es solo para el
+        // estado cerrado/sin foco.
+        if (overlayEl) overlayEl.hidden = true;
     }, listenerOpts);
+
+    inputEl.addEventListener('blur', () => {
+        refreshOverlay();
+    }, listenerOpts);
+
+    refreshOverlay();
 
     inputEl.addEventListener('click', () => {
         if (!isOpen) {
@@ -368,8 +420,10 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                             }
                             inputEl.dataset.selectedKey = currentValue;
                             inputEl.dataset.selectedRow = JSON.stringify(match);
+                            refreshOverlay();
                         } else {
                             delete inputEl.dataset.selectedRow;
+                            refreshOverlay();
                             if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
                                 lookupConfig.copyFields.forEach(copy => {
                                     const targetField = container.querySelector(`#${copy.to}`);
@@ -435,6 +489,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         inputEl.value = '';
         delete inputEl.dataset.selectedKey;
         delete inputEl.dataset.selectedRow;
+        refreshOverlay();
         closeDropdown();
     }, listenerOpts);
 
@@ -457,6 +512,8 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
                 parentFilterValue = parentInput.value || null;
                 inputEl.value = '';
                 delete inputEl.dataset.selectedKey;
+                delete inputEl.dataset.selectedRow;
+                refreshOverlay();
                 closeDropdown();
                 inputEl.dispatchEvent(new Event('change', { bubbles: true }));
             }, listenerOpts);
