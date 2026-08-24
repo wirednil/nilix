@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="top_level_catalog" title="Top-level catalog fixture" database="app" table="top_level_catalog" handler="none">
+    <layout>
+        <container type="horizontal">
+            <field id="id_producto_ref" label="Producto" type="select" size="6">
+                <validation>
+                    <in-table table="mf_productos" key="id" display="nombre">
+                        <copy from="nombre" to="nombre_producto"/>
+                    </in-table>
+                </validation>
+            </field>
+            <field id="nombre_producto" label="Nombre" type="text" size="30" readonly="true" skip="true"/>
+        </container>
+    </layout>
+</form>

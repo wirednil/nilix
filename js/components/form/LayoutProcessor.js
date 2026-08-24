@@ -20,6 +20,28 @@ export class LayoutProcessor {
     processLayout(layoutNode, parentContainer) {
         if (!layoutNode) return;
 
+        // Campos que son solo copia de otra columna catálogo (ej. "nombre",
+        // copy target de "id_clienta") — ese campo ya muestra "clave -
+        // nombre" (overlay en Autocomplete.js, ver AGENTS.md), mostrar el
+        // nombre de nuevo en un campo aparte es redundante. Se computa una
+        // sola vez por formulario, mirando TODO el layout — no solo campos
+        // hijos directos de <layout>, pueden estar dentro de <container>.
+        // Excluye <field> anidados dentro de un <field type="multifield">:
+        // esos ya tienen su propio mecanismo equivalente en Multifield.js
+        // (copyTargetIds ahí es un Set de IDs internos del multifield, un
+        // namespace distinto al de los campos top-level).
+        if (!this.ctx.copyTargetIds) {
+            this.ctx.copyTargetIds = new Set();
+            Array.from(layoutNode.querySelectorAll('field'))
+                .filter(f => !f.closest('field[type="multifield"]'))
+                .forEach(f => {
+                    f.querySelectorAll('validation in-table copy').forEach(c => {
+                        const to = c.getAttribute('to');
+                        if (to) this.ctx.copyTargetIds.add(to);
+                    });
+                });
+        }
+
         Array.from(layoutNode.children).forEach(child => {
             this.processNode(child, parentContainer);
         });
@@ -108,6 +130,21 @@ export class LayoutProcessor {
                 }
                 if (config.subformConfig) {
                     this.setupSubformTrigger(el, config.subformConfig);
+                }
+                if (this.ctx.copyTargetIds?.has(config.id)) {
+                    el.closest('.field-row, .field-block-horizontal')?.style.setProperty('display', 'none');
+                }
+                // Este campo tiene un compañero copy-target que se acaba de
+                // ocultar (arriba) — reclama ese espacio en vez de quedarse
+                // angosto al ancho de `size` (pensado para mostrar solo la
+                // clave, no "clave - nombre"). El ancho ch inline (puesto en
+                // Autocomplete.js createAutocomplete()) pisa cualquier CSS de
+                // clase, así que se sobreescribe acá directo en el elemento.
+                if (config.lookupConfig?.copyFields?.length > 0) {
+                    el.closest('.field-row, .field-block-horizontal')?.style.setProperty('flex', '1 1 100%');
+                    el.closest('.autocomplete-wrapper')?.style.setProperty('width', '100%');
+                    el.closest('.autocomplete-input-box')?.style.setProperty('flex', '1');
+                    el.style.setProperty('width', '100%');
                 }
             }
             if (this.onFieldRendered) {
