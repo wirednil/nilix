@@ -49,6 +49,7 @@ function _getColumns(thead) {
         return {
             id: th.getAttribute('data-field-id'),
             label: th.textContent.trim(),
+            isCopyTarget: th.hidden,
             isSkip: th.getAttribute('data-skip') === 'true',
             isReadonly: th.getAttribute('data-readonly') === 'true',
             isUnique: th.getAttribute('data-unique') === 'true',
@@ -307,16 +308,18 @@ function _refreshChoiceCell(inputEl, rowEl, col, preferredValue) {
 }
 
 /**
- * Construye un <tr> completo para una fila con inputs y botón eliminar
+ * Construye un <tr> completo para una fila con inputs y botón eliminar.
+ * Usado exclusivamente dentro del modal de alta/edición (_openRowModal) —
+ * el grid persistido usa _buildDisplayRow (solo lectura).
  */
 function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
     const row = createElement('tr');
     row.setAttribute('data-row-index', absoluteIndex);
     if (!rowData) row.dataset.empty = 'true';
     // Restaurar la fila de catálogo de la última selección (ver
-    // _setupChangeTracking) — _rerenderGrid crea un <tr> nuevo cada vez
-    // (agregar/borrar fila, paginar), así que sin esto una columna "choice"
-    // ya elegida se quedaría sin opciones al re-renderizar.
+    // _setupChangeTracking) — cada apertura del modal crea un <tr> nuevo,
+    // así que sin esto una columna "choice" ya elegida se quedaría sin
+    // opciones al reabrir para editar.
     if (rowData && rowData.__catalogRow) {
         row.dataset.catalogRow = JSON.stringify(rowData.__catalogRow);
     }
@@ -324,6 +327,14 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
     columns.forEach(col => {
         const td = createElement('td');
         td.dataset.label = col.label;
+        // col.isCopyTarget (ver _getColumns/renderGridFromMultifield): la
+        // columna catálogo hermana ya muestra "clave - nombre" (overlay en
+        // Autocomplete.js), mostrar esta también es redundante. No usar el
+        // atributo `hidden`: el CSS de tarjeta del modal
+        // (.mf-row-modal ... td:not(.multifield-action-cell) { display:flex })
+        // tiene más especificidad que la regla implícita [hidden]{display:none}
+        // del navegador y la pisa — con estilo inline no hay ese problema.
+        if (col.isCopyTarget) td.style.display = 'none';
 
         if (col.type === 'stepper') {
             td.appendChild(_buildStepperCell(multifieldId, col, rowData, absoluteIndex));
@@ -339,12 +350,13 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             input.name = `${multifieldId}_${col.id}_${absoluteIndex}`;
             input.className = 'multifield-cell-input';
             input.dataset.colId = col.id;
-            // rowData es {} (truthy) para una fila recién agregada vía "+ AGR"
-            // (_addRow hace allRows.push({})), no null — así que hay que chequear
-            // la propiedad puntual, no la truthiness de todo rowData. Con el chequeo
-            // viejo (rowData ? ... : default), una fila nueva agregada dinámicamente
-            // nunca aplicaba el default (probado en vivo: "cantidad" quedaba en "0"
-            // en vez de "1", y precio_total se calculaba con cantidad=0).
+            // rowData es {} (truthy) para una fila nueva del modal de alta
+            // (_openRowModal la inicializa así), no null — así que hay que
+            // chequear la propiedad puntual, no la truthiness de todo
+            // rowData. Con el chequeo viejo (rowData ? ... : default), una
+            // fila nueva nunca aplicaba el default (probado en vivo:
+            // "cantidad" quedaba en "0" en vez de "1", y precio_total se
+            // calculaba con cantidad=0).
             input.value = (rowData && rowData[col.id] != null) ? rowData[col.id] : (col.defaultValue ?? '');
 
             if (col.isSkip || col.isReadonly) {
@@ -386,40 +398,152 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
 }
 
 /**
- * Re-renderiza el tbody y actualiza controles de paginación
+ * Resuelve el valor legible de una columna para la fila compacta de solo
+ * lectura. Para una columna catálogo (type="select" + lookupConfig), usa la
+ * fila de catálogo que dejó la última selección (__catalogRow, ver
+ * _setupChangeTracking) para mostrar el nombre en vez de la clave cruda —
+ * si no hay __catalogRow (fila cargada sin volver a elegir el producto,
+ * limitación ya conocida), cae al valor crudo.
  */
-function _rerenderGrid(gridContainer) {
+function _resolveDisplayValue(col, rowData) {
+    if (!rowData) return '';
+    if (col.type === 'select' && col.lookupConfig && rowData.__catalogRow) {
+        const displayField = col.lookupConfig.displayField;
+        if (displayField && rowData.__catalogRow[displayField] != null) {
+            return rowData.__catalogRow[displayField];
+        }
+    }
+    const v = rowData[col.id];
+    return v != null ? v : '';
+}
+
+/**
+ * Construye una fila compacta de solo lectura para el grid persistido.
+ * Cada celda lleva un <input type="hidden"> con el mismo name que usaba el
+ * input editable de antes — SubmitManager.js junta los datos del form con
+ * `new FormData(formEl)`, no lee gridContainer.dataset.allRows directamente,
+ * así que sin este hidden el valor de la fila no llegaría al submit.
+ * Click en la fila (fuera del botón ✕) reabre el modal para editarla.
+ */
+function _buildDisplayRow(multifieldId, columns, rowData, absoluteIndex) {
+    const row = createElement('tr');
+    row.setAttribute('data-row-index', absoluteIndex);
+    row.classList.add('multifield-display-row');
+
+    columns.forEach(col => {
+        const td = createElement('td');
+        td.dataset.label = col.label;
+        // Igual que en _buildRow: la columna catálogo hermana ya muestra
+        // "clave - nombre", así que esta queda oculta — pero el hidden con
+        // su valor se arma igual, sigue haciendo falta para el submit.
+        if (col.isCopyTarget) td.style.display = 'none';
+
+        const hidden = createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = `${multifieldId}_${col.id}_${absoluteIndex}`;
+        hidden.value = (rowData && rowData[col.id] != null) ? rowData[col.id] : '';
+        td.appendChild(hidden);
+
+        td.appendChild(createElement('span', 'multifield-display-value', String(_resolveDisplayValue(col, rowData))));
+        row.appendChild(td);
+    });
+
+    const actionTd = createElement('td', 'multifield-action-cell');
+    actionTd.dataset.label = '';
+    const delBtn = createElement('button', 'multifield-delete-btn', '✕');
+    delBtn.type = 'button';
+    delBtn.title = 'Eliminar fila';
+    delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('¿Eliminar este registro?')) return;
+        const gridContainer = delBtn.closest('.multifield-grid');
+        const idx = parseInt(row.getAttribute('data-row-index'));
+        _deleteRow(gridContainer, idx);
+    });
+    actionTd.appendChild(delBtn);
+    row.appendChild(actionTd);
+
+    row.addEventListener('click', (e) => {
+        if (e.target.closest('.multifield-delete-btn')) return;
+        const gridContainer = row.closest('.multifield-grid');
+        const idx = parseInt(row.getAttribute('data-row-index'));
+        const columnsNow = _getColumns(gridContainer.querySelector('thead'));
+        const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
+        _openRowModal(gridContainer, columnsNow, allRows[idx], idx);
+    });
+
+    return row;
+}
+
+/**
+ * Re-renderiza el tbody (solo lectura, sin relleno) y el estado de los
+ * botones de scroll ▲/▼.
+ */
+function _rerenderDisplayGrid(gridContainer) {
     const tbody = gridContainer.querySelector('tbody');
     const thead = gridContainer.querySelector('thead');
-    const controls = gridContainer.querySelector('.multifield-controls');
     if (!tbody || !thead) return;
 
     const multifieldId = gridContainer.getAttribute('data-multifield-id');
-    const display = parseInt(gridContainer.getAttribute('data-display')) || 10;
     const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
-    const totalRows = allRows.length;
-    const currentPage = parseInt(gridContainer.dataset.currentPage) || 0;
     const columns = _getColumns(thead);
-    const start = currentPage * display;
 
     tbody.innerHTML = '';
+    allRows.forEach((rowData, idx) => {
+        tbody.appendChild(_buildDisplayRow(multifieldId, columns, rowData, idx));
+    });
 
-    for (let i = 0; i < display; i++) {
-        const dataIndex = start + i;
-        if (dataIndex < totalRows) {
-            tbody.appendChild(_buildRow(multifieldId, columns, allRows[dataIndex], dataIndex));
-        } else {
-            // Fila vacía de relleno con inputs
-            tbody.appendChild(_buildRow(multifieldId, columns, null, dataIndex));
-        }
-    }
+    gridContainer.dataset.totalRows = allRows.length;
 
-    // Disparar evento para que campos virtuales se recalculen
+    // Disparar evento para que campos virtuales (ej. sum() a nivel de form) se recalculen
     gridContainer.dispatchEvent(new CustomEvent('multifield-populated', { bubbles: true }));
 
-    if (controls) {
-        _updateControls(gridContainer, controls, totalRows, display, currentPage);
+    // Alto del contenedor con scroll = header (fijo, no cuenta como fila) +
+    // altura real de una fila × `display` filas de REGISTROS visibles — se
+    // mide en vivo (no un rem fijo) porque la altura de fila difiere mucho
+    // entre la tabla desktop y la tarjeta mobile. El header queda sticky
+    // (CSS) para no scrollear junto con las filas.
+    const display = parseInt(gridContainer.getAttribute('data-display')) || DEFAULTS.DISPLAY;
+    const scrollBox = gridContainer.querySelector('.multifield-scroll-box');
+    const firstRow = tbody.querySelector('tr');
+    if (scrollBox) {
+        const headerHeight = thead.getBoundingClientRect().height;
+        scrollBox.style.maxHeight = firstRow
+            ? `${headerHeight + firstRow.getBoundingClientRect().height * display}px`
+            : '';
     }
+
+    _updateScrollControls(gridContainer);
+}
+
+/**
+ * Habilita/deshabilita y muestra/oculta los botones ▲/▼ según haga falta
+ * scroll o no, y según la posición actual del scroll.
+ */
+function _updateScrollControls(gridContainer) {
+    const scrollBox = gridContainer.querySelector('.multifield-scroll-box');
+    const upBtn = gridContainer.querySelector('.multifield-scroll-up');
+    const downBtn = gridContainer.querySelector('.multifield-scroll-down');
+    if (!scrollBox || !upBtn || !downBtn) return;
+
+    const needsScroll = scrollBox.scrollHeight > scrollBox.clientHeight + 1;
+    upBtn.hidden = !needsScroll;
+    downBtn.hidden = !needsScroll;
+    if (!needsScroll) return;
+
+    upBtn.disabled = scrollBox.scrollTop <= 0;
+    downBtn.disabled = scrollBox.scrollTop + scrollBox.clientHeight >= scrollBox.scrollHeight - 1;
+}
+
+/**
+ * Scrollea de a una fila (altura real de la primera fila) en la dirección dada.
+ */
+function _scrollGridBy(gridContainer, direction) {
+    const scrollBox = gridContainer.querySelector('.multifield-scroll-box');
+    if (!scrollBox) return;
+    const firstRow = scrollBox.querySelector('tbody tr');
+    const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 32;
+    scrollBox.scrollBy({ top: direction * rowHeight, behavior: 'smooth' });
 }
 
 /**
@@ -541,39 +665,147 @@ function _setupChangeTracking(gridContainer) {
 }
 
 /**
- * Actualiza estado visual de controles de paginación
+ * Abre el modal de alta/edición de un registro del multifield. `rowData` +
+ * `absoluteIndex` null/null = alta; con valores = edición de esa fila.
+ * Reusa _buildRow + _setupChangeTracking tal cual (no asumen vivir dentro
+ * del grid real, ver nota en Autocomplete.js/attachAutocompleteHandlers) en
+ * un mini-grid propio de 1 fila, así toda la lógica de catálogo/choice/is=/
+ * check ya probada funciona sin cambios dentro del modal.
  */
-function _updateControls(gridContainer, controls, totalRows, display, currentPage) {
-    const totalPages = Math.ceil(totalRows / display) || 1;
-    const prevBtn = controls.querySelector('.multifield-prev-btn');
-    const nextBtn = controls.querySelector('.multifield-next-btn');
-    const pageInfo = controls.querySelector('.multifield-page-info');
+function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
+    const multifieldId = gridContainer.getAttribute('data-multifield-id');
+    const isEdit = absoluteIndex != null;
+    const itemLabel = gridContainer.dataset.itemLabel || 'REGISTRO';
 
-    if (prevBtn) prevBtn.disabled = currentPage === 0;
-    if (nextBtn) nextBtn.disabled = currentPage >= totalPages - 1;
-    if (pageInfo) {
-        const start = currentPage * display + 1;
-        const end = Math.min((currentPage + 1) * display, totalRows);
-        pageInfo.textContent = totalRows > 0
-            ? `${start}-${end} de ${totalRows}`
-            : '0 de 0';
+    // Centrado sobre el form (.terminal-window), no sobre todo el navegador:
+    // position:absolute anclado ahí en vez de fixed sobre document.body.
+    // Fallback a body/fixed si por algún motivo no hay .terminal-window
+    // (ej. el multifield vive en un layout distinto al habitual).
+    const formContainer = gridContainer.closest('.terminal-window') || document.body;
+    const anchoredToForm = formContainer !== document.body;
+    if (anchoredToForm && getComputedStyle(formContainer).position === 'static') {
+        formContainer.style.position = 'relative';
     }
-}
 
-/**
- * Agrega una fila vacía al final del grid
- */
-function _addRow(gridContainer) {
-    const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
-    allRows.push({});
-    gridContainer.dataset.allRows = JSON.stringify(allRows);
-    gridContainer.dataset.totalRows = allRows.length;
+    const backdrop = createElement('div', 'mf-row-modal-backdrop');
+    backdrop.style.position = anchoredToForm ? 'absolute' : 'fixed';
+    const modal = createElement('div', 'mf-row-modal');
+    backdrop.appendChild(modal);
 
-    const display = parseInt(gridContainer.getAttribute('data-display')) || 10;
-    const lastPage = Math.max(0, Math.ceil(allRows.length / display) - 1);
-    gridContainer.dataset.currentPage = lastPage;
+    // Mismo título que el botón que abre el modal (ver item-label en
+    // renderGridFromMultifield), para que "AGREGAR PRODUCTO" del botón y el
+    // título del modal digan exactamente lo mismo.
+    const title = createElement('h3', 'mf-row-modal-title', `${isEdit ? 'EDITAR' : 'AGREGAR'} ${itemLabel}`);
+    modal.appendChild(title);
+    modal.appendChild(createElement('hr', 'mf-row-modal-divider'));
 
-    _rerenderGrid(gridContainer);
+    // Sin caja propia alrededor de los campos: .multifield-grid ya trae su
+    // propio borde+fondo+sombra (pensado para el grid real de la página) —
+    // sumarle otro borde acá daba "2 recuadros anidados" con fondos
+    // distintos. .mf-row-modal-grid anula esos estilos en el CSS.
+    const miniGrid = createElement('div', 'multifield-grid mf-row-modal-grid');
+    miniGrid.setAttribute('data-multifield-id', multifieldId);
+    miniGrid.dataset.allRows = JSON.stringify([rowData ? { ...rowData } : {}]);
+    const table = createElement('table', 'multifield-table');
+    // _setupChangeTracking/_getColumns leen columnas vía gridContainer
+    // .querySelector('thead') — clonar el thead real (ya tiene toda la
+    // metadata data-lookup/data-choice/data-unique calculada una vez en
+    // renderGridFromMultifield) en vez de reconstruirla.
+    const thead = gridContainer.querySelector('thead').cloneNode(true);
+    const tbody = createElement('tbody');
+    tbody.appendChild(_buildRow(multifieldId, columns, rowData, 0));
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    miniGrid.appendChild(table);
+    modal.appendChild(miniGrid);
+
+    _setupChangeTracking(miniGrid);
+
+    const errorEl = createElement('div', 'mf-row-modal-error');
+    errorEl.hidden = true;
+    modal.appendChild(errorEl);
+
+    const footer = createElement('div', 'mf-row-modal-footer');
+    const cancelBtn = createElement('button', 'mf-row-modal-cancel-btn', 'Volver');
+    cancelBtn.type = 'button';
+    const saveBtn = createElement('button', 'mf-row-modal-save-btn', 'Guardar');
+    saveBtn.type = 'button';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    modal.appendChild(footer);
+
+    const onKeydown = (e) => { if (e.key === 'Escape') close(); };
+
+    function close() {
+        backdrop.remove();
+        document.removeEventListener('keydown', onKeydown);
+    }
+
+    document.addEventListener('keydown', onKeydown);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+    cancelBtn.addEventListener('click', close);
+
+    saveBtn.addEventListener('click', () => {
+        const hasFieldError = !!miniGrid.querySelector('.field-error');
+
+        // Se lee directo del DOM (no de miniGrid.dataset.allRows): el
+        // catálogo dispara un 'change' anidado en su columna choice hermana
+        // mientras el handler del catálogo todavía está corriendo — ese
+        // 'change' anidado escribe el dataset con el valor nuevo, pero el
+        // handler externo lo pisa después con su propia copia vieja al
+        // terminar (mismo _setupChangeTracking que usa el grid real, donde
+        // esto nunca importó porque el submit real lee FormData, no el
+        // dataset). El DOM del input siempre tiene el valor correcto.
+        const modalRowEl = miniGrid.querySelector('tbody tr');
+        const rowResult = {};
+        columns.forEach(col => {
+            const inputEl = modalRowEl.querySelector(`[data-col-id="${col.id}"]`);
+            if (inputEl) rowResult[col.id] = inputEl.value;
+        });
+        try { rowResult.__catalogRow = JSON.parse(modalRowEl.dataset.catalogRow || '{}'); } catch { /* sin catalogRow, no pasa nada */ }
+
+        // Única validación "requerida" hoy: la columna catálogo principal
+        // (type="select" + in-table) no puede quedar vacía — las columnas de
+        // multifield no soportan <required> propio.
+        const mainCatalogCol = columns.find(c => c.type === 'select' && c.lookupConfig);
+        const missingMain = mainCatalogCol && !rowResult[mainCatalogCol.id];
+
+        if (hasFieldError || missingMain) {
+            errorEl.textContent = missingMain
+                ? `Elegí un valor para "${mainCatalogCol.label}" antes de guardar.`
+                : 'Revisá los campos marcados antes de guardar.';
+            errorEl.hidden = false;
+            return;
+        }
+
+        // El mini-grid del modal solo tiene esta fila — la unicidad hay que
+        // chequearla a mano contra el resto de filas ya guardadas en el
+        // grid real (_setupChangeTracking la resuelve mirando filas
+        // hermanas del mismo contenedor, acá no hay hermanas).
+        const realAllRows = JSON.parse(gridContainer.dataset.allRows || '[]');
+        const thead = gridContainer.querySelector('thead');
+        const uniqueCols = columns.filter(c => thead?.querySelector(`th[data-field-id="${c.id}"]`)?.getAttribute('data-unique') === 'true');
+        const dupCol = uniqueCols.find(c =>
+            realAllRows.some((r, idx) => idx !== absoluteIndex && r[c.id] !== '' && String(r[c.id] ?? '') === String(rowResult[c.id] ?? ''))
+        );
+        if (dupCol) {
+            errorEl.textContent = `Valor duplicado en "${dupCol.label}".`;
+            errorEl.hidden = false;
+            return;
+        }
+
+        if (isEdit) {
+            realAllRows[absoluteIndex] = rowResult;
+        } else {
+            realAllRows.push(rowResult);
+        }
+        gridContainer.dataset.allRows = JSON.stringify(realAllRows);
+        _rerenderDisplayGrid(gridContainer);
+        close();
+    });
+
+    formContainer.appendChild(backdrop);
+    modal.querySelector('.autocomplete-wrapper input, input:not([type="hidden"])')?.focus();
 }
 
 /**
@@ -599,15 +831,7 @@ function _deleteRow(gridContainer, absoluteIndex) {
     gridContainer.dataset.allRows = JSON.stringify(allRows);
     gridContainer.dataset.totalRows = allRows.length;
 
-    const display = parseInt(gridContainer.getAttribute('data-display')) || 10;
-    const totalPages = Math.ceil(allRows.length / display) || 1;
-    let currentPage = parseInt(gridContainer.dataset.currentPage) || 0;
-    if (currentPage >= totalPages) {
-        currentPage = totalPages - 1;
-        gridContainer.dataset.currentPage = currentPage;
-    }
-
-    _rerenderGrid(gridContainer);
+    _rerenderDisplayGrid(gridContainer);
 }
 
 // ============================================
@@ -667,12 +891,26 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
     tableContainer.setAttribute('data-display', display);
     tableContainer.setAttribute('data-multifield-id', config.id);
     tableContainer.dataset.allRows = '[]';
-    tableContainer.dataset.currentPage = '0';
     tableContainer.dataset.totalRows = '0';
 
     const table = createElement('table', 'multifield-table');
     const thead = createElement('thead');
     const tbody = createElement('tbody');
+
+    // Columnas que son solo una copia de otra columna catálogo (ej.
+    // "producto", copy target de "id_producto") — esa columna catálogo ya
+    // muestra "clave - nombre" (ver overlay en Autocomplete.js), así que
+    // mostrar el nombre dos veces es redundante. Se ocultan tanto el <th>
+    // (acá abajo) como la celda compacta correspondiente (_buildDisplayRow)
+    // y la del modal (_buildRow) — a diferencia de un skip/readonly
+    // independiente como "precio_total", que sí tiene valor propio.
+    const copyTargetIds = new Set();
+    childFields.forEach(field => {
+        field.querySelectorAll('validation in-table copy').forEach(c => {
+            const to = c.getAttribute('to');
+            if (to) copyTargetIds.add(to);
+        });
+    });
 
     // Encabezados de columna (con metadatos para reconstrucción)
     const headerRow = createElement('tr');
@@ -685,6 +923,7 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
         const isExpr = field.getAttribute('is') || null;
         const th = createElement('th', '', field.getAttribute('label') || fieldId);
         th.setAttribute('data-field-id', fieldId);
+        if (copyTargetIds.has(fieldId)) th.hidden = true;
         if (isSkip) th.setAttribute('data-skip', 'true');
         if (isReadonly) th.setAttribute('data-readonly', 'true');
         if (isUnique) th.setAttribute('data-unique', 'true');
@@ -749,44 +988,43 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
 
     table.appendChild(thead);
     table.appendChild(tbody);
-    tableContainer.appendChild(table);
 
-    // Controles de paginación y botón AGR
+    // Envolver la tabla en un contenedor con scroll + nav ▲/▼ (en vez de
+    // paginación): `display` pasa a ser "cuántas filas se ven antes de
+    // necesitar scroll", no "tamaño de página" — ver UX-UI-IMPROVEMENT-PLAN.md.
+    const scrollRow = createElement('div', 'multifield-scroll-row');
+    const scrollBox = createElement('div', 'multifield-scroll-box');
+    scrollBox.appendChild(table);
+    scrollRow.appendChild(scrollBox);
+
+    const scrollNav = createElement('div', 'multifield-scroll-nav');
+    const scrollUpBtn = createElement('button', 'multifield-scroll-up', '▲');
+    const scrollDownBtn = createElement('button', 'multifield-scroll-down', '▼');
+    scrollUpBtn.type = 'button';
+    scrollDownBtn.type = 'button';
+    scrollUpBtn.hidden = true;
+    scrollDownBtn.hidden = true;
+    scrollUpBtn.addEventListener('click', () => _scrollGridBy(tableContainer, -1));
+    scrollDownBtn.addEventListener('click', () => _scrollGridBy(tableContainer, 1));
+    scrollNav.appendChild(scrollUpBtn);
+    scrollNav.appendChild(scrollDownBtn);
+    scrollRow.appendChild(scrollNav);
+
+    tableContainer.appendChild(scrollRow);
+    scrollBox.addEventListener('scroll', () => _updateScrollControls(tableContainer));
+
+    // Botón de alta — texto configurable desde el XML vía item-label, para
+    // no hardcodear "PRODUCTO" en el motor (ej. item-label="producto" →
+    // "+ AGREGAR PRODUCTO"; fallback genérico si el form no lo declara).
     const controls = createElement('div', 'multifield-controls');
-    const prevBtn = createElement('button', 'multifield-btn multifield-prev-btn', '< ANT');
-    const nextBtn = createElement('button', 'multifield-btn multifield-next-btn', 'SIG >');
-    const pageInfo = createElement('span', 'multifield-page-info', '0 de 0');
-    const addBtn = createElement('button', 'multifield-btn multifield-add-btn', '+ AGR');
-
-    prevBtn.type = 'button';
-    nextBtn.type = 'button';
+    const itemLabel = (fieldXml.getAttribute('item-label') || 'registro').toUpperCase();
+    tableContainer.dataset.itemLabel = itemLabel;
+    const addBtn = createElement('button', 'multifield-btn multifield-add-btn', `+ AGREGAR ${itemLabel}`);
     addBtn.type = 'button';
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
-
-    prevBtn.addEventListener('click', () => {
-        let currentPage = parseInt(tableContainer.dataset.currentPage) || 0;
-        if (currentPage > 0) {
-            tableContainer.dataset.currentPage = --currentPage;
-            _rerenderGrid(tableContainer);
-        }
+    addBtn.addEventListener('click', () => {
+        const columnsNow = _getColumns(thead);
+        _openRowModal(tableContainer, columnsNow, null, null);
     });
-
-    nextBtn.addEventListener('click', () => {
-        const allRows = JSON.parse(tableContainer.dataset.allRows || '[]');
-        const totalPages = Math.ceil(allRows.length / display) || 1;
-        let currentPage = parseInt(tableContainer.dataset.currentPage) || 0;
-        if (currentPage < totalPages - 1) {
-            tableContainer.dataset.currentPage = ++currentPage;
-            _rerenderGrid(tableContainer);
-        }
-    });
-
-    addBtn.addEventListener('click', () => _addRow(tableContainer));
-
-    controls.appendChild(prevBtn);
-    controls.appendChild(pageInfo);
-    controls.appendChild(nextBtn);
     controls.appendChild(addBtn);
     tableContainer.appendChild(controls);
 
@@ -797,14 +1035,10 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
     deletedInput.value = '[]';
     tableContainer.appendChild(deletedInput);
 
-    // Configurar tracking de cambios (una sola vez)
-    _setupChangeTracking(tableContainer);
-
-    // Filas vacías iniciales con inputs (misma apariencia que antes de Sprint 19)
-    const columns = _getColumns(thead);
-    for (let i = 0; i < display; i++) {
-        tbody.appendChild(_buildRow(config.id, columns, null, i));
-    }
+    // El grid arranca vacío (allRows=[]) — sin filas de relleno. Alta y
+    // edición van por _openRowModal; el tbody real no tiene inputs propios,
+    // por eso no hace falta _setupChangeTracking sobre tableContainer (esa
+    // delegación ahora vive en el mini-grid de cada modal).
 
     fieldWrapper.appendChild(tableContainer);
 
@@ -842,13 +1076,8 @@ export const appendRowToGrid = (multifieldId, rowData, container) => {
     const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
     allRows.push(rowData);
     gridContainer.dataset.allRows = JSON.stringify(allRows);
-    gridContainer.dataset.totalRows = allRows.length;
 
-    const display = parseInt(gridContainer.getAttribute('data-display')) || 10;
-    const lastPage = Math.max(0, Math.ceil(allRows.length / display) - 1);
-    gridContainer.dataset.currentPage = lastPage;
-
-    _rerenderGrid(gridContainer);
+    _rerenderDisplayGrid(gridContainer);
 };
 
 /**
@@ -867,10 +1096,8 @@ export const populateRows = (multifieldId, rows, container) => {
     }
 
     gridContainer.dataset.allRows = JSON.stringify(rows);
-    gridContainer.dataset.totalRows = rows.length;
-    gridContainer.dataset.currentPage = '0';
 
-    _rerenderGrid(gridContainer);
+    _rerenderDisplayGrid(gridContainer);
 
     console.log(`✅ populateRows: ${rows.length} filas cargadas en ${multifieldId}`);
 };
