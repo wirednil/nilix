@@ -295,7 +295,10 @@ describe('E2E — Dev Sandbox', async () => {
         await page.fill('#usuario', testUser);
 
         // Rol is autocomplete (rendered as input + button). Open dropdown, pick "Admin".
-        await page.click('#rol + .autocomplete-btn');
+        // Click the input itself (not "+ .autocomplete-btn": desde el overlay
+        // "clave - nombre" de catálogos reales, #rol ya no es sibling directo
+        // del botón — clickear el input abre el dropdown igual).
+        await page.click('#rol');
         await page.waitForSelector('.autocomplete-dropdown:not([style*="none"])', { timeout: 3000 });
         await page.locator('.autocomplete-dropdown .autocomplete-item').filter({ hasText: 'Admin' }).click();
 
@@ -380,18 +383,22 @@ describe('E2E — Dev Sandbox', async () => {
         }
     });
 
-    it('10. <choice> cell renders as the Autocomplete widget (not a native <select>) and picks up the catalog row', async () => {
+    it('10. <choice> cell renders as the Autocomplete widget (not a native <select>) inside the add/edit modal', async () => {
         // Regression test: <choice> used to render a native <select>. It now
         // reuses the same Autocomplete.js widget as <options> — see
         // form/mf_pedidos.xml (id_producto catalog column + precio_unitario choice).
+        // Also covers the "agregar vía modal" flow (2026-08-23): the grid is
+        // read-only, alta/edición van por _openRowModal (Multifield.js).
         const { page, baseUrl, context, loginAsOperador } = ctx;
         await context.clearCookies();
         await loginAsOperador();
 
         await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
         await page.click('.tree-node:has(span:text("MF Pedidos"))');
-        await page.waitForSelector('[data-col-id="id_producto"]', { timeout: 10000 });
-        await page.waitForTimeout(300);
+        await page.waitForSelector('text=+ AGREGAR ITEM', { timeout: 10000 });
+
+        await page.click('text=+ AGREGAR ITEM');
+        await page.waitForSelector('[data-col-id="id_producto"]', { timeout: 5000 });
 
         const choiceTag = await page.$eval('[data-col-id="precio_unitario"]', el => el.tagName);
         assert.equal(choiceTag, 'INPUT', 'choice cell must be an <input> (Autocomplete widget), not a native <select>');
@@ -424,5 +431,108 @@ describe('E2E — Dev Sandbox', async () => {
 
         assert.equal(await page.inputValue('[data-col-id="precio_unitario"]'), '3000',
             'touched "mayor" choice should carry forward to Mochila Fixture\'s precio_mayor (3000)');
+
+        // Guardar -> el modal cierra y aparece una fila compacta de solo lectura
+        await page.click('.mf-row-modal-save-btn');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+
+        const rowText = await page.textContent('.multifield-display-row');
+        assert.ok(rowText.includes('Mochila Fixture'), `expected compact row to show the product name, got: ${rowText}`);
+        assert.ok(rowText.includes('3000'), `expected compact row to show precio_unitario 3000, got: ${rowText}`);
+
+        // Click en la fila (no en ✕) reabre el modal precargado con los mismos valores
+        await page.click('.multifield-display-row');
+        await page.waitForSelector('[data-col-id="precio_unitario"]', { timeout: 5000 });
+        assert.equal(await page.inputValue('[data-col-id="precio_unitario"]'), '3000', 'reopening should prefill the same precio_unitario');
+
+        // Cerrar sin guardar (Escape) no debe duplicar la fila
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+        const rowCount = await page.locator('.multifield-display-row').count();
+        assert.equal(rowCount, 1, 'closing without saving should not add a duplicate row');
+    });
+
+    it('11. Top-level catalog select hides its copy-target companion field (no duplicate name)', async () => {
+        // Regression test: a type="select" field with <in-table><copy to="X"/>
+        // now shows "key - name" via the Autocomplete.js overlay (see
+        // refreshOverlay()), so a separate readonly/skip field just holding
+        // the same copied name is redundant — LayoutProcessor.js hides it.
+        // See form/top_level_catalog.xml (id_producto_ref -> copy to
+        // nombre_producto). Same mechanism as the multifield's copyTargetIds,
+        // but computed for the whole top-level <layout> in processLayout().
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Top Level Catalog"))');
+        await page.waitForSelector('#id_producto_ref', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        const nombreWrapper = page.locator('#nombre_producto').locator('xpath=ancestor::*[contains(@class,"field-row") or contains(@class,"field-block-horizontal")][1]');
+        assert.equal(await nombreWrapper.isVisible(), false, 'companion "nombre_producto" field must be hidden');
+
+        // Elegir un producto y confirmar el overlay "clave - nombre" en el campo catálogo
+        await page.click('#id_producto_ref');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Tote Fixture' }).first().click();
+        await page.waitForTimeout(300);
+        await page.click('body');
+        await page.waitForTimeout(300);
+
+        const overlayText = await page.textContent('#id_producto_ref ~ .autocomplete-display-overlay');
+        assert.ok(overlayText.includes('Tote Fixture'), `expected overlay to show "key - Tote Fixture", got: ${overlayText}`);
+    });
+
+    it('12. Submitting a form sends the flat items_<col>_<idx> keys the multifield modal produces', async () => {
+        // Regression test: _buildDisplayRow() (Multifield.js) carries each
+        // row's values as <input type="hidden" name="{multifieldId}_{col}_{idx}">
+        // instead of the old always-visible editable inputs — SubmitManager.js
+        // still collects data via `new FormData(formEl)`, so if that naming
+        // convention ever breaks, a form silently submits without its
+        // multifield rows (no client error, no server error — the data is
+        // just missing). Real handlers (ej. THYM POS's ventas.handler.js)
+        // parse these exact flat keys via regex, so the naming has to stay
+        // byte-for-byte stable even though the grid itself is now read-only.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        let capturedPayload = null;
+        const onRequest = (req) => {
+            if (req.method() === 'POST' && req.url().includes('/api/v1/records/')) {
+                capturedPayload = req.postDataJSON();
+            }
+        };
+        page.on('request', onRequest);
+
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("MF Pedidos"))');
+            await page.waitForSelector('#id', { timeout: 10000 });
+
+            const pedidoId = String(90000 + Math.floor(Math.random() * 9999));
+            await page.fill('#id', pedidoId);
+
+            await page.click('text=+ AGREGAR ITEM');
+            await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+            await page.click('[data-col-id="id_producto"]');
+            await page.waitForSelector('.mf-row-modal .autocomplete-item', { timeout: 3000 });
+            await page.locator('.mf-row-modal .autocomplete-item', { hasText: 'Tote Fixture' }).first().click();
+            await page.waitForTimeout(200);
+            await page.click('.mf-row-modal-save-btn');
+            await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+
+            await page.click('button[type="submit"]');
+            await page.waitForTimeout(1500);
+
+            assert.ok(capturedPayload, 'expected a POST to /api/v1/records/ to fire on submit');
+            const data = capturedPayload.data;
+            assert.equal(data.items_id_producto_0, '1', 'items_id_producto_0 must carry the selected product id');
+            assert.equal(data.items_producto_0, 'Tote Fixture', 'items_producto_0 must carry the copied name');
+            assert.equal(data.items_precio_unitario_0, '2500', 'items_precio_unitario_0 must carry the resolved price');
+        } finally {
+            page.off('request', onRequest);
+        }
     });
 });
