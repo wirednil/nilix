@@ -2367,6 +2367,14 @@ body.dark-mode .report-card {
     border-bottom: 1px solid var(--input-border);
     white-space: nowrap;
 }
+/* "Piso" antes de la última fila (ej. TOTAL en factura.yaml) — mismo peso que
+   el separador del header (th), vía CSS en vez de una línea "---" en el
+   rowFooter del YAML: un "---" ahí se cuela como fila de tabla más (texto
+   literal, no <hr> — el thematic-break de markdown no admite los ** de
+   negrita mezclados con los guiones), no como divisor real. */
+.report-lines-md tbody tr:last-child td {
+    border-top: 2px solid var(--border-color);
+}
 /* Inline markdown elements (active in all zones when markdown: true) */
 .report-container strong { font-weight: 700; }
 .report-container em     { font-style: italic; }
