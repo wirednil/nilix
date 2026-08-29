@@ -45,11 +45,12 @@
 
 | Ítem auditoría | Qué falta | Esfuerzo |
 |---|---|---|
-| `NOMBRE` de clienta visible solo si se elige "Otra" | Sistema de visibilidad condicional entre campos. Confirmado ausente: `nil-form.md` lista `display only when expr` / `skip when cond` como **"No implementado"** | Medio — nuevo atributo XML + soporte en `LayoutProcessor.js` |
-| Costo de envío deshabilitado salvo que "Envío" esté seleccionado | Mismo mecanismo condicional, aplicado a `disabled` | Medio (reutiliza la feature de arriba) |
-| Validación inline con resumen antes de enviar | Reemplazar `formEl.reportValidity()` nativo en `SubmitManager.js:64-66` por un recorrido de campos inválidos usando `validator.showErrorOnField()` (ya existe, `ValidationCoordinator.js:84,206`) + resumen en `StatusBar` | Bajo-medio — la infraestructura de error inline ya existe, falta usarla en el submit |
-| ANT/SIG/ENVIAR compitiendo (¿wizard o formulario único?) | No existe flujo de "pasos" de formulario. "wizard" en el código es solo un **rol de usuario**, sin relación | Alto si se quiere wizard real. Alternativa barata: los botones ANT/SIG solo se generan si `tableConfig.keyField && tableConfig.table` (`SubmitManager.js:25`) — si el form de venta no encaja en ese patrón de navegación secuencial, sacarlos es tan simple como no cumplir esa condición (config, no motor) |
-| Tarjetas mobile para el grid de productos | Reestructuración de layout más profunda que la actual (45 reglas CSS existentes cubren el caso básico, no el rediseño completo en ficha) | Medio-alto — pendiente de una captura mobile real antes de estimar en serio (la propia auditoría lo señala como no evaluado) |
+| `NOMBRE` de clienta visible solo si se elige "Otra" | ❌ Descartado — no era un caso real. El sentinel `id_clienta==0` abre el subform `clientas_nuevo` (alta de clienta nueva), no un campo de texto "Otra" — la premisa del hallazgo original no aplicaba al comportamiento real del form. | — |
+| Costo de envío deshabilitado salvo que "Envío" esté seleccionado | ✅ Implementado 2026-08-25 — ver sección 6 | — |
+| Validación inline con resumen antes de enviar | ✅ Implementado 2026-08-24 — ver sección 4 | — |
+| ANT/SIG/ENVIAR compitiendo (¿wizard o formulario único?) | ⏸️ Revisado — decisión explícita del usuario: se deja como está. Cumple una función real (corregir venta cargando su N°), no bloquea nada de lo implementado. "wizard" en el código es solo un **rol de usuario**, sin relación con esto | — |
+| Tarjetas mobile para el grid de productos | ⏭️ Movido a un plan aparte — ver sección 8 | — |
+| Navegación lateral no evaluable en móvil | ⏭️ Movido a un plan aparte — ver sección 8 | — |
 
 ---
 
@@ -93,7 +94,15 @@ El primer diseño del modal (caja con borde propio alrededor de los campos, sepa
 
 ### Extensión a campos top-level (2026-08-24)
 
-El overlay "clave - nombre" es global (vive en `Autocomplete.js`, usado por cualquier `type="select"` con `<in-table>`), así que también afecta campos catálogo fuera de un multifield — ej. `id_clienta` en `ventas.xml`. Pero el ocultamiento de la columna redundante (`copyTargetIds`) solo vivía dentro de `Multifield.js`, así que `CLIENTA` mostraba "5 - Juan Pérez" **y** el campo `NOMBRE` separado seguía visible mostrando el nombre de nuevo — mismo problema que PRODUCTO+NOMBRE, ahora a nivel de formulario. Extendido el mismo mecanismo a `LayoutProcessor.js::processLayout()`: computa una vez por formulario el set de IDs que son `copy.to` de algún `<in-table>` en TODO el layout (excluyendo campos anidados dentro de un `<field type="multifield">`, que ya tienen su propio mecanismo equivalente), y oculta el `.field-row`/`.field-block-horizontal` de esos campos en `renderField()`. **No requiere tocar `ventas.xml`** — el fix es genérico, se aplica solo con recargar el form. Fixture nuevo `dev/form/top_level_catalog.xml` + test #11 en `tests/e2e.test.js`.
+El overlay "clave - nombre" es global (vive en `Autocomplete.js`, usado por cualquier `type="select"` con `<in-table>`), así que también afecta campos catálogo fuera de un multifield — ej. `id_clienta` en `ventas.xml`. Pero el ocultamiento de la columna redundante (`copyTargetIds`) solo vivía dentro de `Multifield.js`, así que `CLIENTA` mostraba "5 - Juan Pérez" **y** el campo `NOMBRE` separado seguía visible mostrando el nombre de nuevo — mismo problema que PRODUCTO+NOMBRE, ahora a nivel de formulario. Extendido el mismo mecanismo a `LayoutProcessor.js::processLayout()`: computa una vez por formulario el set de IDs que son `copy.to` de algún `<in-table>` en TODO el layout (excluyendo campos anidados dentro de un `<field type="multifield">`, que ya tienen su propio mecanismo equivalente), y oculta el `.field-row`/`.field-block-horizontal` de esos campos en `renderField()`. **No requiere tocar `ventas.xml`** — el fix es genérico, se aplica solo con recargar el form. El campo catálogo que se queda solo en su `container` reclama el ancho liberado (antes se quedaba angosto al tamaño pensado solo para la clave). Fixture nuevo `dev/form/top_level_catalog.xml` + test #11 en `tests/e2e.test.js`.
+
+### Segunda vuelta de ajuste visual del modal (2026-08-24)
+
+Tras ver el modal renderizado, dos correcciones más:
+
+- **Separadores entre cada campo** (se habían agregado sin pedido explícito) → sacados, solo queda el separador debajo del título.
+- **"2 recuadros anidados con fondos distintos"** — `.mf-row-modal-grid` heredaba `border`+`background`+`box-shadow` de `.multifield-grid` (pensados para el grid real de la página) además del borde propio del modal. Anulados esos estilos dentro del modal (`.mf-row-modal-grid { border:none; background:transparent; box-shadow:none; }`).
+- **Centrado sobre `.terminal-window` (el form), no sobre todo el navegador** — el backdrop pasa de `position:fixed` sobre `document.body` a `position:absolute` anclado al `.terminal-window` más cercano (con fallback a `fixed`/`body` si no hay uno), así que el modal queda centrado sobre la caja del form aunque el navegador sea mucho más ancho. Verificado matemáticamente (centro del modal == centro de `.terminal-window`, con viewport 1600×1200 y form de 900×497).
 
 ### Dos bugs de motor encontrados y corregidos durante la implementación (no eran del feature en sí)
 
@@ -103,14 +112,68 @@ El overlay "clave - nombre" es global (vive en `Autocomplete.js`, usado por cual
 
 ### Verificado
 
-Suite completo `node --test tests/*.test.js`: **160/160**, dos corridas limpias consecutivas. Test #10 de `tests/e2e.test.js` reescrito para cubrir el flujo completo: abrir modal, elegir catálogo, `default-from` de `<choice>`, elección manual persiste al cambiar de producto, Guardar → fila compacta con los valores correctos, click en la fila reabre el modal precargado, Escape sin guardar no duplica la fila. No se hizo verificación manual en vivo contra THYM POS real (`ventas.xml`, server corriendo en :3002) por no tener credenciales de login a mano en esta sesión — recomendado antes de dar la feature por cerrada en producción.
+Suite completo `node --test tests/*.test.js`: **163/163**. Tests permanentes en `tests/e2e.test.js`:
+- **#10** — flujo completo del modal: abrir, elegir catálogo, `default-from` de `<choice>`, elección manual persiste al cambiar de producto, Guardar → fila compacta con los valores correctos, click en la fila reabre el modal precargado, Escape sin guardar no duplica la fila.
+- **#11** — campo top-level con `<copy>` queda oculto, el catálogo hermano muestra "clave - nombre".
+- **#12** — intercepta el POST real de submit y confirma que las claves planas `items_<col>_<idx>` llegan con los valores correctos. Es el más importante de los tres: protege el mecanismo del que depende que un form no pierda sus filas de multifield en silencio al guardar (un handler real como `ventas.handler.js` en THYM POS ya parsea exactamente ese patrón por regex).
+- **#13** — ver sección 4 (validación inline).
+
+No se hizo verificación manual en vivo contra THYM POS real (`ventas.xml`, server corriendo en :3002) por no tener credenciales de login a mano en esta sesión — recomendado antes de dar la feature por cerrada en producción.
 
 ---
 
-## 3. Orden de prioridad propuesto
+## 4. Validación inline con resumen en submit — ✅ IMPLEMENTADO (2026-08-24)
+
+**Lo que ya existía:** `validator.validateField()` (min/max/pattern/check/max-days-ago) + `showErrorOnField()` (mensaje inline `.error-msg` debajo del campo) — se disparaba solo en cada `blur` (`ValidationCoordinator.js`), sin tocar nada. **Lo que faltaba, dos cosas:** `required` nunca pasaba por ese sistema (lo manejaba 100% el atributo HTML `required` + `checkValidity()`/`reportValidity()` nativo del navegador), y no existía ningún resumen — el submit solo enfocaba el primer `.field-error` que hubiera quedado de un blur anterior.
+
+Implementado:
+- **`ValidationCoordinator`** — `attach()` ahora guarda `{fieldXml, inputEl}` de cada campo top-level en `this._fields` (las columnas de multifield no pasan por acá, `renderField()` las deriva a `renderMultifield()` antes). Nuevo método `validateAll()`: recorre todos los campos registrados, limpia errores viejos, chequea `inputEl.required` (vacío → "Este campo es obligatorio.") y re-corre `validator.validateField()` para el resto — devuelve la lista de campos inválidos con `{fieldId, label, message}`.
+- **`SubmitManager`** — el handler de submit reemplaza `formEl.checkValidity()`/`reportValidity()` por `this.coordinator.validateAll()`; si hay campos inválidos, pinta cada uno inline (ya lo hace `validateAll()`), empuja un resumen a la `StatusBar` (`Falta "X".` o `Faltan N campos: X, Y, Z.`) y enfoca el primero — sin llegar a armar `data` ni pegarle al servidor.
+- **`FormRenderer`** — el `<form>` gana `noValidate = true`. Necesario: un `<button type="submit">` con `required` vacío nunca llega a disparar el evento `submit` si el navegador puede validar por su cuenta — lo bloquea antes y muestra su propio globito. Sin `noValidate`, `validateAll()` nunca llegaría a correr.
+
+Verificado en vivo (Clientes, campo `Nombre` requerido vacío): el campo queda en rojo con "❌ Este campo es obligatorio." debajo, la `StatusBar` dice `❌ Falta "Nombre".`, y no aparece ningún tooltip nativo del navegador. Test permanente **#13**.
+
+---
+
+## 6. Visibilidad/habilitación condicional (`visible-when`/`enabled-when`) — ✅ IMPLEMENTADO (2026-08-25)
+
+El caso "Nombre visible solo si Otra" se descartó (ver sección 1-C: era un malentendido de la auditoría original, el sentinel abre un subform de alta, no un campo de texto). Se implementó el mecanismo genérico y se aplicó al caso real: **costo de envío deshabilitado salvo que se elija "Envío"**.
+
+**Sintaxis** — hijo directo de `<field>`, misma convención que `<default>`/`<help>` (no atributo):
+```xml
+<field id="envio_costo" label="Costo de envío ($)" type="number" size="12">
+    <default>0</default>
+    <enabled-when>envio_retiro == 'Envío'</enabled-when>
+</field>
+```
+`visible-when` funciona igual, oculta el `.field-row`/`.field-block-horizontal` en vez de deshabilitar el input.
+
+**Implementación** — `LayoutProcessor.js` gana `setupConditional(el, visibleWhenExpr, enabledWhenExpr)` (mismo patrón que el ya existente `setupIsExpression`): engancha un listener al `<form>` entero (`input`/`change`), recalcula con `ExpressionEngine.evaluate(expr, ExpressionEngine.createContextFromForm(formEl))` — la misma función que ya arma el contexto para `<check>`, cero motor de expresiones nuevo. Cálculo inicial al cargar, no solo en cambios futuros.
+
+**Interacción con la validación de la sección 4:** un campo `required` pero oculto por `visible-when` (o deshabilitado por `enabled-when`) no puede completarse — `ValidationCoordinator.validateAll()` ahora salta campos `disabled` o con `offsetParent === null` (oculto por `display:none` en sí mismo o cualquier ancestro), para no bloquear el submit por algo que el usuario ni ve ni puede tocar.
+
+**Bug de motor encontrado y corregido en el camino** — más serio que el feature en sí: `ExpressionEngine.evaluateRelational()` mandaba **ambos lados** de `==`/`!=` a través de `evaluateArithmetic()` (parser numérico puro). Un literal entre comillas como `'Envío'` no es aritmética válida — el parser lo rechazaba y devolvía `0` para ambos lados sin importar el valor real, así que `campo == 'Texto'` daba **siempre `true`**, incluso comparando contra un valor completamente distinto. Confirmado ejecutando el motor directo antes de aplicar el fix (`"Retira" == 'Envío'` → `true`, incorrecto). Nadie dependía de este comportamiento (`grep` sin resultados de `==`/`!=` en ningún `<check>` existente), así que el fix es seguro: para `==`/`!=` específicamente, ambos lados se resuelven ahora con `resolveValue()` (entiende comillas/variables/números) en vez de `evaluateArithmetic()`; `>`/`<`/`>=`/`<=` siguen aritméticos sin cambios.
+
+Fixture nuevo `dev/form/conditional_fields.xml` + test permanente **#14** (arranca deshabilitado, "Retira" lo mantiene deshabilitado —el caso exacto que el bug de `==` invertía—, "Envío" lo habilita). Verificado también visualmente (captura real, fondo gris/deshabilitado vs. blanco/habilitado).
+
+---
+
+## 7. Orden de prioridad propuesto
 
 1. ~~**Hoy, config-only:** `display="1"` en multifields de venta, renombrar `N°`.~~ ✅ Aplicado 2026-08-23. ANT/SIG a nivel de formulario: se deja como está (decisión cerrada, sección 2).
-2. ~~**Motor, feature nueva (sección 2):** "Agregar producto" vía modal + grid de solo lectura + ▲/▼.~~ ✅ Implementado y verificado 2026-08-23 (160/160 tests) — pendiente solo la verificación manual en THYM POS real, ver sección 2.
-3. **Motor, bajo esfuerzo / alto impacto:** validación inline con resumen en submit (`formEl.reportValidity()` → usar `validator.showErrorOnField()`, que ya existe).
-4. **Motor, esfuerzo medio:** sistema de visibilidad/habilitación condicional (`visible-when`/`enabled-when`) — resuelve de una sola vez "Nombre solo si Otra" y "costo de envío solo si Envío", reutilizable en cualquier form futuro.
-5. **Mobile cards del grid completo:** el modal ya cubre la tarjeta vertical para alta/edición; falta decidir si el grid de solo lectura en sí necesita algo más allá de lo que ya hace el CSS mobile existente (probablemente no, a confirmar con una captura real).
+2. ~~**Motor, feature nueva (sección 2):** "Agregar producto" vía modal + grid de solo lectura + ▲/▼.~~ ✅ Implementado y verificado 2026-08-23.
+3. ~~**Motor, bajo esfuerzo / alto impacto:** validación inline con resumen en submit.~~ ✅ Implementado y verificado 2026-08-24 (sección 4).
+4. ~~**Motor, esfuerzo medio:** sistema de visibilidad/habilitación condicional.~~ ✅ Implementado y verificado 2026-08-25 (sección 6).
+5. ~~**Mobile cards del grid completo.**~~ ⏭️ Movido a un plan aparte (sección 8) — no queda nada de escritorio pendiente en este documento.
+
+---
+
+## 8. Mobile — movido a un plan aparte (2026-08-26)
+
+Los dos ítems de la auditoría original que quedaban sin resolver son ambos de mobile:
+- Tabla del grid de productos incómoda en pantallas angostas (la auditoría ya marcaba esto como no evaluado con rigor — "para eso habría que ver el formulario en ~360-430px", nunca hubo una captura mobile real).
+- Navegación lateral (sidebar) no evaluable en mobile — directamente fuera de cualquier capture de la auditoría.
+
+Decisión del usuario: separar esto en un plan propio, no seguir agregándolo a este documento. Motivo implícito — a diferencia de todo lo de sección 1 a 6, acá no hay un hallazgo concreto contra código real todavía, solo una sospecha razonable ("probablemente haga falta algo más que el CSS mobile que ya existe") sin una captura mobile real que la confirme. Mezclarlo con este plan (que sí fue punto por punto contra el código) le restaría precisión a ambos.
+
+**Estado de este documento: cerrado para desktop.** Los 13 hallazgos concretos de la auditoría original (sección 21) quedaron: 9 implementados, 2 ya cubiertos de antes, 1 decidido explícitamente dejar como está, 2 movidos al plan de mobile.
