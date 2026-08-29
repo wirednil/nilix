@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="conditional_fields" title="Conditional fields fixture" database="app" table="conditional_fields" handler="none">
+    <layout>
+        <container type="horizontal">
+            <field id="envio_retiro" label="Envío o retiro" type="select" size="15">
+                <validation><required>true</required></validation>
+                <options>
+                    <option value="Retira">Retira</option>
+                    <option value="Envío">Envío</option>
+                </options>
+            </field>
+            <field id="envio_costo" label="Costo de envío ($)" type="number" size="12">
+                <default>0</default>
+                <enabled-when>envio_retiro == 'Envío'</enabled-when>
+            </field>
+        </container>
+    </layout>
+</form>

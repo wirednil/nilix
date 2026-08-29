@@ -574,4 +574,43 @@ describe('E2E — Dev Sandbox', async () => {
             page.off('request', onRequest);
         }
     });
+
+    it('14. <enabled-when> disables/enables a field based on a sibling field\'s value', async () => {
+        // Regression test for two things in the same change:
+        // 1. LayoutProcessor.js's new setupConditional(): envio_costo starts
+        //    disabled (envio_retiro defaults to empty), and toggles based on
+        //    envio_retiro's value — see form/conditional_fields.xml.
+        // 2. ExpressionEngine.evaluateRelational() bug found while building
+        //    this: "campo == 'Texto'" used to route both sides through
+        //    evaluateArithmetic() (numeric-only), which can't parse a quoted
+        //    string and silently falls back to 0 for BOTH sides — so the
+        //    comparison was always true regardless of the actual value.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Conditional Fields"))');
+        await page.waitForSelector('#envio_retiro', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        assert.equal(await page.locator('#envio_costo').isDisabled(), true,
+            'envio_costo must start disabled (envio_retiro has no value yet)');
+
+        // envio_retiro es type="select" con <options> literales — mismo
+        // widget Autocomplete que cualquier otro select, no un <select> nativo.
+        await page.click('#envio_retiro');
+        await page.waitForTimeout(200);
+        await page.locator('.autocomplete-item', { hasText: 'Retira' }).first().click();
+        await page.waitForTimeout(300);
+        assert.equal(await page.locator('#envio_costo').isDisabled(), true,
+            '"Retira" must keep envio_costo disabled — this is exactly the case the == string-comparison bug got backwards');
+
+        await page.click('#envio_retiro');
+        await page.waitForTimeout(200);
+        await page.locator('.autocomplete-item', { hasText: 'Envío' }).first().click();
+        await page.waitForTimeout(300);
+        assert.equal(await page.locator('#envio_costo').isDisabled(), false,
+            '"Envío" must enable envio_costo');
+    });
 });

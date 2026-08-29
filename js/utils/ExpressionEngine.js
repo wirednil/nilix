@@ -108,6 +108,19 @@ class ExpressionEngine {
 
         if (!operator || !parts || parts.length !== 2) return false;
 
+        // == / != necesitan igualdad exacta (incluye texto) — mandar ambos
+        // lados por evaluateArithmetic() rompía siempre a 0==0 para
+        // cualquier literal entre comillas (no es aritmética válida, la
+        // devolvía como 0 sin importar el valor real: "campo == 'Envío'"
+        // daba true SIEMPRE, incluso con campo="Retira"). resolveValue() sí
+        // entiende comillas/variables/números. >,<,>=,<= siguen aritméticos
+        // — comparación ordinal no aplica a texto.
+        if (operator === '==' || operator === '!=') {
+            const left = this.resolveValue(parts[0], context);
+            const right = this.resolveValue(parts[1], context);
+            return operator === '==' ? left == right : left != right;
+        }
+
         const left = this.evaluateArithmetic(parts[0], context);
         const right = this.evaluateArithmetic(parts[1], context);
 
@@ -116,8 +129,6 @@ class ExpressionEngine {
             case '<': return left < right;
             case '>=': return left >= right;
             case '<=': return left <= right;
-            case '==': return left == right; // == para comparación flexible
-            case '!=': return left != right;
             default: return false;
         }
     }

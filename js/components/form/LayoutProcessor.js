@@ -131,6 +131,9 @@ export class LayoutProcessor {
                 if (config.subformConfig) {
                     this.setupSubformTrigger(el, config.subformConfig);
                 }
+                if (config.visibleWhen || config.enabledWhen) {
+                    this.setupConditional(el, config.visibleWhen, config.enabledWhen);
+                }
                 if (this.ctx.copyTargetIds?.has(config.id)) {
                     el.closest('.field-row, .field-block-horizontal')?.style.setProperty('display', 'none');
                 }
@@ -218,6 +221,40 @@ export class LayoutProcessor {
         formEl.addEventListener('input',  recompute, { signal });
         formEl.addEventListener('change', recompute, { signal });
         formEl.addEventListener('multifield-populated', recompute, { signal });
+
+        // Cálculo inicial
+        recompute();
+    }
+
+    /**
+     * Visibilidad/habilitación condicional de un campo según el valor de
+     * otros campos del mismo form — mismo motor que <check> (ExpressionEngine
+     * + createContextFromForm), no una sintaxis nueva. `visible-when` en
+     * false oculta el field-row/field-block-horizontal (igual que ya se hace
+     * para columnas copy-target); `enabled-when` en false deshabilita el
+     * input — un input disabled ya queda afuera de FormData solo, no hace
+     * falta tocar el submit para que no se mande.
+     */
+    setupConditional(el, visibleWhenExpr, enabledWhenExpr) {
+        const signal = this.ctx.signal;
+        const formEl = el.closest('form');
+        if (!formEl) return;
+
+        const recompute = () => {
+            const context = ExpressionEngine.createContextFromForm(formEl);
+            const wrapper = el.closest('.field-row, .field-block-horizontal');
+
+            if (visibleWhenExpr) {
+                const visible = ExpressionEngine.evaluate(visibleWhenExpr, context);
+                if (wrapper) wrapper.style.display = visible ? '' : 'none';
+            }
+            if (enabledWhenExpr) {
+                el.disabled = !ExpressionEngine.evaluate(enabledWhenExpr, context);
+            }
+        };
+
+        formEl.addEventListener('input', recompute, { signal });
+        formEl.addEventListener('change', recompute, { signal });
 
         // Cálculo inicial
         recompute();
@@ -318,7 +355,12 @@ export class LayoutProcessor {
                 selectOptions,
                 lookupConfig,
                 isExpression: fieldXml.getAttribute('is') || null,
-                subformConfig
+                subformConfig,
+                // <visible-when>/<enabled-when> — mismo motor que ya evalúa
+                // <check> (ExpressionEngine), hijo directo de <field> igual
+                // que <default>/<help>, no atributo.
+                visibleWhen: fieldXml.querySelector('visible-when')?.textContent?.trim() || null,
+                enabledWhen: fieldXml.querySelector('enabled-when')?.textContent?.trim() || null
             };
         } catch (error) {
             console.error('❌ Error extrayendo configuración del campo:', error);
