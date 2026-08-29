@@ -15,15 +15,13 @@ const uiComponents = {
      * Crea el encabezado de la ventana del formulario
      * @param {Object} formData - Datos del formulario
      * @param {string} formData.title - Título del formulario
-     * @param {string} formData.database - Nombre de la base de datos
      * @returns {HTMLElement} Elemento del encabezado
      */
-    createHeader({ title, database }) {
+    createHeader({ title }) {
         const header = createElement('div', 'window-header');
         
-        const infoDiv = createElement('div', '', '', [
-            createElement('span', 'window-title', title),
-            createElement('span', 'db-info', `DB: ${database}`)
+        const infoDiv = createElement('div', 'window-header-info', '', [
+            createElement('span', 'window-title', title)
         ]);
 
         header.appendChild(infoDiv);

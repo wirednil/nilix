@@ -78,10 +78,7 @@ class FormRenderer {
 
             // 4. Build DOM
             windowDiv.appendChild(
-                uiComponents.createHeader({
-                    title: ctx.title,
-                    database: ctx.database
-                })
+                uiComponents.createHeader({ title: ctx.title })
             );
 
             // This form's WARN/ERROR logs surface in its own status bar until
