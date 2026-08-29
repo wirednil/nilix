@@ -497,10 +497,15 @@ body.dark-mode .readonly-field {
     gap: 1rem;
 }
 
+.window-header-info {
+    width: 100%;
+}
+
 .window-title {
     font-weight: 700;
     font-size: 1.5rem;
     text-transform: uppercase;
+    text-align: center;
     color: var(--text-color);
     /* CAMBIO CLAVE: display: block hace que el elemento ocupe toda una línea */
     display: block;
@@ -558,6 +563,11 @@ body.dark-mode .readonly-field {
     background: var(--info-bg);
     font-size: 0.85rem;
 }
+
+/* [hidden] y .status-bar{display:flex} empatan en especificidad (0,1,0) —
+   sin esto gana el que aparece último en la cascada (el CSS de autor,
+   después del UA stylesheet), así que la barra vacía se mostraba igual. */
+.status-bar[hidden] { display: none; }
 
 .status-bar[data-level="error"] { background: var(--error-bg); border-color: var(--error-color); }
 .status-bar[data-level="warning"] { background: var(--warning-bg); border-color: var(--warning-color); }
@@ -1130,9 +1140,23 @@ body.dark-mode .multifield-cell-input.readonly-field {
     cursor: not-allowed;
 }
 
-/* Fila compacta de solo lectura — click para editar vía modal */
+/* Fila compacta de solo lectura — click para editar vía modal. El :hover
+   genérico (.multifield-table tbody tr:hover, ya existente) no alcanza como
+   señal de "esto abre algo" — es el mismo hover sutil de cualquier fila. Acá
+   se refuerza un poco más, y se agrega :active porque en mobile no hay
+   hover: el feedback real de "toqué esto" tiene que pasar por el estado de
+   presión táctil. */
 .multifield-display-row {
     cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.multifield-display-row:hover {
+    background: var(--tree-hover, rgba(128, 128, 128, 0.1));
+}
+
+.multifield-display-row:active {
+    background: var(--tree-active, rgba(128, 128, 128, 0.18));
 }
 
 .multifield-display-value {
@@ -1838,8 +1862,10 @@ body.dark-mode select.field-error {
     }
     
     /* Resto de responsive anterior */
-    .terminal-window { 
+    .terminal-window {
         padding: 1rem;
+        border: none;
+        box-shadow: none;
     }
     
     .border-box {
@@ -2676,4 +2702,39 @@ body.dark-mode .report-card {
 .mf-row-modal .autocomplete-input-box { flex: 1; min-width: 0; }
 .mf-row-modal .multifield-cell-input,
 .mf-row-modal .autocomplete-display-overlay { width: 100% !important; }
+
+/* Columna calculada (is=, ej. Subtotal) vs. columna simplemente skip/readonly
+   (ej. Nombre copiado de un catálogo) — antes se veían idénticas acá adentro
+   (las dos solo con .readonly-field). Selector con más especificidad que las
+   reglas globales .readonly-field/.computed-field (que compiten por
+   `background` con !important cada una) para no depender del orden en que
+   aparecen en la hoja de estilos. */
+.mf-row-modal .multifield-cell-input.computed-field {
+    font-style: italic;
+    opacity: 0.75;
+}
+
+/* Compactar el modal en mobile: bajar el aire muerto entre título/campos/
+   footer sin achicar inputs, botones ni tipografía (eso son los touch
+   targets y la legibilidad, no "espacio muerto"). Sin @media, esta densidad
+   ya se comparte con desktop hoy — el override va acá para no tocar esa
+   base. */
+@media (max-width: 650px) {
+    .mf-row-modal {
+        padding: 0.75rem 1rem;
+    }
+    .mf-row-modal-title {
+        margin-bottom: 0.4rem;
+    }
+    .mf-row-modal-divider {
+        margin-bottom: 0.5rem;
+    }
+    .mf-row-modal .multifield-table tbody td:not(.multifield-action-cell) {
+        padding: 0.25rem 0;
+        gap: 0.1rem;
+    }
+    .mf-row-modal-footer {
+        margin-top: 0.6rem;
+    }
+}
 

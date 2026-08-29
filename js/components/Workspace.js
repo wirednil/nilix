@@ -27,11 +27,6 @@ class Workspace {
         logger.info('Workspace', `loadItem type=${item.type} label=${item.label}`);
         this.container.innerHTML = '';
 
-        const pathDisplay = document.createElement('div');
-        pathDisplay.className = 'path-display';
-        pathDisplay.textContent = `> ${item.target}`;
-        this.container.appendChild(pathDisplay);
-
         if (item.type === 'form') {
             const xmlContent = await getFile(item.target);
             if (xmlContent) {
