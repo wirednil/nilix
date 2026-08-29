@@ -7,4 +7,5 @@
     <option label="Top Level Catalog" type="form" target="form/top_level_catalog.xml" permissions="RADU"/>
     <option label="Conditional Fields" type="form" target="form/conditional_fields.xml" permissions="RADU"/>
     <option label="No Keyfield" type="form" target="form/no_keyfield.xml" permissions="RADU"/>
+    <option label="Venta Draft" type="form" target="form/venta_draft.xml" permissions="RADU"/>
 </menu>

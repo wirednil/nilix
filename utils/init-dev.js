@@ -158,6 +158,26 @@ async function seedMultifieldFixture() {
         id         INTEGER PRIMARY KEY AUTOINCREMENT
     )`);
 
+    // Fixture para venta_draft.xml/venta_draft.handler.js — replica el patrón
+    // insert-vs-update + after('id')-populate de ventas.handler.js (thym-pos,
+    // no versionado acá) para poder probarlo contra código real del motor
+    // (handlerController.js afterLoad, HandlerBridge, Multifield.populateRows)
+    // sin tocar datos de producción. Ver tests/e2e.test.js.
+    db.run(`CREATE TABLE IF NOT EXISTS venta_draft (
+        empresa_id INTEGER NOT NULL,
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha      TEXT,
+        total      REAL
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS detalle_draft (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_venta     INTEGER NOT NULL,
+        id_producto  INTEGER NOT NULL,
+        cantidad     REAL,
+        precio_unitario REAL,
+        subtotal     REAL
+    )`);
+
     const existing = db.exec(`SELECT id FROM mf_productos WHERE nombre = 'Tote Fixture'`);
     if (!existing.length || !existing[0].values.length) {
         db.run(`INSERT INTO mf_productos (empresa_id, nombre, precio_mayor, precio_menor) VALUES (${DEV_EMPRESA_ID}, 'Tote Fixture', 1500, 2500)`);

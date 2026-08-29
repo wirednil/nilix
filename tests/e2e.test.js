@@ -747,4 +747,80 @@ describe('E2E — Dev Sandbox', async () => {
             await mobileContext.close();
         }
     });
+
+    it('18. handlerController afterLoad forwards populate — reloading a record repopulates its multifield, and re-saving updates instead of duplicating', async () => {
+        // Regression test: handlerController.js's afterLoad() calls handler.after()
+        // once per field of the loaded record, but used to only aggregate
+        // enableFields/disableFields into its response — any populate/appendRow/
+        // setValues/filterSelect a handler returned was silently dropped, even
+        // though HandlerBridge._applyResult() (client) has always known how to
+        // apply `populate`. This broke reloading a record whose child rows live in
+        // a multifield with no column of their own (e.g. a draft "venta" + its
+        // detalle_ventas lines) — ValidationCoordinator.loadRecord() (typing a key
+        // into the keyField input) calls callAfterLoad(), which hit exactly this
+        // path. (navigateToAdjacent()/ANT-SIG uses callAfter() instead, a
+        // different route that was never affected — see form/venta_draft.xml's
+        // handler for the after('id', ...) convention both routes rely on.)
+        //
+        // Also covers the accompanying beforeSave update-vs-insert fix: with the
+        // keyField populated, beforeSave should UPDATE the header + replace the
+        // detail rows (delete-all + reinsert) instead of always inserting a new
+        // record.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        async function openForm() {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Venta Draft"))');
+            await page.waitForSelector('#fecha', { timeout: 10000 });
+        }
+
+        async function addItem(productMatch, cantidad) {
+            await page.click('button:has-text("AGREGAR ITEM")');
+            await page.waitForSelector('[data-col-id="id_producto"]', { timeout: 5000 });
+            await page.click('[data-col-id="id_producto"]');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: productMatch }).first().click();
+            await page.waitForTimeout(300);
+            await page.fill('[data-col-id="cantidad"]', String(cantidad));
+            await page.click('.mf-row-modal-save-btn');
+            await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+        }
+
+        // 1. Create a draft with one line (Tote Fixture x2).
+        await openForm();
+        await addItem('Tote Fixture', 2);
+        await page.click('button[type="submit"]');
+        await page.waitForTimeout(500);
+        const created = await page.textContent('button[type="submit"]');
+        const createdMatch = created.match(/¡CREADO! \(ID: (\d+)\)/);
+        assert.ok(createdMatch, `expected a fresh insert with a numeric id, got: ${created}`);
+        const ventaId = createdMatch[1];
+
+        // 2. Reload the form and type the id — this is the path that used to
+        // drop `populate` entirely.
+        await openForm();
+        await page.fill('#id', ventaId);
+        await page.locator('#id').blur();
+        await page.waitForTimeout(600);
+
+        const rows = await page.evaluate(() => {
+            const grid = document.querySelector('[data-multifield-id="items"]');
+            return grid ? JSON.parse(grid.dataset.allRows || '[]') : null;
+        });
+        assert.equal(rows?.length, 1, `expected the multifield to repopulate with the saved line, got: ${JSON.stringify(rows)}`);
+        assert.equal(rows[0].producto, 'Tote Fixture');
+        assert.equal(Number(rows[0].cantidad), 2);
+        assert.equal(Number(rows[0].precio_total), 5000);
+
+        // 3. Add a second line and resubmit — should UPDATE, not duplicate.
+        await addItem('Mochila Fixture', 1);
+        await page.click('button[type="submit"]');
+        await page.waitForTimeout(500);
+        const updated = await page.textContent('button[type="submit"]');
+        const updatedMatch = updated.match(/¡ACTUALIZADO! \(ID: (\d+)\)/);
+        assert.ok(updatedMatch, `expected an update, got: ${updated}`);
+        assert.equal(updatedMatch[1], ventaId, 'id must stay the same across the update, not create a new record');
+    });
 });

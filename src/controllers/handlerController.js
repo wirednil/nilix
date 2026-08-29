@@ -191,9 +191,19 @@ function afterLoad(req, res) {
 
         const db = createScopedDb(getDatabase(), req.empresaId);
 
-        // Aggregate enable/disable across all fields — last write wins per field ID
+        // Aggregate enable/disable across all fields — last write wins per field ID.
+        // populate/appendRow/setValues/filterSelect were silently dropped here before
+        // (only enable/disableFields made it into `aggregated`) — a handler's after()
+        // for the keyField (e.g. `after('id', ...)`, the same convention navigateToAdjacent's
+        // callAfter() already relies on) had no way to repopulate a multifield when a
+        // record loaded via direct key entry (ValidationCoordinator.loadRecord() → this
+        // route), even though HandlerBridge._applyResult() has always known how to apply
+        // `populate` — confirmed missing while wiring ventas' items multifield to reload
+        // on edit. Last non-null result wins per key (in practice only one field's
+        // after() meaningfully returns these per handler).
         const enableSet  = new Set();
         const disableSet = new Set();
+        let populate = null, appendRow = null, setValues = null, filterSelect = null;
 
         for (const [fieldId, value] of Object.entries(record)) {
             if (value == null || value === '') continue;
@@ -201,11 +211,19 @@ function afterLoad(req, res) {
             if (!result) continue;
             (result.enableFields  || []).forEach(f => { enableSet.add(f);  disableSet.delete(f); });
             (result.disableFields || []).forEach(f => { disableSet.add(f); enableSet.delete(f);  });
+            if (result.populate) populate = result.populate;
+            if (result.appendRow) appendRow = result.appendRow;
+            if (result.setValues) setValues = { ...setValues, ...result.setValues };
+            if (result.filterSelect) filterSelect = result.filterSelect;
         }
 
         const aggregated = {};
         if (enableSet.size)  aggregated.enableFields  = [...enableSet];
         if (disableSet.size) aggregated.disableFields = [...disableSet];
+        if (populate)      aggregated.populate      = populate;
+        if (appendRow)     aggregated.appendRow     = appendRow;
+        if (setValues)     aggregated.setValues     = setValues;
+        if (filterSelect)  aggregated.filterSelect  = filterSelect;
 
         res.json({ result: Object.keys(aggregated).length ? aggregated : null });
 
