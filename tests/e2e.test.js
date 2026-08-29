@@ -690,4 +690,61 @@ describe('E2E — Dev Sandbox', async () => {
             await mobileContext.close();
         }
     });
+
+    it('17. Mobile — a long catalog item does not push the autocomplete dropdown past the viewport, and its text ellipsizes', async () => {
+        // Regression test: .autocomplete-dropdown is min-width:100% with no
+        // max-width (deliberate on desktop — lets the dropdown show a full
+        // "key - display" even next to a narrow size="6" input). Once mobile
+        // forces the wrapper to width:100% (see test above's neighboring
+        // fixes), a single long item's text had nothing capping the
+        // dropdown's own width, so it grew far past the screen edge
+        // (confirmed live: 729px wide against a 390px viewport, covering the
+        // submit button, text hard-cut mid-word with no ellipsis). Two fixes
+        // needed together: .autocomplete-dropdown{max-width:100%} (mobile
+        // only) to actually cap it, and moving text-overflow:ellipsis off
+        // .autocomplete-item (display:flex — the spec doesn't apply
+        // text-overflow to flex containers, so it was silently a no-op) onto
+        // .autocomplete-display, the actual text span.
+        const { baseUrl, browser } = ctx;
+        const { getDatabase, saveDatabase } = require('../src/services/database');
+        const appDb = getDatabase();
+        const longName = 'Producto Con Nombre Extremadamente Largo Para Forzar Overflow En Mobile';
+        appDb.run(`DELETE FROM mf_productos WHERE nombre = ?`, [longName]);
+        appDb.run(`INSERT INTO mf_productos (empresa_id, nombre, precio_mayor, precio_menor) VALUES (99, ?, 100, 200)`, [longName]);
+        saveDatabase();
+
+        const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+        const page = await mobileContext.newPage();
+        try {
+            const loginRes = await page.request.post(`${baseUrl}/api/auth/login`, {
+                data: { usuario: 'operador', password: 'operador1234' }
+            });
+            assert.equal(loginRes.status(), 200);
+
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.waitForSelector('#sidebar');
+            await page.click('#sidebar-toggle');
+            await page.click('.tree-node:has(span:text("Top Level Catalog"))');
+            await page.waitForSelector('#id_producto_ref', { timeout: 10000 });
+
+            await page.click('#id_producto_ref');
+            await page.fill('#id_producto_ref', 'Extremadamente');
+            await page.waitForSelector('.autocomplete-item', { timeout: 3000 });
+
+            const info = await page.evaluate(() => {
+                const dd = document.querySelector('.autocomplete-dropdown').getBoundingClientRect();
+                const displayEl = document.querySelector('.autocomplete-display');
+                return {
+                    dropdownRight: dd.right,
+                    innerWidth: window.innerWidth,
+                    displayScrollWidth: displayEl.scrollWidth,
+                    displayClientWidth: displayEl.clientWidth,
+                };
+            });
+            assert.ok(info.dropdownRight <= info.innerWidth + 1, `dropdown should stay within the viewport, right=${info.dropdownRight} > innerWidth=${info.innerWidth}`);
+            assert.ok(info.displayScrollWidth > info.displayClientWidth, 'the long display text should be wider than its own box (i.e. actually truncating, not just wrapping)');
+        } finally {
+            await mobileContext.close();
+        }
+    });
 });

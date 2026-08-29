@@ -932,10 +932,23 @@ body.dark-mode .autocomplete-item.highlighted {
 
 .autocomplete-key {
     font-weight: bold;
+    flex-shrink: 0;
 }
 
 .autocomplete-display {
     color: var(--help-color);
+    /* .autocomplete-item (el contenedor de arriba) es display:flex — ahí
+       text-overflow:ellipsis no tiene ningún efecto (la spec lo limita a
+       contenedores de bloque), así que nunca truncaba de verdad: solo se
+       veía bien porque el dropdown crecía sin límite y nada llegaba a
+       desbordar. Al toparle el ancho (mobile) quedó expuesto: el texto se
+       cortaba a lo bruto, sin "...". El ellipsis real tiene que ir acá, en
+       el span de texto (el que sí puede angostarse), no en el flex
+       container. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 .autocomplete-empty {
@@ -1925,15 +1938,67 @@ body.dark-mode select.field-error {
         max-width: 98vw;
         padding: 0.75rem;
     }
-    .field-row { 
-        gap: 0.5rem; 
+    .field-row {
+        gap: 0.5rem;
         width: 100%;
     }
-    .field-row .input-group {
-        width: 100%;
+    /* .field-row (layouts verticales) y .field-block-horizontal (contenedores
+       horizontales, que en mobile ya se apilan en columna — ver
+       .horizontal-container arriba) necesitan el mismo trato acá: fuera de
+       mobile, .field-block-horizontal .input-group queda a propósito
+       width:auto (varios campos comparten una fila), pero apilados en mobile
+       eso ya no aplica y el campo se queda angosto sin motivo. */
+    .field-row .input-group,
+    .field-block-horizontal .input-group {
+        width: 100% !important;
     }
     .field-row input:not([type="checkbox"]),
-    .field-row textarea {
+    .field-row textarea,
+    .field-block-horizontal input:not([type="checkbox"]),
+    .field-block-horizontal textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    /* Desplegables (autocomplete/catalog widgets, ver Autocomplete.js) piden
+       max-width:100% en todos lados (para no desbordar), pero eso es un
+       techo, no un objetivo — sin un width:100% explícito quedan angostos,
+       del ancho de su valor actual. .autocomplete-input-box necesita
+       flex:1 para que el input interno realmente ocupe el espacio que le
+       deja el botón ▼ (mismo patrón ya usado en .mf-row-modal). */
+    .field-row .autocomplete-wrapper,
+    .field-block-horizontal .autocomplete-wrapper {
+        width: 100% !important;
+    }
+    .field-row .autocomplete-input-box,
+    .field-block-horizontal .autocomplete-input-box {
+        flex: 1;
+        min-width: 0;
+    }
+    /* .autocomplete-dropdown (base, sin @media) es min-width:100% sin techo
+       — a propósito en desktop (deja mostrar "clave - nombre" completo aun
+       con un input angosto tipo size="6"), pero en mobile, con el wrapper
+       ya forzado a 100% del ancho de pantalla acá arriba, un solo ítem con
+       texto largo empuja el dropdown mucho más allá del borde de la
+       pantalla (confirmado en vivo: 729px de ancho contra 390px de
+       viewport, texto cortado a lo bruto, tapando hasta el botón ENVIAR).
+       max-width:100% lo tapa al ancho real del wrapper — el elipsis ya
+       existente en .autocomplete-item (overflow:hidden;text-overflow:
+       ellipsis) recién puede actuar una vez que el contenedor tiene un
+       límite real contra el cual desbordar. */
+    .autocomplete-dropdown {
+        max-width: 100%;
+    }
+    /* input[type="date"]: fuera de mobile se lo mantiene angosto a
+       propósito (input[type="date"]{width:17ch!important} +
+       .input-group:has(input[type="date"]){width:auto!important}, ambas sin
+       @media) — acá se pidió explícitamente que en mobile sí llegue al
+       límite del input-group. */
+    .field-row .input-group:has(input[type="date"]),
+    .field-block-horizontal .input-group:has(input[type="date"]) {
+        width: 100% !important;
+    }
+    .field-row input[type="date"],
+    .field-block-horizontal input[type="date"] {
         width: 100% !important;
         max-width: 100% !important;
     }
