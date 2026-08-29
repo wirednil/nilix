@@ -6,4 +6,5 @@
     <option label="MF Pedidos"    type="form" target="form/mf_pedidos.xml"   permissions="RADU"/>
     <option label="Top Level Catalog" type="form" target="form/top_level_catalog.xml" permissions="RADU"/>
     <option label="Conditional Fields" type="form" target="form/conditional_fields.xml" permissions="RADU"/>
+    <option label="No Keyfield" type="form" target="form/no_keyfield.xml" permissions="RADU"/>
 </menu>

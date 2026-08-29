@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form id="no_keyfield" title="No keyfield fixture" database="app" table="mf_productos" handler="none">
+    <layout>
+        <field id="nombre" label="Nombre" type="text" size="30">
+            <validation><required>true</required></validation>
+        </field>
+    </layout>
+</form>

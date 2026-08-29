@@ -613,4 +613,36 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(await page.locator('#envio_costo').isDisabled(), false,
             '"Envío" must enable envio_costo');
     });
+
+    it('15. A form with table+handler but no keyField-marked field has no ANT/SIG, and save feedback still shows the real new id', async () => {
+        // Regression test for the ventas.xml change (removed the manual "N°
+        // de venta" field — the "corrección de venta" flow it existed for
+        // never actually worked, ventas.handler.js always INSERTs, never
+        // UPDATEs). FormContext._findKeyField() returns null when no field
+        // has key="true"/keyField="true" anywhere in the layout, so
+        // tableConfig.keyField ends up null even though table+handler are
+        // set — SubmitManager.js's ANT/SIG condition (tableConfig?.keyField
+        // && tableConfig?.table) then naturally stays false, no extra code
+        // needed to hide the buttons. But that same missing keyField broke
+        // the post-save feedback ("ID: undefined") until SubmitManager.js
+        // got a `|| 'id'` fallback — see form/no_keyfield.xml.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("No Keyfield"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        assert.equal(await page.locator('text=< ANT').count(), 0, 'no ANT button without a keyField-marked field');
+        assert.equal(await page.locator('text=SIG >').count(), 0, 'no SIG button without a keyField-marked field');
+
+        await page.fill('#nombre', 'No Keyfield Test ' + Date.now());
+        await page.click('button[type="submit"]');
+        await page.waitForTimeout(600);
+
+        const btnText = await page.textContent('button[type="submit"]');
+        assert.match(btnText, /¡CREADO! \(ID: \d+\)/, `expected a real numeric id in the feedback, got: ${btnText}`);
+    });
 });

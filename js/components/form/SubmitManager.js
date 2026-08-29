@@ -108,7 +108,11 @@ export class SubmitManager {
                     const keyValue = keyField ? data[keyField] : undefined;
                     logger.info('SubmitManager', `Submit tabla=${table} keyField=${keyField} keyValue=${keyValue ?? '(new)'} handler=${handler ?? 'none'}`);
                     console.log(`📦 Datos enviados:`, { ...data });
-                    if (!keyField) {
+                    if (!keyField && !handler) {
+                        // Un form con handler puede legítimamente no declarar keyField
+                        // del lado cliente — el handler arma su propio registro/ID a
+                        // mano (ej. ventas.handler.js). Sin handler, en cambio, sí es
+                        // casi siempre un key="true" olvidado en el XML.
                         console.warn(`⚠️  keyField es null — se intentará INSERT. ¿Falta key="true" en el XML?`);
                     }
                     if (!keyValue && keyField) {
@@ -139,8 +143,13 @@ export class SubmitManager {
 
                     const isCreated = result.created;
                     const savedData = result.data || data;
+                    // Sin keyField declarado client-side (form con handler que arma
+                    // su propio ID, ej. ventas.handler.js: data.id = ventaId), 'id'
+                    // es el fallback razonable — es la convención de nombre que ese
+                    // caso ya usa.
+                    const responseKeyField = this.ctx.tableConfig.keyField || 'id';
                     this.showSubmitFeedback(submitBtn, {
-                        id: savedData[this.ctx.tableConfig.keyField] ?? data[this.ctx.tableConfig.keyField],
+                        id: savedData[responseKeyField] ?? data[responseKeyField],
                         created: isCreated,
                         updated: result.updated
                     });
