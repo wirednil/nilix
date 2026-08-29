@@ -645,4 +645,49 @@ describe('E2E — Dev Sandbox', async () => {
         const btnText = await page.textContent('button[type="submit"]');
         assert.match(btnText, /¡CREADO! \(ID: \d+\)/, `expected a real numeric id in the feedback, got: ${btnText}`);
     });
+
+    it('16. Mobile — #workspace scrolls internally when form content is taller than the viewport', async () => {
+        // Regression test: #os-interface{height:auto} (added so a short mobile
+        // form doesn't stretch #workspace's background to fill the full
+        // viewport) removed #workspace's only height ceiling, so its own
+        // overflow-y:auto (base rule) never found anything to overflow
+        // against — #workspace just grew to match its content instead of
+        // scrolling. On a viewport shorter than the form, that left content
+        // below the fold completely unreachable, no scroll possible at all
+        // (confirmed live: submit button off-screen, scrollBy did nothing).
+        // Fix: #workspace{max-height: calc(100dvh - 48px)} in the same
+        // mobile media query restores the ceiling only when content actually
+        // needs it — short content still hugs its own height (no dead space,
+        // the original goal), tall content scrolls again.
+        const { baseUrl, browser } = ctx;
+        const mobileContext = await browser.newContext({ viewport: { width: 390, height: 500 }, hasTouch: true });
+        const page = await mobileContext.newPage();
+        try {
+            const loginRes = await page.request.post(`${baseUrl}/api/auth/login`, {
+                data: { usuario: 'operador', password: 'operador1234' }
+            });
+            assert.equal(loginRes.status(), 200);
+
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.waitForSelector('#sidebar');
+            await page.click('#sidebar-toggle');
+            await page.click('.tree-node:has(span:text("Clientes"))');
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+            await page.waitForTimeout(300);
+
+            const before = await page.evaluate(() => {
+                const ws = document.getElementById('workspace');
+                return { scrollHeight: ws.scrollHeight, clientHeight: ws.clientHeight, scrollTop: ws.scrollTop };
+            });
+            assert.ok(before.scrollHeight > before.clientHeight, 'workspace content should exceed its own visible height on a short viewport');
+
+            await page.evaluate(() => document.getElementById('workspace').scrollBy(0, 500));
+            await page.waitForTimeout(150);
+
+            const after = await page.evaluate(() => document.getElementById('workspace').scrollTop);
+            assert.ok(after > before.scrollTop, `scrollBy should move #workspace's scroll position, stayed at ${after}`);
+        } finally {
+            await mobileContext.close();
+        }
+    });
 });

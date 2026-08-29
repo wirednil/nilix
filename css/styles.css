@@ -1837,8 +1837,31 @@ body.dark-mode select.field-error {
     
     #os-interface {
         flex-direction: column;
+        /* Base: height fija a la pantalla completa siempre (pensado para
+           desktop, donde el workspace debe llenar el viewport aunque el
+           form sea corto). En mobile con #workspace{flex-grow:1} eso deja
+           un colchón de espacio vacío debajo del form cuando el contenido
+           no llega a esa altura. */
+        height: auto;
     }
-    
+
+    /* Con #os-interface en height:auto, #workspace (flex-grow:1) ya no
+       tiene techo — crece exactamente a la altura de su contenido, así que
+       overflow-y:auto (base, sin @media) nunca encuentra overflow contra sí
+       mismo y nunca scrollea. Con body{overflow:hidden;height:100dvh} sin
+       tocar (deliberado, ver conversación — evita reimplementar el
+       scroll-lock del sidebar), cualquier contenido más alto que la
+       pantalla quedaba invisible e inalcanzable (bug real, confirmado en
+       vivo: el botón ENVIAR quedaba fuera de la pantalla sin ningún scroll
+       posible). max-height le devuelve el techo real de la pantalla — para
+       contenido corto no hace nada (ya mide menos), para contenido largo
+       vuelve a activar el scroll interno de #workspace como antes de sacar
+       la altura fija de #os-interface. */
+    #workspace {
+        max-height: calc(100vh - 48px);
+        max-height: calc(100dvh - 48px);
+    }
+
     #sidebar {
         position: fixed;
         left: 0;
