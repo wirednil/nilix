@@ -220,6 +220,19 @@ export class ReportEngine {
         );
 
         afterReportZones.forEach(zone => {
+            // rowHeader/rowBody/rowFooter: one table (header once + body per
+            // dataSource row + footer once against footerDataSource's first
+            // row) instead of the template/rowTemplate path below, which
+            // always renders its own separate <table> per zone — see
+            // YamlParser.buildZones and ReportRenderer.renderRowTableZone.
+            if (zone.rowBody?.length > 0) {
+                const bodyRows = zone.dataSource ? (this.data.get(zone.dataSource) || []) : [];
+                const footerRows = zone.footerDataSource ? (this.data.get(zone.footerDataSource) || []) : [];
+                const element = this.renderer.renderRowTableZone(zone, bodyRows, footerRows[0] ?? null);
+                if (element) container.appendChild(element);
+                return;
+            }
+
             // If zone has a dataSource and rowTemplate, pass the full data array
             // so the renderer can iterate over every record (markdown row-per-row)
             const context = (zone.dataSource && zone.rowTemplate?.length > 0)

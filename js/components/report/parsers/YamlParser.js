@@ -348,22 +348,10 @@ export class YamlParser {
             console.warn('⚠️ zones not array:', zones);
             return [];
         }
-        
+
         return zones.map(z => {
             const layout = z.layout || 'vertical';
-            const expressions = Array.isArray(z.expressions) ? z.expressions.map(e => ({
-                name: e.name,
-                field: e.field,
-                value: e.value,
-                expression: e.expression,
-                formula: e.formula || null,
-                type: e.type,
-                format: e.format,
-                aggregate: e.aggregate,
-                argument: e.argument,
-                scope: e.scope || null,
-                filter: e.filter || null
-            })) : [];
+            const expressions = this.buildExpressions(z.expressions);
             const printCondition = z.condition ? {
                 when: z.condition.when,
                 triggers: this.buildTriggers(z.condition.on)
@@ -379,10 +367,39 @@ export class YamlParser {
                 ifCondition: z.ifCondition || null,
                 template: this.buildTemplate(z.template),
                 rowTemplate: this.buildTemplate(z.rowTemplate),
+                // rowHeader/rowBody/rowFooter: variante de zona "tabla única" —
+                // header impreso una vez (sin datos), body iterado por fila de
+                // dataSource, footer evaluado una sola vez contra la primera fila
+                // de footerDataSource. Todo junto en un solo <table> (ver
+                // ReportEngine.renderAfterReport/ReportRenderer.renderRowTableZone)
+                // en vez de que cada segmento salga en su propia zona/tabla —
+                // eso era lo que hacía que un footer con un TOTAL quedara en una
+                // tabla aparte de la de detalle (factura.yaml, 2026-08-29).
+                rowHeader: this.buildTemplate(z.rowHeader),
+                rowBody: this.buildTemplate(z.rowBody),
+                rowFooter: this.buildTemplate(z.rowFooter),
+                footerDataSource: z.footerDataSource || null,
+                footerExpressions: this.buildExpressions(z.footerExpressions),
                 columns: Array.isArray(z.columns) ? z.columns : null,
                 noPrint: z.noPrint === true
             };
         });
+    }
+
+    buildExpressions(arr) {
+        return Array.isArray(arr) ? arr.map(e => ({
+            name: e.name,
+            field: e.field,
+            value: e.value,
+            expression: e.expression,
+            formula: e.formula || null,
+            type: e.type,
+            format: e.format,
+            aggregate: e.aggregate,
+            argument: e.argument,
+            scope: e.scope || null,
+            filter: e.filter || null
+        })) : [];
     }
 
     buildTriggers(on) {

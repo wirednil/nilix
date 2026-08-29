@@ -332,6 +332,47 @@ export class ReportRenderer {
         return table;
     }
 
+    /**
+     * Zona "tabla única": rowHeader (una vez, sin datos) + rowBody (una vez
+     * por fila de bodyRows) + rowFooter (una vez, contra footerRow) — todo en
+     * el mismo mdLines.join('\n'), así que marked.js lo parsea como un solo
+     * <table> en vez de uno separado por segmento (ver ReportEngine.
+     * renderAfterReport). rowFooter no itera como rowBody: footerRow es UNA
+     * fila (ej. el registro "venta"), y rowFooter puede tener varias LÍNEAS
+     * de template (total, envío, descuento...) evaluadas todas contra esa
+     * misma fila — no hace falta un dataSource por línea de footer.
+     */
+    renderRowTableZone(zone, bodyRows, footerRow) {
+        const el = document.createElement('div');
+        el.className = 'report-lines';
+        el.dataset.zone = zone.name;
+
+        const mdLines = [];
+        (zone.rowHeader || []).forEach(line => {
+            mdLines.push(this.evaluator.evaluate(line, {}));
+        });
+
+        (bodyRows || []).forEach(row => {
+            const rowCtx = this.evaluateExpressions(zone.expressions, row);
+            (zone.rowBody || []).forEach(line => {
+                mdLines.push(this.evaluator.evaluate(line, rowCtx));
+            });
+        });
+
+        if (footerRow) {
+            const footerCtx = this.evaluateExpressions(zone.footerExpressions, footerRow);
+            (zone.rowFooter || []).forEach(line => {
+                mdLines.push(this.evaluator.evaluate(line, footerCtx));
+            });
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'report-lines-md';
+        wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
+        el.appendChild(wrapper);
+        return el;
+    }
+
     renderLinesZone(zone, context, accumulators = null, breakLevel = null) {
         const evaluatedContext = this.evaluateExpressions(zone.expressions, context, accumulators, breakLevel);
 
