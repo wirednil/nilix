@@ -1320,19 +1320,27 @@ body.dark-mode .computed-field {
     }
 }
 
-/* Responsive: tabla en móvil → cards compactas */
+/* Responsive: tabla en móvil → cards compactas.
+   Todo escopeado a .multifield-scroll-box (el contenedor real del grid
+   persistido, ver renderGridFromMultifield en Multifield.js) en vez de a
+   .multifield-table/.multifield-grid a secas: esas clases también las usa
+   el modal de alta/edición (.mf-row-modal-grid), que jamás vive dentro de
+   un .multifield-scroll-box — sin este scope, esta densidad "de tarjeta de
+   solo lectura" se filtraba también a los inputs activos del modal (bug
+   real, confirmado en vivo: el input de Cantidad medía 19px de alto con
+   1.6px de padding vertical). */
 @media (max-width: 650px) {
     /* Ocultar filas vacías (filler) y thead */
-    .multifield-table tr[data-empty="true"] { display: none; }
-    .multifield-table thead { display: none; }
+    .multifield-scroll-box .multifield-table tr[data-empty="true"] { display: none; }
+    .multifield-scroll-box .multifield-table thead { display: none; }
 
     /* Tabla → bloque */
-    .multifield-grid    { overflow-x: unset; }
-    .multifield-table,
-    .multifield-table tbody { display: block; }
+    .multifield-grid:not(.mf-row-modal-grid) { overflow-x: unset; }
+    .multifield-scroll-box .multifield-table,
+    .multifield-scroll-box .multifield-table tbody { display: block; }
 
     /* Card compacta: flex-wrap para que la action cell vaya primero (order:-1) */
-    .multifield-table tbody tr {
+    .multifield-scroll-box .multifield-table tbody tr {
         display: flex;
         flex-wrap: wrap;
         border: 2px solid var(--border-color);
@@ -1341,7 +1349,7 @@ body.dark-mode .computed-field {
     }
 
     /* Header strip: [X] a la derecha con border-bottom como separador */
-    .multifield-table tbody .multifield-action-cell {
+    .multifield-scroll-box .multifield-table tbody .multifield-action-cell {
         order: -1;
         width: 100%;
         display: flex;
@@ -1351,19 +1359,23 @@ body.dark-mode .computed-field {
         padding: 0;
         box-sizing: border-box;
     }
-    .multifield-table tbody .multifield-action-cell::before { display: none; }
+    .multifield-scroll-box .multifield-table tbody .multifield-action-cell::before { display: none; }
 
     .multifield-delete-btn {
+        /* min-width/height en px, no rem: el objetivo táctil (44x44) es una
+           medida física, no debe escalar con el tamaño de fuente del body.
+           El ícono "×" se mantiene en 0.85rem — se agranda el área
+           interactiva, no el glifo. */
         width: auto;
-        min-width: 2.2rem;
-        min-height: 1.6rem;
+        min-width: 44px;
+        min-height: 44px;
         font-size: 0.85rem;
         border: none;
         border-left: 1px solid var(--border-color);
     }
 
     /* Celda de campo: ancho completo, una línea por campo */
-    .multifield-table tbody td:not(.multifield-action-cell) {
+    .multifield-scroll-box .multifield-table tbody td:not(.multifield-action-cell) {
         width: 100%;
         display: flex;
         align-items: center;
@@ -1375,7 +1387,7 @@ body.dark-mode .computed-field {
     }
 
     /* Label con ancho fijo para alinear los ":" */
-    .multifield-table tbody td:not(.multifield-action-cell)::before {
+    .multifield-scroll-box .multifield-table tbody td:not(.multifield-action-cell)::before {
         content: attr(data-label) "  :";
         opacity: 0.6;
         font-size: 0.75rem;
@@ -1386,7 +1398,7 @@ body.dark-mode .computed-field {
     }
 
     /* Inputs en card: fondo transparente, sin caja */
-    .multifield-table tbody td .multifield-cell-input {
+    .multifield-scroll-box .multifield-table tbody td .multifield-cell-input {
         flex: 1;
         border: none;
         border-bottom: 1px solid var(--input-border);
@@ -1397,24 +1409,24 @@ body.dark-mode .computed-field {
         width: auto;
         box-shadow: none;
     }
-    .multifield-table tbody td .multifield-cell-input:focus {
+    .multifield-scroll-box .multifield-table tbody td .multifield-cell-input:focus {
         outline: none;
         border-bottom-color: var(--border-color);
     }
 
     /* Readonly: sin subrayado, opacidad reducida */
-    .multifield-table tbody td .multifield-cell-input.readonly-field {
+    .multifield-scroll-box .multifield-table tbody td .multifield-cell-input.readonly-field {
         border-bottom: none;
         opacity: 0.6;
         cursor: default;
     }
 
     /* Stepper en card */
-    .multifield-table tbody td .stepper-wrapper { flex: 1; display: flex; }
-    .multifield-table tbody td .stepper-wrapper .stepper-btn {
+    .multifield-scroll-box .multifield-table tbody td .stepper-wrapper { flex: 1; display: flex; }
+    .multifield-scroll-box .multifield-table tbody td .stepper-wrapper .stepper-btn {
         padding: 0; min-width: 1.5rem; width: auto;
     }
-    .multifield-table tbody td .stepper-wrapper .stepper-input { flex: 1; }
+    .multifield-scroll-box .multifield-table tbody td .stepper-wrapper .stepper-input { flex: 1; }
 
     .multifield-controls {
         flex-direction: column;
@@ -2780,6 +2792,14 @@ body.dark-mode .report-card {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    /* La tarjeta mobile genérica (arriba, fuera de .mf-row-modal) pone
+       flex: 0 0 7rem en este mismo ::before para fijar un ANCHO de columna
+       en su layout label-izquierda (flex-direction: row). Acá el td es
+       flex-direction: column — sin resetear, ese flex-basis de 7rem pasa a
+       ser el ALTO del label (112px), infla cada celda del modal ~120px de
+       aire muerto. Confirmado en vivo: el ::before medía 112px de alto por
+       una sola palabra antes de este fix. */
+    flex: none;
 }
 /* !important: el ancho de estos inputs se fija inline en JS según el
    atributo `size` del XML (pensado para columnas angostas del grid), que le
