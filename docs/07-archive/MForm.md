@@ -1383,7 +1383,7 @@ a El último horario para un día es 23:59:58, esto se debe a que NILIX tiene un
 ---
 Capítulo 17
 Reportes
-En este capítulo se describen las capacidades de los reportes de IDEA-FIX, el lenguaje utilizado para su definición (RDL) y los utilitarios que permiten manejarlos.
+En este capítulo se describen las capacidades de los reportes de NILIX, el lenguaje utilizado para su definición (RDL) y los utilitarios que permiten manejarlos.
 Introducción
 Los informes impresos (listados) son denominados en NILIX "reportes", terminología tomada de la palabra inglesa reports. NILIX permite diseñar reportes en forma muy simple, a fin de poder indicar aspectos tales como:
 - Características de los campos;

@@ -41,7 +41,7 @@ reemplaza a `horizontal-scroll`, `grid` no es un valor real de `layout`),
 corrige el ejemplo de §5.3 (`layout: table` con `condition` no renderiza),
 corrige §7.5 (`#` en zonas header/footer/subtotal ya no se muestra literal).
 Reestructuración kind/document/ledger, 2026-07-24/25.
-**Basado en:** REP-SPEC.md (Capítulo 17, IDEA-FIX RDL) + implementación nilix v2.5.3
+**Basado en:** REP-SPEC.md (Capítulo 17, RDL de NILENGINE) + implementación nilix v2.5.3
 **Formato nativo:** YAML (reemplaza el RDL textual del legado)
 
 ---
@@ -1284,4 +1284,4 @@ Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordena
 
 ---
 
-*Generado a partir de REP-SPEC.md (IDEA-FIX, Capítulo 17) + análisis de la implementación nilix v2.5.1*
+*Generado a partir de REP-SPEC.md (NILENGINE, Capítulo 17) + análisis de la implementación nilix v2.5.1*

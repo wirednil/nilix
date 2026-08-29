@@ -1,7 +1,7 @@
 # Capítulo 17
 # Reportes
 
-En este capítulo se describen las capacidades de los reportes de IDEA-FIX, el lenguaje
+En este capítulo se describen las capacidades de los reportes de NILENGINE, el lenguaje
 utilizado para su definición (RDL) y los utilitarios que permiten manejarlos.
 
 ## Introducción

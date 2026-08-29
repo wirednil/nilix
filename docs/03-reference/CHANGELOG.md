@@ -1176,7 +1176,7 @@ node server.js
 - `dev/form/clientes.xml` — CRUD completo: number, date, checkbox, select con options, text, validaciones
 - `dev/form/ordenes.xml` — in-table + copy, cross-field check (fentr >= fecha), select numérico
 - `dev/form/items.xml` — tabla global (sin empresa_id), validaciones min
-- `dev/data/clientes.dat` — 28 filas (datos reales IdeaFix demo, TSV con headers)
+- `dev/data/clientes.dat` — 28 filas (datos reales de demo, TSV con headers)
 - `dev/data/ordenes.dat` — 7 filas
 - `dev/data/items.dat` — 8 filas
 - `utils/init-dev.js` — empresa 99 "Dev Sandbox" + usuario `superdvlp/devpass1234` + carga datos via ndat (idempotente en auth DB, clean slate en dev.db)
