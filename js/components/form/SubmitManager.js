@@ -61,15 +61,19 @@ export class SubmitManager {
         formEl.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const isValid = formEl.checkValidity();
-            if (!isValid) {
-                formEl.reportValidity();
-                return;
-            }
-
-            const firstError = formEl.querySelector('.field-error');
-            if (firstError) {
-                firstError.focus();
+            // Barrido de required + validaciones custom en un único resumen
+            // (ValidationCoordinator.validateAll()) en vez de reportValidity()
+            // nativo (un solo globo del navegador) — mismo estilo inline
+            // (.error-msg/.field-error) que ya usa el resto del form.
+            // formEl.noValidate=true (FormRenderer.js) es lo que permite que
+            // este listener llegue a correr con campos required vacíos.
+            const invalidFields = this.coordinator?.validateAll() ?? [];
+            if (invalidFields.length > 0) {
+                const summary = invalidFields.length === 1
+                    ? `Falta "${invalidFields[0].label}".`
+                    : `Faltan ${invalidFields.length} campos: ${invalidFields.map(f => f.label).join(', ')}.`;
+                this.ctx.statusBar?.push('error', summary);
+                document.getElementById(invalidFields[0].fieldId)?.focus();
                 return;
             }
 

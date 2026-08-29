@@ -535,4 +535,43 @@ describe('E2E — Dev Sandbox', async () => {
             page.off('request', onRequest);
         }
     });
+
+    it('13. Submitting with an empty required field shows an inline summary instead of the native browser tooltip', async () => {
+        // Regression test: SubmitManager.js used to rely on formEl.checkValidity()
+        // + reportValidity() (native browser tooltip) for required fields. Now
+        // formEl.noValidate=true (FormRenderer.js) and the submit handler calls
+        // ValidationCoordinator.validateAll(), which marks every invalid field
+        // inline (.field-error/.error-msg, same as the existing blur-time
+        // validation) and pushes a summary to the StatusBar — no native popup,
+        // no silent submit with missing required data.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        let submitPosted = false;
+        const onRequest = (req) => {
+            if (req.method() === 'POST' && req.url().includes('/api/v1/records/')) submitPosted = true;
+        };
+        page.on('request', onRequest);
+
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Clientes"))');
+            await page.waitForSelector('#clieno', { timeout: 10000 });
+
+            // "nombre" (required) queda vacío a propósito
+            await page.click('button[type="submit"]');
+            await page.waitForTimeout(500);
+
+            assert.equal(submitPosted, false, 'an invalid submit must not reach the server');
+            assert.equal(await page.locator('#nombre').evaluate(el => el.classList.contains('field-error')), true,
+                'the empty required field must get .field-error');
+            const inlineMsg = await page.locator('.error-msg').first().textContent();
+            assert.ok(inlineMsg.includes('obligatorio'), `expected inline "obligatorio" message, got: ${inlineMsg}`);
+            const statusText = await page.textContent('.status-bar');
+            assert.ok(statusText.includes('Nombre'), `expected StatusBar summary to name the field, got: ${statusText}`);
+        } finally {
+            page.off('request', onRequest);
+        }
+    });
 });

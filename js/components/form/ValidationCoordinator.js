@@ -10,6 +10,11 @@ import LookupService from '../../services/LookupService.js';
 export class ValidationCoordinator {
     constructor(ctx) {
         this.ctx = ctx;
+        // Campos top-level registrados vía attach() — usado por validateAll()
+        // para el resumen de submit. Las columnas de multifield no pasan por
+        // acá (renderField() las deriva a renderMultifield() antes de llegar
+        // a este registro), así que no necesitan filtrarse aparte.
+        this._fields = [];
     }
 
     attach(fieldXml, fieldId, handlerBridge) {
@@ -20,6 +25,8 @@ export class ValidationCoordinator {
             console.warn(`⚠️ No se encontró el campo ${fieldId} para validar`);
             return;
         }
+
+        this._fields.push({ fieldXml, inputEl });
 
         const inTableConfig = this.extractInTableConfig(fieldXml);
         const isKeyField = fieldXml.getAttribute('key') === 'true' || fieldXml.getAttribute('keyField') === 'true';
@@ -194,6 +201,52 @@ export class ValidationCoordinator {
                 field.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
+    }
+
+    /**
+     * Barre todos los campos top-level registrados: required vacíos +
+     * validaciones custom (<min>/<max>/<pattern>/<check>, ya cubiertas por
+     * validateFieldValue en cada blur, pero acá se re-chequean por si un
+     * campo se llenó sin pasar por blur). Reemplaza el reportValidity()
+     * nativo en el submit por un resumen con el mismo estilo inline
+     * (.error-msg/.field-error) que ya usa el resto del form.
+     * @returns {{fieldId:string,label:string,message:string}[]} vacío = todo ok
+     */
+    validateAll() {
+        const invalid = [];
+
+        this._fields.forEach(({ fieldXml, inputEl }) => {
+            if (!inputEl.isConnected) return; // ej. campo de un subform ya desmontado
+            // Un campo oculto por visible-when o deshabilitado por
+            // enabled-when (LayoutProcessor.js) no puede completarse — no
+            // tiene sentido bloquear el submit por algo que el usuario ni
+            // ve ni puede tocar. offsetParent===null cubre "oculto por
+            // display:none en sí mismo o en cualquier ancestro".
+            if (inputEl.disabled || inputEl.offsetParent === null) return;
+            this.clearFieldError(inputEl.id);
+
+            const label = fieldXml.getAttribute('label') || inputEl.id;
+            const value = inputEl.type === 'checkbox' ? (inputEl.checked ? '1' : '') : inputEl.value;
+
+            if (inputEl.required && !value.trim()) {
+                const message = 'Este campo es obligatorio.';
+                validator.showErrorOnField(inputEl.id, message);
+                inputEl.classList.add('field-error');
+                invalid.push({ fieldId: inputEl.id, label, message });
+                return;
+            }
+
+            const formEl = inputEl.closest('form');
+            const formContext = formEl ? ExpressionEngine.createContextFromForm(formEl, inputEl.id) : {};
+            const result = validator.validateField(fieldXml, value, formContext);
+            if (!result.isValid && result.message) {
+                validator.showErrorOnField(inputEl.id, result.message);
+                inputEl.classList.add('field-error');
+                invalid.push({ fieldId: inputEl.id, label, message: result.message });
+            }
+        });
+
+        return invalid;
     }
 
     validateFieldValue(fieldXml, inputEl) {

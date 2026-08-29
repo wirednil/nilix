@@ -92,6 +92,12 @@ class FormRenderer {
             ctx.signal.addEventListener('abort', () => logger.clearStatusSink(), { once: true });
 
             const formEl = createElement('form', 'form-vertical');
+            // Sin esto, un <button type="submit"> con campos required vacíos
+            // nunca llega a disparar 'submit' — el navegador lo bloquea antes
+            // y muestra su propio globito nativo. El resumen inline
+            // (ValidationCoordinator.validateAll(), ver SubmitManager.js) lo
+            // reemplaza, así que la validación nativa tiene que quedar afuera.
+            formEl.noValidate = true;
             layoutProcessor.processLayout(ctx.layoutNode, formEl);
             // Between the fields and the action buttons (ANT/SIG/ENVIAR)
             formEl.appendChild(statusBar.el);
