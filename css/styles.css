@@ -393,7 +393,13 @@ ul.tree.root {
 }
 
 #active-content .form-vertical {
-    min-width: 80ch;
+    /* min-width a secas gana siempre por sobre cualquier max-width del
+       contenedor (así es la resolución de CSS) — en una ventana angosta
+       pero todavía por encima del breakpoint mobile (ej. terminal-window
+       ~738px), 80ch (~768px acá) fuerza al form a desbordar a su propio
+       padre. min() deja el mismo ancho generoso cuando hay lugar, pero
+       nunca más que el 100% real del contenedor. */
+    min-width: min(80ch, 100%);
 }
 
 /* =========================================
