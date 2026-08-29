@@ -363,7 +363,15 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
                 input.readOnly = true;
                 input.classList.add('readonly-field');
             }
-            if (col.isExpr) input.dataset.isExpr = col.isExpr;
+            if (col.isExpr) {
+                input.dataset.isExpr = col.isExpr;
+                // Misma clase que ya usa LayoutProcessor.js/setupIsExpression()
+                // para un campo top-level is= — acá nunca se aplicaba, así que
+                // una columna calculada (ej. Subtotal) y una simplemente
+                // skip/readonly (ej. Nombre copiado del catálogo) se veían
+                // idénticas dentro del modal.
+                input.classList.add('computed-field');
+            }
             if (col.check) {
                 input.dataset.check = col.check;
                 if (col.type === 'number') {
@@ -728,7 +736,10 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
     const footer = createElement('div', 'mf-row-modal-footer');
     const cancelBtn = createElement('button', 'mf-row-modal-cancel-btn', 'Volver');
     cancelBtn.type = 'button';
-    const saveBtn = createElement('button', 'mf-row-modal-save-btn', 'Guardar');
+    // Misma semántica que el título (EDITAR/AGREGAR, arriba): alta = "Agregar"
+    // (inequívoco en el contexto "AGREGAR PRODUCTO"), edición = "Guardar"
+    // (estás guardando cambios sobre una fila que ya existe).
+    const saveBtn = createElement('button', 'mf-row-modal-save-btn', isEdit ? 'Guardar' : 'Agregar');
     saveBtn.type = 'button';
     footer.appendChild(cancelBtn);
     footer.appendChild(saveBtn);
