@@ -1,11 +1,28 @@
 # Known Bugs — Nilix
 
-**Última actualización:** 2026-07-21
-**Todos los bugs conocidos están resueltos.** Branch local sin pushear a `origin`.
+**Última actualización:** 2026-10-26
+
+---
+
+## ⚠️ Abiertos
+
+### Test e2e #6 intermitente — "Update record — Clientes"
+
+**Síntoma:** `tests/e2e.test.js` #6 falla en algunas corridas y pasa en otras sin cambios de código. Corrido aislado 3 veces el 2026-10-26: falló 2/3 sobre `HEAD` sin modificar (`git stash`) y 2/3 con el fix del Bug 5 — preexistente, no relacionado. Ya figuraba como "falla intermitente conocida" en `MOBILE-UX-IMPROVEMENT-PLAN.md` §4. Causa sin investigar (probable timing: usa `waitForTimeout` fijos en vez de esperar un estado).
 
 ---
 
 ## ✅ Resueltos
+
+### Bug 5 — Select catálogo no refleja el registro cargado — ✅ FIXED (2026-10-26)
+
+**Síntoma (detectado en thym-pos):** al cargar una venta por N° o con ANT/SIG, el campo Clienta seguía mostrando "3 - Flor" (la última elección manual) aunque la venta fuera de otra clienta; el valor guardado era el correcto, solo la capa "clave - nombre" y los `<copy>` quedaban viejos. En el mismo sentido, las líneas de una venta recargada mostraban el id del producto (`13`, `7`) en vez del nombre, y el modal de edición mostraba solo la clave.
+
+**Causa:** `Autocomplete.js` arma el overlay desde `dataset.selectedRow`, que solo setean `selectItem()` / Tab. `ValidationCoordinator.fillForm()` y `Multifield._buildCatalogCell()` ponen `inputEl.value` sin pasar por ahí. Además, `Multifield._resolveDisplayValue()` solo sabía leer `__catalogRow`, que las filas cargadas por un handler (`populate`) no traen.
+
+**Fix:** `Autocomplete.js` — `syncSelectedRowToValue()`: en cada `change` (y al conectar un campo que ya trae valor) re-resuelve la fila del catálogo para la clave actual y actualiza overlay, `catalogRow` y `<copy>`. `Multifield.js` — `_resolveDisplayValue()` cae a la columna `<copy>` del campo display (ej. `producto`) si no hay `__catalogRow`.
+
+**Tests:** `tests/e2e.test.js` #20 (top-level: N° directo, SIG, ANT) y #21 (grid + modal del multifield). Fixtures: `dev/form/catalog_keyfield.xml`, `catalog_keyfield` y `venta_draft` id=1 en `utils/init-dev.js`.
 
 ### Bug 1 — `MAX_FAILED_ATTEMPTS` out of scope — ✅ FIXED (2026-07-20)
 

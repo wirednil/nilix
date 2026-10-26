@@ -875,4 +875,88 @@ describe('E2E — Dev Sandbox', async () => {
         assert.ok(bodyText2.includes('2026-07') && bodyText2.includes('$2.000,00'), `expected July's row, got: ${bodyText2}`);
         assert.ok(!bodyText2.includes('2026-06'), `June's row should not still be showing after switching to July, got: ${bodyText2}`);
     });
+
+    it('20. Loading a record (key or ANT/SIG) refreshes a top-level catalog select\'s "key - name" overlay, not the last manual pick', async () => {
+        // Regression test: Autocomplete.js's overlay is built from
+        // dataset.selectedRow, which only selectItem()/loadAndCopyRecord()
+        // set. ValidationCoordinator.fillForm() writes inputEl.value + fires
+        // 'change', so the input held the loaded record's key while the
+        // overlay kept showing whatever had been picked by hand before — e.g.
+        // a venta from clienta Lu displayed as "3 - Flor" (thym-pos). See
+        // dev/form/catalog_keyfield.xml: record 1 -> Tote Fixture, 2 -> Mochila.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Catalog Keyfield"))');
+        await page.waitForSelector('#id_producto_ref', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        const overlay = () => page.textContent('#id_producto_ref ~ .autocomplete-display-overlay');
+
+        // Pick "Mochila Fixture" by hand first, in insert mode.
+        await page.click('#id_producto_ref');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.waitForTimeout(300);
+        await page.click('body');
+        assert.ok((await overlay()).includes('Mochila Fixture'), 'sanity: manual pick shows in the overlay');
+
+        // Load record 1 by typing its key — it belongs to Tote Fixture.
+        await page.fill('#id', '1');
+        await page.locator('#id').blur();
+        await page.waitForTimeout(800);
+        assert.equal(await page.inputValue('#id_producto_ref'), '1', 'sanity: the input holds the loaded key');
+        assert.equal(await overlay(), '1 - Tote Fixture', 'overlay must show the loaded record, not the manual pick');
+        assert.equal(await page.inputValue('#nombre_producto'), 'Tote Fixture', 'copy target must follow the loaded record too');
+
+        // SIG -> record 2 (Mochila), ANT -> back to record 1 (Tote).
+        await page.click('text=SIG >');
+        await page.waitForTimeout(800);
+        assert.equal(await page.inputValue('#id'), '2');
+        assert.equal(await overlay(), '2 - Mochila Fixture', 'SIG must refresh the overlay');
+
+        await page.click('text=< ANT');
+        await page.waitForTimeout(800);
+        assert.equal(await page.inputValue('#id'), '1');
+        assert.equal(await overlay(), '1 - Tote Fixture', 'ANT must refresh the overlay');
+        assert.equal(await page.inputValue('#nombre_producto'), 'Tote Fixture');
+    });
+
+    it('21. Reloading a saved record shows catalog names (not raw keys) in its multifield rows and in the edit modal', async () => {
+        // Regression test: rows that come from a handler's `populate` have no
+        // __catalogRow (only a manual pick in the modal sets it), so
+        // Multifield.js _resolveDisplayValue() fell back to the raw key — a
+        // reloaded venta listed its products as "13", "7" while a freshly
+        // added line showed "Mochila" (thym-pos). The copy-target column that
+        // does hold the name is hidden as redundant. Seeded venta_draft id=1
+        // has one line: Tote Fixture (id 1) x2 — see utils/init-dev.js.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('#fecha', { timeout: 10000 });
+
+        await page.fill('#id', '1');
+        await page.locator('#id').blur();
+        await page.waitForTimeout(800);
+
+        const row = page.locator('[data-multifield-id="items"] tbody tr.multifield-display-row').first();
+        const visibleCells = await row.evaluate(tr =>
+            [...tr.querySelectorAll('td')]
+                .filter(td => td.style.display !== 'none' && !td.classList.contains('multifield-action-cell'))
+                .map(td => td.querySelector('.multifield-display-value')?.textContent ?? ''));
+        assert.equal(visibleCells[0], 'Tote Fixture', `product cell must show the name, got: ${JSON.stringify(visibleCells)}`);
+
+        // Opening the row for editing: the modal's catalog cell overlay must
+        // show "key - name" as well, not just the bare key.
+        await row.click();
+        await page.waitForSelector('.mf-row-modal-backdrop', { timeout: 5000 });
+        await page.waitForTimeout(500);
+        const modalOverlay = await page.textContent('.mf-row-modal-backdrop [data-col-id="id_producto"] ~ .autocomplete-display-overlay');
+        assert.equal(modalOverlay, '1 - Tote Fixture', `modal overlay must show the product, got: ${modalOverlay}`);
+    });
 });

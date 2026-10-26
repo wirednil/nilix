@@ -204,6 +204,31 @@ async function seedMultifieldFixture() {
         console.log('  mf_productos fixture ya existe — skipped');
     }
 
+    // Fixture para dev/form/catalog_keyfield.xml — registros con distinto
+    // producto, para probar que cargar uno (N° directo o ANT/SIG) actualiza
+    // el overlay del select catálogo. Ver tests/e2e.test.js #20.
+    db.run(`CREATE TABLE IF NOT EXISTS catalog_keyfield (
+        empresa_id      INTEGER NOT NULL,
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_producto_ref INTEGER
+    )`);
+    const existingKf = db.exec(`SELECT id FROM catalog_keyfield WHERE id = 1`);
+    if (!existingKf.length || !existingKf[0].values.length) {
+        db.run(`INSERT INTO catalog_keyfield (empresa_id, id, id_producto_ref) VALUES (${DEV_EMPRESA_ID}, 1, 1)`);
+        db.run(`INSERT INTO catalog_keyfield (empresa_id, id, id_producto_ref) VALUES (${DEV_EMPRESA_ID}, 2, 2)`);
+        console.log('  ✓ catalog_keyfield fixture (2 filas) creada');
+    }
+
+    // Venta borrador ya guardada (Tote Fixture x2) — para probar que al
+    // recargarla el grid muestra el nombre del producto y no la clave
+    // cruda. Ver tests/e2e.test.js #21.
+    const existingDraft = db.exec(`SELECT id FROM venta_draft WHERE id = 1`);
+    if (!existingDraft.length || !existingDraft[0].values.length) {
+        db.run(`INSERT INTO venta_draft (empresa_id, id, fecha, total) VALUES (${DEV_EMPRESA_ID}, 1, '2026-06-15', 5000)`);
+        db.run(`INSERT INTO detalle_draft (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES (1, 1, 2, 2500, 5000)`);
+        console.log('  ✓ venta_draft fixture (1 venta) creada');
+    }
+
     fs.writeFileSync(DEV_DB, Buffer.from(db.export()));
     db.close();
 }

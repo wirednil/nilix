@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture: keyField + select catálogo top-level, mismo patrón que
+     id_clienta en ventas.xml (thym-pos). Cargar un registro (N° directo o
+     ANT/SIG) tiene que reflejar en el overlay "clave - nombre" el valor del
+     registro, no la última selección manual. Ver tests/e2e.test.js #20. -->
+<form id="catalog_keyfield" title="Catalog + keyField fixture" database="app" table="catalog_keyfield" handler="none">
+    <layout>
+        <field id="id" label="N°" type="number" keyField="true" size="5"/>
+        <container type="horizontal">
+            <field id="id_producto_ref" label="Producto" type="select" size="6">
+                <validation>
+                    <in-table table="mf_productos" key="id" display="nombre">
+                        <copy from="nombre" to="nombre_producto"/>
+                    </in-table>
+                </validation>
+            </field>
+            <field id="nombre_producto" label="Nombre" type="text" size="30" readonly="true" skip="true"/>
+        </container>
+    </layout>
+</form>

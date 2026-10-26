@@ -410,15 +410,22 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
  * lectura. Para una columna catálogo (type="select" + lookupConfig), usa la
  * fila de catálogo que dejó la última selección (__catalogRow, ver
  * _setupChangeTracking) para mostrar el nombre en vez de la clave cruda —
- * si no hay __catalogRow (fila cargada sin volver a elegir el producto,
- * limitación ya conocida), cae al valor crudo.
+ * si no hay __catalogRow (fila cargada por un handler con `populate`, sin
+ * volver a elegir el producto), usa la columna hermana que es <copy> del
+ * mismo campo display (ej. "producto"): ya trae el nombre resuelto, y queda
+ * oculta en el grid justamente por redundante. Si tampoco está, cae al
+ * valor crudo.
  */
 function _resolveDisplayValue(col, rowData) {
     if (!rowData) return '';
-    if (col.type === 'select' && col.lookupConfig && rowData.__catalogRow) {
+    if (col.type === 'select' && col.lookupConfig) {
         const displayField = col.lookupConfig.displayField;
-        if (displayField && rowData.__catalogRow[displayField] != null) {
+        if (rowData.__catalogRow && displayField && rowData.__catalogRow[displayField] != null) {
             return rowData.__catalogRow[displayField];
+        }
+        const copy = (col.lookupConfig.copyFields || []).find(c => c.from === displayField);
+        if (copy && rowData[copy.to] != null && rowData[copy.to] !== '') {
+            return rowData[copy.to];
         }
     }
     const v = rowData[col.id];

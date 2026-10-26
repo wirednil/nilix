@@ -357,6 +357,69 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         refreshOverlay();
     }, listenerOpts);
 
+    // Valor puesto desde afuera (ValidationCoordinator.fillForm al cargar un
+    // registro por N° o ANT/SIG, el modal de un multifield reabriendo una
+    // fila): solo cambia inputEl.value + dispara 'change', sin pasar por
+    // selectItem() — así que dataset.selectedRow (y con él la capa "clave -
+    // nombre" y los <copy>) seguía mostrando la última selección manual
+    // aunque el input ya tuviera otra clave. Acá se re-resuelve la fila del
+    // catálogo para la clave actual. Si selectedRow ya corresponde a esa
+    // clave (selectItem/Tab acaban de setearla) no hace nada.
+    async function syncSelectedRowToValue() {
+        const value = String(inputEl.value ?? '').trim();
+        const keyField = getKeyField();
+        let current;
+        try { current = JSON.parse(inputEl.dataset.selectedRow || 'null'); } catch { current = null; }
+        if (current && String(current[keyField]) === value) return;
+
+        if (!value) {
+            delete inputEl.dataset.selectedKey;
+            delete inputEl.dataset.selectedRow;
+            refreshOverlay();
+            return;
+        }
+
+        const rows = await loadCatalog();
+        // El valor pudo cambiar otra vez mientras se cargaba el catálogo.
+        if (String(inputEl.value ?? '').trim() !== value) return;
+
+        const match = (rows || []).find(row => String(row[keyField]) === value);
+        if (!match) {
+            delete inputEl.dataset.selectedKey;
+            delete inputEl.dataset.selectedRow;
+            refreshOverlay();
+            return;
+        }
+
+        inputEl.dataset.selectedKey = value;
+        inputEl.dataset.selectedRow = JSON.stringify(match);
+        if (container && container.dataset) {
+            container.dataset.catalogRow = JSON.stringify(match);
+        }
+        if (lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {
+            lookupConfig.copyFields.forEach(copy => {
+                const targetField = container.querySelector(`#${copy.to}`);
+                if (targetField && match[copy.from] !== undefined) {
+                    targetField.value = match[copy.from];
+                    targetField.readOnly = true;
+                    targetField.classList.add('readonly-field');
+                    targetField.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }
+        refreshOverlay();
+    }
+
+    if (lookupConfig) {
+        inputEl.addEventListener('change', () => { syncSelectedRowToValue(); }, listenerOpts);
+        // Campo que ya llega con valor al conectarse (ej. Multifield.js
+        // _buildCatalogCell reabriendo en el modal una fila cargada por un
+        // handler): ese valor se puso antes de existir el listener de arriba.
+        // Es async (loadCatalog), así que los <copy> encuentran las celdas
+        // hermanas aunque la fila se termine de armar después de esta llamada.
+        if (inputEl.value && !inputEl.dataset.selectedRow) syncSelectedRowToValue();
+    }
+
     refreshOverlay();
 
     inputEl.addEventListener('click', () => {
