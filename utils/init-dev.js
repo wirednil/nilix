@@ -178,6 +178,23 @@ async function seedMultifieldFixture() {
         subtotal     REAL
     )`);
 
+    // Fixture para dev/reports/mes_fixture.yaml — prueba el render inline de
+    // un reporte de menú (Workspace.js.renderReport) con un param type:
+    // month real, contra el motor real, sin tocar reportes de producción.
+    // Sin empresa_id a propósito: resumen_mensual (thym-pos) tampoco lo tiene.
+    db.run(`CREATE TABLE IF NOT EXISTS resumen_fixture (
+        mes   TEXT PRIMARY KEY,
+        monto REAL NOT NULL DEFAULT 0
+    )`);
+    const existingFixtureMonth = db.exec(`SELECT mes FROM resumen_fixture WHERE mes = '2026-06'`);
+    if (!existingFixtureMonth.length || !existingFixtureMonth[0].values.length) {
+        db.run(`INSERT INTO resumen_fixture (mes, monto) VALUES ('2026-06', 1000)`);
+        db.run(`INSERT INTO resumen_fixture (mes, monto) VALUES ('2026-07', 2000)`);
+        console.log('  ✓ resumen_fixture (2 filas) creada');
+    } else {
+        console.log('  resumen_fixture ya existe — skipped');
+    }
+
     const existing = db.exec(`SELECT id FROM mf_productos WHERE nombre = 'Tote Fixture'`);
     if (!existing.length || !existing[0].values.length) {
         db.run(`INSERT INTO mf_productos (empresa_id, nombre, precio_mayor, precio_menor) VALUES (${DEV_EMPRESA_ID}, 'Tote Fixture', 1500, 2500)`);

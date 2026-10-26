@@ -38,141 +38,77 @@ class Workspace {
                 this.showError("No se pudo cargar el XML");
             }
         } else if (item.type === 'report') {
-            this.showYamlInfo(item.target);
+            await this.renderReport(item.target);
         } else {
             logger.warn('Workspace', `Tipo de item desconocido: "${item.type}"`);
             this.showError(`Tipo de item desconocido: "${item.type}"`);
         }
     }
 
-    // Legacy: kept for backward compatibility
-    async loadFile(fileNode, fullPath) {
-        console.log("🖥️ LoadFile: Cargando", fileNode.name);
-        this.container.innerHTML = '';
-
-        const pathDisplay = document.createElement('div');
-        pathDisplay.className = 'path-display';
-        pathDisplay.textContent = `> ${CONFIG.ROOT_PATH}${fullPath}`;
-        this.container.appendChild(pathDisplay);
-
-        if (fileNode.name.endsWith('.xml')) {
-            console.log("🖥️ LoadFile: Es XML, solicitando contenido...");
-            const xmlContent = await getFile(fullPath);
-            if (xmlContent) {
-                const formContainer = document.createElement('div');
-                this.container.appendChild(formContainer);
-                this.formRenderer.render(formContainer, xmlContent);
-            } else {
-                this.showError("No se pudo cargar el XML");
-            }
-        } else if (fileNode.name.endsWith('.yaml') || fileNode.name.endsWith('.yml')) {
-            this.showYamlInfo(fullPath);
-        } else {
-            this.showError(`No viewer installed for extension ".${fileNode.name.split('.').pop()}".`);
+    /**
+     * Reportes del menú se renderizan en el cuerpo del workspace, igual que
+     * un form — antes abrían una tarjeta con QR/link público pensada para
+     * compartir hacia afuera (la "carta"/factura de una venta), pero esa se
+     * abre siempre por el redirect post-submit de SubmitManager.js, nunca
+     * por acá — hoy nada que pase por el menú (Tablero mensual, Por canal)
+     * necesita esa tarjeta.
+     */
+    async renderReport(target) {
+        // target es la ruta absoluta del filesystem (igual que item.target
+        // para forms, ver loadItem → getFile) — no una URL relativa, así
+        // que se pide por el mismo endpoint autenticado que usan los forms,
+        // no un fetch directo.
+        const yamlContent = await getFile(target);
+        if (!yamlContent) {
+            logger.error('Workspace', `No se pudo cargar el reporte: ${target}`);
+            this.showError('No se pudo cargar el reporte');
+            return;
         }
-    }
 
-    async showYamlInfo(fullPath) {
-        // Preserve subdirectory structure relative to /reports/ (e.g. 'admin/usuarios')
-        const reportsIdx = fullPath.lastIndexOf('/reports/');
-        const fileName = reportsIdx !== -1
-            ? fullPath.slice(reportsIdx + '/reports/'.length).replace(/\.(yaml|yml)$/, '')
-            : fullPath.split('/').pop().replace(/\.(yaml|yml)$/, '');
+        const { ReportEngine } = await import('./report/ReportEngine.js');
+        const { YamlParser } = await import('./report/parsers/YamlParser.js');
+        const { resolveReportParams, buildMonthPickerBar } = await import('./report/reportParamHelpers.js');
 
-        // Resolver IP real de red (para QR útil fuera de localhost)
-        const localOrigin = window.location.origin;
-        let networkOrigin = localOrigin;
+        let schema;
         try {
-            const info = await fetch('/api/server-info').then(r => r.json());
-            if (info.host) networkOrigin = info.host;
-        } catch { /* fallback a origin */ }
+            schema = await new YamlParser().parse(yamlContent);
+        } catch (err) {
+            logger.error('Workspace', `YAML inválido para ${target}`, err);
+            this.showError('El reporte tiene un YAML inválido');
+            return;
+        }
 
-        const empresaParam = this.empresa != null ? `&t=${this.empresa}` : '';
-        const localUrl   = `${localOrigin}/report.html?file=${fileName}${empresaParam}`;
-        const publicUrl  = `${networkOrigin}/report.html?file=${fileName}${empresaParam}`;
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}&format=png&margin=10`;
+        const windowDiv = document.createElement('div');
+        windowDiv.className = 'terminal-window';
+        this.container.appendChild(windowDiv);
 
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'terminal-window';
-        infoDiv.innerHTML = `
-            <div class="window-header">
-                <span class="window-title">📄 ${fileName}</span>
-            </div>
-            <div class="report-preview">
-                <p>Enlace público${empresaParam ? ' (filtrado por empresa)' : ''}:</p>
-                <div class="report-url-row">
-                    <input type="text" class="report-url-input" value="${publicUrl}" readonly>
-                    <button type="button" class="report-copy-btn">[ COPIAR ]</button>
-                    <button type="button" class="report-preview-btn">[ PREVIEW ]</button>
-                </div>
-                <div class="report-copy-log"></div>
-                <div class="report-actions">
-                    <a href="${localUrl}" target="_blank" class="report-link">
-                        [ ABRIR ]
-                    </a>
-                </div>
-                <div class="qr-container">
-                    <img src="${qrApiUrl}" alt="QR ${fileName}" class="qr-image" width="200" height="200">
-                    <button type="button" class="qr-download-btn">[ DESCARGAR QR ]</button>
-                </div>
-            </div>
-        `;
+        const { params, monthParamName } = resolveReportParams(schema, {});
 
-        infoDiv.querySelector('.report-copy-btn').onclick = async () => {
-            const logEl = infoDiv.querySelector('.report-copy-log');
+        // Reinstancia ReportEngine en cada cambio de mes a propósito:
+        // DataSourceManager cachea por nombre de dataSource dentro de la
+        // misma instancia — reusar el engine dejaría pegado el filtro del
+        // primer mes elegido.
+        const renderWith = async (currentParams) => {
+            windowDiv.innerHTML = '';
+            if (monthParamName) {
+                windowDiv.appendChild(buildMonthPickerBar(currentParams[monthParamName], (newValue) => {
+                    renderWith({ ...currentParams, [monthParamName]: newValue });
+                }));
+            }
             try {
-                await navigator.clipboard.writeText(publicUrl);
-                const btn = infoDiv.querySelector('.report-copy-btn');
-                const original = btn.textContent;
-                btn.textContent = '[ DONE ]';
-                setTimeout(() => { btn.textContent = original; }, 1500);
-                if (logEl) logEl.textContent = `> Link copied: ${publicUrl}`;
-            } catch {
-                infoDiv.querySelector('.report-url-input')?.select();
-                if (logEl) logEl.textContent = '> Select and copy manually';
+                const engine = new ReportEngine();
+                await engine.load(target, yamlContent, this.empresa, currentParams);
+                windowDiv.appendChild(await engine.render());
+            } catch (err) {
+                logger.error('Workspace', `Error renderizando reporte ${target}`, err);
+                const errEl = document.createElement('div');
+                errEl.className = 'report-error';
+                errEl.innerHTML = `<h2>Error al cargar el reporte</h2><p>${err.message}</p>`;
+                windowDiv.appendChild(errEl);
             }
         };
 
-        infoDiv.querySelector('.report-preview-btn').onclick = () => {
-            const existing = document.getElementById('report-preview-modal');
-            if (existing) existing.remove();
-
-            const modal = document.createElement('div');
-            modal.id = 'report-preview-modal';
-            modal.className = 'report-preview-modal';
-            modal.innerHTML = `
-                <div class="preview-modal-backdrop"></div>
-                <div class="preview-modal-frame">
-                    <div class="preview-modal-header">
-                        <span>PREVIEW — 375×812</span>
-                        <button type="button" class="preview-close-btn">[ CERRAR ]</button>
-                    </div>
-                    <div class="preview-phone-shell">
-                        <iframe src="${publicUrl}" class="preview-iframe" title="Preview ${fileName}"></iframe>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            modal.querySelector('.preview-close-btn').onclick = () => modal.remove();
-            modal.querySelector('.preview-modal-backdrop').onclick = () => modal.remove();
-        };
-
-        infoDiv.querySelector('.qr-download-btn').onclick = async () => {
-            try {
-                const res = await fetch(qrApiUrl);
-                const blob = await res.blob();
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `qr-${fileName}.png`;
-                a.click();
-                URL.revokeObjectURL(a.href);
-            } catch {
-                window.open(qrApiUrl, '_blank');
-            }
-        };
-
-        this.container.appendChild(infoDiv);
+        await renderWith(params);
     }
 
     showError(message) {

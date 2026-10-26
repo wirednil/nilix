@@ -1,0 +1,41 @@
+name: mes_fixture
+description: Fixture con filtro de mes (params type=month)
+kind: ledger
+
+config:
+  paginationMode: scroll
+  markdown: true
+
+params:
+  - { name: mes, type: month }
+
+fields:
+  - { name: mes,    type: string, dbRef: { table: resumen_fixture, field: mes } }
+  - { name: monto,  type: float,  dbRef: { table: resumen_fixture, field: monto } }
+
+dataSources:
+  resumen:
+    table: resumen_fixture
+    filter: "mes = :mes"
+    orderBy:
+      - mes
+
+zones:
+  - name: encabezado
+    layout: lines
+    condition: { when: before, on: report }
+    template:
+      - " # MES FIXTURE "
+      - ""
+
+  - name: tabla
+    layout: lines
+    condition: { when: after, on: report }
+    dataSource: resumen
+    expressions:
+      - { name: monto_fmt, field: monto, format: currency }
+    rowHeader:
+      - "  |MES|MONTO|"
+      - "  | :--: | --: | "
+    rowBody:
+      - "  |{mes}|{monto_fmt}|"

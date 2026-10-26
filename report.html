@@ -128,6 +128,8 @@
 
     <script type="module">
         import { ReportEngine } from '/js/components/report/ReportEngine.js';
+        import { YamlParser } from '/js/components/report/parsers/YamlParser.js';
+        import { resolveReportParams, buildMonthPickerBar } from '/js/components/report/reportParamHelpers.js';
 
         function updateLoadingStage(message) {
             const stage = document.getElementById('loading-stage');
@@ -220,6 +222,37 @@
                     const check = checkRes.ok ? await checkRes.json() : { ok: false };
                     if (!check.ok) { window.location.href = '/nil-login'; return; }
                 } catch { window.location.href = '/nil-login'; return; }
+            }
+
+            // params: declarado en el YAML (schema.params) pero hasta ahora
+            // nunca lo leía nadie acá — el único uso real de momento es
+            // type: "month" (ver reportParamHelpers.js): si el reporte lo
+            // declara y la URL no trae ese valor, se completa solo con el
+            // mes actual (si no, el filter ":mes" del dataSource tira
+            // "Missing required report param" al abrir el reporte sin nada
+            // en la URL) y se muestra un <input type="month"> para cambiarlo.
+            let monthParamName = null;
+            try {
+                const parsedSchema = await new YamlParser().parse(yamlContent);
+                const resolved = resolveReportParams(parsedSchema, reportParams);
+                Object.assign(reportParams, resolved.params);
+                monthParamName = resolved.monthParamName;
+                if (monthParamName) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set(monthParamName, reportParams[monthParamName]);
+                    history.replaceState(null, '', url);
+                }
+            } catch (e) {
+                console.warn('⚠️ No se pudo leer params: del YAML para el selector de mes:', e.message);
+            }
+
+            if (monthParamName) {
+                const bar = buildMonthPickerBar(reportParams[monthParamName], (newValue) => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set(monthParamName, newValue);
+                    window.location.href = url.toString();
+                });
+                container.before(bar);
             }
 
             const engine = new ReportEngine();

@@ -228,7 +228,13 @@ export class ReportEngine {
             if (zone.rowBody?.length > 0) {
                 const bodyRows = zone.dataSource ? (this.data.get(zone.dataSource) || []) : [];
                 const footerRows = zone.footerDataSource ? (this.data.get(zone.footerDataSource) || []) : [];
-                const element = this.renderer.renderRowTableZone(zone, bodyRows, footerRows[0] ?? null);
+                // this.accumulators: populated by the main record loop above
+                // (updateAccumulators, one per record of the MAIN dataSource —
+                // see findMainDataSource) — needed so footerExpressions can use
+                // aggregate: sum/count/avg/min/max (the only cross-row totals
+                // that work on a real server; formula: arithmetic is broken
+                // under CSP, see NIL-REPORT.md §10.9).
+                const element = this.renderer.renderRowTableZone(zone, bodyRows, footerRows[0] ?? null, this.accumulators);
                 if (element) container.appendChild(element);
                 return;
             }

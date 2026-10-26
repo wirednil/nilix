@@ -341,8 +341,12 @@ export class ReportRenderer {
      * fila (ej. el registro "venta"), y rowFooter puede tener varias LÍNEAS
      * de template (total, envío, descuento...) evaluadas todas contra esa
      * misma fila — no hace falta un dataSource por línea de footer.
+     * footerRow es opcional: un footer de puros `aggregate: sum/count/avg/
+     * min/max` (ej. tablero_mensual.yaml — TOTAL por columna) no necesita
+     * ningún footerDataSource, esos expresiones leen de `accumulators`, no
+     * de una fila puntual (ver evaluateExpressions).
      */
-    renderRowTableZone(zone, bodyRows, footerRow) {
+    renderRowTableZone(zone, bodyRows, footerRow, accumulators = null) {
         const el = document.createElement('div');
         el.className = 'report-lines';
         el.dataset.zone = zone.name;
@@ -359,9 +363,9 @@ export class ReportRenderer {
             });
         });
 
-        if (footerRow) {
-            const footerCtx = this.evaluateExpressions(zone.footerExpressions, footerRow);
-            (zone.rowFooter || []).forEach(line => {
+        if (zone.rowFooter?.length > 0) {
+            const footerCtx = this.evaluateExpressions(zone.footerExpressions, footerRow || {}, accumulators, null);
+            zone.rowFooter.forEach(line => {
                 mdLines.push(this.evaluator.evaluate(line, footerCtx));
             });
         }

@@ -823,4 +823,56 @@ describe('E2E — Dev Sandbox', async () => {
         assert.ok(updatedMatch, `expected an update, got: ${updated}`);
         assert.equal(updatedMatch[1], ventaId, 'id must stay the same across the update, not create a new record');
     });
+
+    it('19. Menu reports render inline in the workspace (no QR/share card), and a type: month param filters via a picker', async () => {
+        // Regression test: type="report" menu items used to always open
+        // Workspace.js's showYamlInfo() — a QR code + public link "share"
+        // card meant for a report you hand to someone external (the
+        // customer-facing "carta"/factura, which in practice never goes
+        // through this path at all — it opens via SubmitManager's post-save
+        // redirect, not the menu). Every report actually reachable from a
+        // menu (Tablero mensual, Por canal in thym-pos) is an internal
+        // dashboard with no use for that card. Workspace.js.renderReport()
+        // now renders the report inline into the workspace body instead,
+        // same as a form. Also covers reportParamHelpers.js: a report
+        // declaring params: [{type: month}] gets a default of the current
+        // month and an <input type="month"> that re-filters on change —
+        // without it, dataSources.resumen's filter: "mes = :mes" would throw
+        // "Missing required report param" on a plain menu click.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Mes Fixture"))');
+        await page.waitForSelector('.report-container', { timeout: 15000 });
+
+        assert.equal(await page.locator('.qr-container').count(), 0, 'no QR/share card for a menu-driven report');
+        assert.equal(await page.locator('.report-preview-btn').count(), 0, 'no share-preview button either');
+
+        const picker = page.locator('.month-picker-bar input[type="month"]');
+        assert.equal(await picker.count(), 1, 'a type: month param should render a picker');
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        assert.equal(await picker.inputValue(), currentMonth, 'defaults to the current month when the URL/menu gives no value');
+
+        await picker.fill('2026-06');
+        await page.waitForSelector('.terminal-window table', { timeout: 20000 });
+        const bodyText = await page.textContent('.terminal-window');
+        assert.ok(bodyText.includes('2026-06') && bodyText.includes('$1.000,00'),
+            `expected the June fixture row after switching months, got: ${bodyText}`);
+
+        // Switching again must not leak the previous month's filter (fresh
+        // ReportEngine per render — DataSourceManager caches per-instance).
+        // Each new ReportEngine reinitializes its own DuckDBAdapter (not
+        // cached across instances), so this can take a few seconds — wait
+        // for the actual content instead of a flat timeout.
+        await picker.fill('2026-07');
+        await page.waitForFunction(
+            () => document.querySelector('.terminal-window')?.textContent.includes('2026-07'),
+            { timeout: 20000 }
+        );
+        const bodyText2 = await page.textContent('.terminal-window');
+        assert.ok(bodyText2.includes('2026-07') && bodyText2.includes('$2.000,00'), `expected July's row, got: ${bodyText2}`);
+        assert.ok(!bodyText2.includes('2026-06'), `June's row should not still be showing after switching to July, got: ${bodyText2}`);
+    });
 });

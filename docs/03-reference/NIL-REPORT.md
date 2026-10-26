@@ -1271,6 +1271,7 @@ Funcionalidades del RDL original que aún no tienen equivalente en nilix, ordena
 | **`null zeros`** | No mostrar cero en campos vacíos | Reportes con campos opcionales |
 | **Export PDF** | `outputTo: pdf` funcional | Comprobantes imprimibles |
 | **Filtros complejos en `filter:`** | `IN`, `LIKE`, rangos, `AND`/`OR` | Rango de fechas, múltiples estados simultáneos |
+| **`ParamResolver` genérico** | `report.html` (y ahora también el render inline del menú, ver Workspace.js) resuelven `params:` a mano y ad-hoc: hoy solo saben de `type: month` — default al mes actual y un `<input type="month">`, hardcodeado en el código que carga el reporte, no en el parser. Un módulo compartido con dos partes — (1) resolver defaults por tipo dado `schema.params` + lo que vino de la URL/usuario, sin `new Function()`; (2) un mapa tipo→widget para armar el form de parámetros — serviría para cualquier `type` futuro (`select` contra un catálogo, `number`, rango de fechas) sin repetir el patrón a mano en cada lugar que carga un reporte. | Reporte que filtra por clienta (`select`), por año (`number`), o por rango de fechas — cualquier param que no sea `month` hoy no tiene ningún soporte, habría que codearlo de cero calcando el patrón de `month`. |
 
 ### Baja prioridad / Limitaciones de diseño
 

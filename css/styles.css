@@ -2073,6 +2073,35 @@ body.dark-mode select.field-error {
     font-family: var(--label-font);
 }
 
+/* Solo aparece cuando el reporte declara un param type: month (ver
+   schema.params, js/components/report/reportParamHelpers.js) — YAMLs que no
+   lo declaran (factura, canal) nunca lo montan. Clase (no id): se usa tanto
+   en report.html como en el render inline de un reporte de menú
+   (Workspace.js). */
+.month-picker-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+}
+
+.month-picker-bar label {
+    color: var(--help-icon-color);
+    white-space: nowrap;
+}
+
+.month-picker-bar input[type="month"] {
+    font: inherit;
+    padding: 0.2rem 0.4rem;
+}
+
+@media print {
+    .month-picker-bar { display: none; }
+}
+
 /* Header */
 .report-header {
     text-align: center;
