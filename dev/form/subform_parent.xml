@@ -17,5 +17,7 @@
             <subform trigger-value="0" form="subform_marca_nueva"/>
         </field>
         <field id="nombre_marca" label="Nombre marca" type="text" size="20" readonly="true" skip="true"/>
+        <!-- Siguiente campo editable: ahí va el foco al volver guardando (#44) -->
+        <field id="cantidad" label="Cantidad" type="number" size="5"/>
     </layout>
 </form>

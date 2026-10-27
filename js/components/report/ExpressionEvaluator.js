@@ -154,7 +154,56 @@ export class ExpressionEvaluator {
         }
         // Allow only digits, whitespace, and basic math operators/parens
         if (!/^[\d\s+\-*/.()]+$/.test(expr.trim())) return '';
-        try { return new Function(`return (${expr})`)(); } catch { return ''; }
+        // Parser propio, sin new Function(): la CSP de report.html lo bloquea
+        // y la fórmula salía vacía (ej. "total + envio_costo" en el
+        // comprobante de thym-pos). Ver tests/expressionEvaluator.test.js.
+        const result = this._evalArithmetic(expr);
+        return result === null ? '' : result;
+    }
+
+    /**
+     * + - * / y paréntesis sobre números, con precedencia usual y signo
+     * unario. Devuelve null si la expresión no es válida.
+     */
+    _evalArithmetic(expr) {
+        const tokens = expr.match(/\d+(?:\.\d+)?|\.\d+|[+\-*/()]/g) ?? [];
+        if (tokens.join('') !== expr.replace(/\s+/g, '')) return null;
+        let pos = 0;
+        const peek = () => tokens[pos];
+        const parsePrimary = () => {
+            const t = tokens[pos++];
+            if (t === '-') { const v = parsePrimary(); return v === null ? null : -v; }
+            if (t === '+') return parsePrimary();
+            if (t === '(') {
+                const v = parseSum();
+                if (tokens[pos++] !== ')') return null;
+                return v;
+            }
+            const n = parseFloat(t);
+            return Number.isFinite(n) ? n : null;
+        };
+        const parseProduct = () => {
+            let v = parsePrimary();
+            while (v !== null && (peek() === '*' || peek() === '/')) {
+                const op = tokens[pos++];
+                const r = parsePrimary();
+                if (r === null) return null;
+                v = op === '*' ? v * r : v / r;
+            }
+            return v;
+        };
+        const parseSum = () => {
+            let v = parseProduct();
+            while (v !== null && (peek() === '+' || peek() === '-')) {
+                const op = tokens[pos++];
+                const r = parseProduct();
+                if (r === null) return null;
+                v = op === '+' ? v + r : v - r;
+            }
+            return v;
+        };
+        const value = parseSum();
+        return pos === tokens.length && Number.isFinite(value) ? value : null;
     }
 
     _splitArgs(str) {

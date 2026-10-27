@@ -345,6 +345,9 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
 
     btnEl.addEventListener('click', (e) => {
         e.preventDefault();
+        // El foco al input: el teclado (↑↓, Enter, Escape, tipear para
+        // filtrar) se escucha ahí — abriendo con ▾, Escape no cerraba.
+        if (!inputEl.readOnly || inputEl.dataset.skipSelect) inputEl.focus();
         toggleDropdown();
     }, listenerOpts);
 
@@ -544,6 +547,10 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             e.preventDefault();
             if (highlightedIndex >= 0 && items[highlightedIndex]) {
                 selectItem(items[highlightedIndex]);
+            } else if (items.length === 1 && inputEl.value.trim()) {
+                // El filtro dejó una sola: Enter la elige sin ↓ previo.
+                // Con varias (o sin filtro) no adivina.
+                selectItem(items[0]);
             }
         } else if (e.key === 'Escape') {
             e.preventDefault();

@@ -15,7 +15,9 @@ export const createHelpIcon = (fieldId) => {
     const icon = createElement('span', 'help-icon', '[?]');
     icon.setAttribute('data-field', fieldId);
     icon.setAttribute('role', 'button');
-    icon.setAttribute('tabindex', '0');
+    // Fuera del orden de Tab: cada [?] era una parada más al cargar con
+    // teclado (de N° a Clienta, 6 Tabs). Se abre con click.
+    icon.setAttribute('tabindex', '-1');
     icon.setAttribute('aria-label', 'Mostrar ayuda');
     return icon;
 };

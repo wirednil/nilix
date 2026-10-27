@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node node_modules/typescript/lib/tsc.js",
     "pretest": "npm run build",
-    "test": "node --test tests/authService.test.js tests/scopedDb.test.js tests/recordService.test.js",
+    "test": "node --test tests/authService.test.js tests/scopedDb.test.js tests/recordService.test.js tests/expressionEvaluator.test.js",
     "test:integration": "node --test tests/api.integration.test.js",
     "test:e2e": "node --test tests/e2e.test.js",
     "test:all": "node --test tests/authService.test.js && node --test tests/scopedDb.test.js && node --test tests/recordService.test.js && node --test tests/authRecordService.test.js && node --test tests/api.integration.test.js",

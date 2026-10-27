@@ -57,20 +57,35 @@ export class SubmitManager {
     }
 
     /**
-     * El resumen "Faltan…" se va solo cuando ya no queda ningún campo
-     * marcado — si no, seguía nombrando campos ya completos. Corre en
-     * burbujeo, después de que el propio campo limpió su marca
+     * Muestra el resumen "Faltan…" y lo mantiene al día: a medida que cada
+     * campo pierde su marca se reescribe con los que quedan, y se va cuando
+     * no queda ninguno — si no, seguía nombrando campos ya completos. Corre
+     * en burbujeo, después de que el propio campo limpió su marca
      * (ValidationCoordinator: 'input'/'change'; Multifield: al agregar fila).
      */
-    _dismissSummaryWhenFixed(formEl, summaryId) {
+    _watchSummary(formEl, invalidFields) {
+        const summaryOf = fields => (fields.length === 1
+            ? `Falta "${fields[0].label}".`
+            : `Faltan ${fields.length} campos: ${fields.map(f => f.label).join(', ')}.`);
+        const elOf = f => f.el ?? document.getElementById(f.fieldId);
+
         this._summaryWatch?.abort();
         const watch = this._summaryWatch = new AbortController();
         const signals = [watch.signal, this.ctx.signal].filter(Boolean);
         const opts = { signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0] };
+
+        let pending = invalidFields;
+        let summaryId = this.ctx.statusBar?.push('error', summaryOf(pending));
         const check = () => {
-            if (formEl.querySelector('.field-error')) return;
-            this.ctx.statusBar?.dismiss(summaryId);
-            watch.abort();
+            const still = pending.filter(f => elOf(f)?.classList.contains('field-error'));
+            if (still.length === pending.length) return;
+            pending = still;
+            if (pending.length === 0) {
+                this.ctx.statusBar?.dismiss(summaryId);
+                watch.abort();
+            } else {
+                summaryId = this.ctx.statusBar?.push('error', summaryOf(pending));
+            }
         };
         ['input', 'change', 'sf:user-change'].forEach(type => formEl.addEventListener(type, check, opts));
     }
@@ -89,11 +104,7 @@ export class SubmitManager {
             // este listener llegue a correr con campos required vacíos.
             const invalidFields = this.coordinator?.validateAll() ?? [];
             if (invalidFields.length > 0) {
-                const summary = invalidFields.length === 1
-                    ? `Falta "${invalidFields[0].label}".`
-                    : `Faltan ${invalidFields.length} campos: ${invalidFields.map(f => f.label).join(', ')}.`;
-                const summaryId = this.ctx.statusBar?.push('error', summary);
-                this._dismissSummaryWhenFixed(formEl, summaryId);
+                this._watchSummary(formEl, invalidFields);
                 const first = invalidFields[0];
                 (first.el?.querySelector('.multifield-add-btn') ?? document.getElementById(first.fieldId))?.focus();
                 return;

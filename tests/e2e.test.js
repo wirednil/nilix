@@ -1673,4 +1673,135 @@ describe('E2E — Dev Sandbox', async () => {
             page.off('request', onRequest);
         }
     });
+    it('41. The "Faltan…" summary is rewritten as fields are filled, not left naming completed ones', async () => {
+        // 3rd Chrome round 2026-10-27: with 3 of 4 already filled it still
+        // said "Faltan 4 campos: Clienta, Productos, Cómo pagó…".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const status = () => page.textContent('.status-bar-message');
+
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+        assert.equal(await status(), '❌ Faltan 4 campos: Nombre, Producto, Canal, Items.');
+
+        await page.click('#canal');
+        await page.locator('.autocomplete-item', { hasText: 'Local' }).first().click();
+        assert.equal(await status(), '❌ Faltan 3 campos: Nombre, Producto, Items.');
+        await page.type('#nombre', 'X');
+        assert.equal(await status(), '❌ Faltan 2 campos: Producto, Items.');
+        await page.click('#id_producto');
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        assert.equal(await status(), '❌ Falta "Items".');
+    });
+
+    it('42. Escape closes a select\'s list even when it was opened with ▾', async () => {
+        // 3rd Chrome round 2026-10-27: Escape was only handled on the input;
+        // after clicking ▾ the list stayed open.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const list = page.locator('.autocomplete-wrapper:has(#canal) .autocomplete-dropdown');
+
+        await page.click('.autocomplete-wrapper:has(#canal) .autocomplete-btn');
+        await page.waitForSelector('.autocomplete-wrapper:has(#canal) .autocomplete-item', { timeout: 5000 });
+        await page.keyboard.press('Escape');
+        assert.equal(await list.isVisible(), false, 'list closed by Escape after opening it with ▾');
+
+        await page.click('#canal');
+        await page.waitForSelector('.autocomplete-wrapper:has(#canal) .autocomplete-item', { timeout: 5000 });
+        await page.keyboard.press('Escape');
+        assert.equal(await list.isVisible(), false, 'and after opening it from the input');
+    });
+
+    it('43. Enter picks the only item left by the filter', async () => {
+        // 3rd Chrome round 2026-10-27: "Zay" + Enter left the text "Zay" in
+        // the field; it took ↓ then Enter.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#id_producto', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.focus('#id_producto');
+        await page.keyboard.type('Moch');
+        await page.waitForSelector('.autocomplete-wrapper:has(#id_producto) .autocomplete-item', { timeout: 5000 });
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+        assert.equal(await page.inputValue('#id_producto'), '2', 'the single match is selected (its key)');
+        const overlay = await page.locator('#id_producto ~ .autocomplete-display-overlay').evaluate(el => (el.hidden ? '' : el.textContent.trim()));
+        assert.equal(overlay, '2 - Mochila Fixture');
+
+        // With several items (Web, Local), Enter alone picks nothing.
+        await page.click('#canal');
+        await page.waitForSelector('.autocomplete-wrapper:has(#canal) .autocomplete-item', { timeout: 5000 });
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+        assert.equal(await page.inputValue('#canal'), '', 'Enter with more than one item does not guess');
+    });
+
+    it('44. Back from a <subform>: saved → focus on the next field to fill; not saved → on the select', async () => {
+        // 3rd Chrome round 2026-10-27: after "0 - Nueva clienta" the focus was
+        // left on <body>, unlike the modals. Saved: the new record is already
+        // picked, so the user continues with the next field (focusing the
+        // select itself would swap its "key - name" overlay for the raw key).
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        async function openSubform() {
+            await page.click('#id_marca');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+            await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+        }
+        const activeId = () => page.evaluate(() => document.activeElement?.id);
+
+        await openSubform();
+        await page.fill('#nombre', 'Marca Foco E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForFunction(() => document.activeElement?.id === 'cantidad', null, { timeout: 5000 }).catch(() => {});
+        assert.equal(await activeId(), 'cantidad', 'after saving: the next editable field (skips the read-only copy)');
+
+        await openSubform();
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForFunction(() => document.activeElement?.id === 'id_marca', null, { timeout: 5000 }).catch(() => {});
+        assert.equal(await activeId(), 'id_marca', 'after going back without saving');
+    });
+
+    it('45. The [?] help icons are not Tab stops', async () => {
+        // 3rd Chrome round 2026-10-27: every [?] was a Tab stop — from N° to
+        // Clienta took 6 Tabs. Still opens with a click.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Clientes"))');
+        await page.waitForSelector('#clieno', { timeout: 10000 });
+        const tabbable = await page.$$eval('.help-icon', els => els.filter(el => el.tabIndex >= 0).length);
+        assert.equal(tabbable, 0, 'no [?] in the Tab order');
+        await page.click('.help-icon[data-field="clieno"]');
+        assert.equal(await page.locator('.help-tooltip[data-field="clieno"]').isVisible(), true, 'still opens with a click');
+    });
 });

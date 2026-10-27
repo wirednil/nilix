@@ -260,6 +260,17 @@ export class LayoutProcessor {
         recompute();
     }
 
+    /** Siguiente control del form al que llegaría Tab después de `el`. */
+    _nextFocusable(el) {
+        const formEl = el.closest('form');
+        if (!formEl) return null;
+        const focusable = [...formEl.querySelectorAll('input, textarea, select, button')].filter(c =>
+            c.type !== 'hidden' && !c.disabled && !c.readOnly && c.tabIndex >= 0 &&
+            c.getClientRects().length > 0 && !c.closest('.actions-nav'));
+        const i = focusable.indexOf(el);
+        return i >= 0 ? focusable[i + 1] ?? null : null;
+    }
+
     extractFieldConfig(fieldXml, parentContainer) {
         try {
             const parentIsHorizontal = parentContainer.classList.contains('horizontal-container');
@@ -463,6 +474,13 @@ export class LayoutProcessor {
                         `${subTitle}: se guardó con el N° ${newKey} y ya figura en "${label}".`,
                         { sticky: true });
                 }
+
+                // El foco no queda en <body>: guardado → el siguiente campo a
+                // completar (el registro nuevo ya está elegido; enfocar el
+                // select cambiaría su "clave - nombre" por la clave cruda);
+                // sin guardar → el select, para elegir otra cosa.
+                const next = newKey != null ? this._nextFocusable(el) : null;
+                (next ?? el).focus();
             };
 
             backBtn.addEventListener('click', () => restoreParent(null));
