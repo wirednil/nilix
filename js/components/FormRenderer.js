@@ -105,7 +105,7 @@ class FormRenderer {
             formEl.appendChild(statusBar.el);
             submitManager.addFormActions(formEl);
             if (options.initialStatus) {
-                statusBar.push(options.initialStatus.level, options.initialStatus.message);
+                statusBar.push(options.initialStatus.level, options.initialStatus.message, { sticky: true });
             }
 
             windowDiv.appendChild(formEl);

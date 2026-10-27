@@ -643,7 +643,7 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForTimeout(600);
 
         const btnText = await page.textContent('button[type="submit"]');
-        assert.match(btnText, /¡CREADO! \(ID: \d+\)/, `expected a real numeric id in the feedback, got: ${btnText}`);
+        assert.match(btnText, /¡CREADO! \(N° \d+\)/, `expected a real numeric id in the feedback, got: ${btnText}`);
     });
 
     it('16. Mobile — #workspace scrolls internally when form content is taller than the viewport', async () => {
@@ -794,7 +794,7 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('button[type="submit"]');
         await page.waitForTimeout(500);
         const created = await page.textContent('button[type="submit"]');
-        const createdMatch = created.match(/¡CREADO! \(ID: (\d+)\)/);
+        const createdMatch = created.match(/¡CREADO! \(N° (\d+)\)/);
         assert.ok(createdMatch, `expected a fresh insert with a numeric id, got: ${created}`);
         const ventaId = createdMatch[1];
 
@@ -819,7 +819,7 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('button[type="submit"]');
         await page.waitForTimeout(500);
         const updated = await page.textContent('button[type="submit"]');
-        const updatedMatch = updated.match(/¡ACTUALIZADO! \(ID: (\d+)\)/);
+        const updatedMatch = updated.match(/¡ACTUALIZADO! \(N° (\d+)\)/);
         assert.ok(updatedMatch, `expected an update, got: ${updated}`);
         assert.equal(updatedMatch[1], ventaId, 'id must stay the same across the update, not create a new record');
     });
@@ -1060,5 +1060,103 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(Number(id2), Number(id1) + 1, 'second save is a new record');
         await page.click('.report-modal-back');
         await assertCleanForm(id2);
+    });
+    it('24. Returning from a <subform> keeps what was typed in the parent and selects the record just created', async () => {
+        // Regression test (thym-pos, 2026-10-27): "0 - Nueva clienta" in Venta
+        // opens the clienta subform; on save, LayoutProcessor re-rendered the
+        // parent from its XML — everything typed before was lost, and the new
+        // clienta was not selected (had to scroll the list to find it). It
+        // also invalidated the catalog under the *form* name, not the table.
+        // See dev/form/subform_parent.xml + subform_marca_nueva.xml.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        const overlay = () => page.locator('#id_marca ~ .autocomplete-display-overlay')
+            .evaluate(el => (el.hidden ? '' : el.textContent.trim()));
+        async function openSubform() {
+            await page.click('#id_marca');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+            await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+        }
+
+        await page.fill('#nota', 'Dato previo');
+
+        // 1. Save in the subform → back to the parent, data kept, new marca selected.
+        await openSubform();
+        assert.equal(await page.locator('#nota').count(), 0, 'the parent form is out of the DOM while the subform is open');
+        await page.fill('#nombre', 'Marca E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForFunction(() => document.querySelector('#id_marca')?.value === '2', null, { timeout: 10000 });
+
+        assert.equal(await page.inputValue('#nota'), 'Dato previo', 'what was typed in the parent must survive the subform');
+        await page.waitForFunction(
+            () => document.querySelector('#id_marca ~ .autocomplete-display-overlay')?.textContent.includes('Marca E2E'),
+            null, { timeout: 5000 });
+        assert.equal(await overlay(), '2 - Marca E2E', 'the new record is selected, with its "key - name" overlay');
+        assert.equal(await page.inputValue('#nombre_marca'), 'Marca E2E', '<copy> follows the new record');
+        assert.equal(await page.locator('.subform-back-btn').count(), 0, 'subform gone');
+        assert.equal(await page.locator('#nota').count(), 1, 'exactly one parent form (no duplicate ids)');
+        const status = await page.textContent('.status-bar-message');
+        assert.ok(status.includes('N° 2'), `status bar confirms the new record, got: ${status}`);
+
+        // 2. Open it again and go back without saving → parent kept, trigger value cleared.
+        await openSubform();
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        assert.equal(await page.inputValue('#nota'), 'Dato previo');
+        assert.equal(await page.inputValue('#id_marca'), '', 'the trigger value (0) is not left selected');
+        assert.equal(await overlay(), '', 'no "0 - Nueva marca" overlay left behind');
+    });
+
+    it('25. Save feedback says "N°" and stays visible; an expected handler rejection is logged as a warning, not an error', async () => {
+        // UX recorrido thym-pos 2026-10-27: the button said "¡CREADO! (ID: 32)"
+        // (jargon — everything else says N°), the "Registro N° X creado"
+        // confirmation auto-hid after 4 s, and every expected validate()
+        // rejection went to the console/server log as ERROR with a stack.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        const consoleErrors = [];
+        const onConsole = msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); };
+        page.on('console', onConsole);
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+
+            // Expected rejection → shown to the user, but not a console error.
+            await page.click('button[type="submit"]');
+            await page.waitForFunction(
+                () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+            await page.waitForTimeout(300);
+            const rejectionErrors = consoleErrors.filter(t => t.includes('Escribí un nombre'));
+            assert.deepEqual(rejectionErrors, [], 'an expected validate() rejection must not be logged as a console error');
+
+            // Successful save → button says N°, and the confirmation stays.
+            await page.fill('#nombre', 'Feedback E2E');
+            await page.click('button[type="submit"]');
+            await page.waitForSelector('.report-modal-backdrop', { timeout: 20000 });
+            const btn = await page.textContent('button[type="submit"]');
+            assert.match(btn, /¡CREADO! \(N° \d+\)/, `button feedback, got: ${btn}`);
+            const savedId = btn.match(/N° (\d+)/)[1];
+            await page.click('.report-modal-back');
+            await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+            await page.waitForTimeout(5000); // success messages used to auto-hide at 4 s
+            assert.equal(await page.locator('.status-bar').isVisible(), true, 'the confirmation is still visible');
+            const status = await page.textContent('.status-bar-message');
+            assert.ok(status.includes(`N° ${savedId}`), `got: ${status}`);
+        } finally {
+            page.off('console', onConsole);
+        }
     });
 });

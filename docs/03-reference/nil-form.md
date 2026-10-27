@@ -919,10 +919,12 @@ El elemento `<subform>` se anida dentro del `<field>` de tipo select:
 
 ### Comportamiento
 
-- Cuando el usuario selecciona el valor indicado en `trigger-value`, el workspace se reemplaza con el subformulario especificado.
-- Aparece un botón `← Volver` en la parte superior del subformulario para retornar al formulario padre en cualquier momento sin guardar.
-- Tras un guardado exitoso en el subformulario, el catálogo de lookup del campo padre se invalida (para reflejar el nuevo registro) y el workspace vuelve automáticamente al formulario padre después de 1,5 segundos.
-- Al volver al padre, la opción disparadora se resetea a la primera opción (el `default`).
+- Cuando el usuario selecciona el valor indicado en `trigger-value`, el workspace muestra el subformulario especificado. El formulario padre sale del DOM **sin destruirse**: todo lo cargado en él (fechas, otros campos, filas de multifield) sigue ahí al volver.
+- Aparece un botón `← Volver` en la parte superior del subformulario para retornar al formulario padre en cualquier momento sin guardar. El valor disparador no queda elegido.
+- Tras un guardado exitoso en el subformulario se vuelve al padre enseguida. Si el campo es un `select` con `<in-table>`, queda **elegido el registro recién creado** (con su "clave - nombre" y sus `<copy>`), y la barra de estado del padre lo confirma con el N°. Si no es un catálogo, el valor disparador se limpia.
+- El catálogo se actualiza solo: `RecordService` invalida la caché de la tabla al insertar.
+
+> Hasta 2026-10-27 el padre se volvía a dibujar desde su XML al volver (se perdía lo cargado), el registro nuevo no quedaba elegido y la caché se invalidaba con el nombre del *form* del subformulario, no el de la tabla. Ver `KNOWN-BUGS.md`, Bug 8.
 
 ### Caso de uso típico
 

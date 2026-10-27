@@ -35,8 +35,10 @@ export class StatusBar {
     /**
      * @param {'error'|'warning'|'success'|'info'} level
      * @param {string} message
+     * @param {{ sticky?: boolean }} [options] - sticky: no se oculta solo (ej. la
+     *   confirmación "Registro N° X creado": se queda hasta el próximo mensaje)
      */
-    push(level, message) {
+    push(level, message, { sticky = false } = {}) {
         if (!ICONS[level]) level = 'info';
 
         this.el.hidden = false;
@@ -44,7 +46,7 @@ export class StatusBar {
         this._messageEl.textContent = `${ICONS[level]} ${message}`;
 
         clearTimeout(this._hideTimer);
-        const hideAfter = AUTO_HIDE_MS[level];
+        const hideAfter = sticky ? null : AUTO_HIDE_MS[level];
         if (hideAfter) {
             this._hideTimer = setTimeout(() => this._hideCurrent(), hideAfter);
         }

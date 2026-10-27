@@ -12,6 +12,18 @@ _(ninguno)_
 
 ## ✅ Resueltos
 
+### Bug 8 — Volver de un subformulario pierde lo cargado y no elige el registro nuevo — ✅ FIXED (2026-10-27)
+
+**Síntoma (detectado en thym-pos):** en Venta, "0 - Nueva clienta" abre el alta de clienta. Al guardarla, la Venta volvía vacía (lo cargado antes de abrir el alta se perdía) y la clienta nueva no quedaba elegida: había que buscarla al final de la lista.
+
+**Causa:** `LayoutProcessor.setupSubformTrigger()` borraba el workspace (`innerHTML = ''`) para mostrar el subform y, al volver, dibujaba el padre de nuevo desde su XML (`restoreParent`). Además invalidaba la caché del catálogo con `subformConfig.form` (el nombre del form, ej. `clientas_nuevo`) en vez de la tabla.
+
+**Fix:** el padre sale del DOM sin destruirse y se reinserta al volver. Si el campo disparador es un catálogo, se le asigna la clave del registro creado (`sf:record-saved`) y un `change` deja que `Autocomplete` resuelva overlay y `<copy>`. El sink del logger vuelve a la barra del padre. La invalidación con el nombre equivocado se quitó (la hace `RecordService` al insertar).
+
+**Tests:** `tests/e2e.test.js` #24. Fixture: `dev/form/subform_parent.xml` + `subform_marca_nueva.xml`, tabla `sf_marcas`. En thym-pos: `tests/ui.test.js` (punto 11.1).
+
+**Junto con esto (recorrido thym-pos 2026-10-27, e2e #25):** el botón dice "¡CREADO! (N° X)" en vez de "(ID: X)"; la confirmación post-guardado queda fija en la barra (`StatusBar.push(..., { sticky: true })`) en vez de ocultarse a los 4 s; y un rechazo esperado del `validate()` del handler se registra como WARN sin stack, no como ERROR.
+
 ### Bug 6 — El mensaje de validación del handler no llega a la pantalla — ✅ FIXED (2026-10-27)
 
 **Síntoma (detectado en thym-pos):** al intentar modificar una venta registrada, `ventas.handler.js` la rechaza con "Las ventas registradas no se modifican…", pero la usuaria veía `❌ Error guardando tabla=ventas | Validation failed — at RecordService.upsert (…/RecordService.js:70:19)`.

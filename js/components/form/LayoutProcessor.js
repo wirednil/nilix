@@ -129,7 +129,7 @@ export class LayoutProcessor {
                     this.setupIsExpression(el, config.isExpression);
                 }
                 if (config.subformConfig) {
-                    this.setupSubformTrigger(el, config.subformConfig);
+                    this.setupSubformTrigger(el, config.subformConfig, config);
                 }
                 if (config.visibleWhen || config.enabledWhen) {
                     this.setupConditional(el, config.visibleWhen, config.enabledWhen);
@@ -369,10 +369,15 @@ export class LayoutProcessor {
     }
 
     /**
-     * Abre un subformulario modal cuando el campo toma un valor específico.
-     * Al guardar en el subform, invalida el catálogo del padre y resetea el selector.
+     * Abre un subformulario cuando el campo toma un valor específico (ej.
+     * "0 - Nueva clienta"). Mientras está abierto, el form padre sale del DOM
+     * sin destruirse — no se redibuja desde el XML, así que lo ya cargado
+     * (fecha, productos, etc.) sigue ahí al volver. Fuera del DOM y no
+     * oculto: si padre y subform tienen un campo con el mismo id,
+     * getElementById() encontraría el del padre. Al guardar, si el campo es
+     * un select de catálogo, queda elegido el registro recién creado.
      */
-    setupSubformTrigger(el, subformConfig) {
+    setupSubformTrigger(el, subformConfig, fieldConfig = {}) {
         const signal = this.ctx.signal;
 
         el.addEventListener('change', async () => {
@@ -403,43 +408,64 @@ export class LayoutProcessor {
                 xmlString = await res.text();
             } catch (err) {
                 console.error('[LayoutProcessor] No se pudo cargar el subform:', err);
-                if (el.options?.length > 0) el.value = el.options[0].value;
+                this._setFieldValue(el, '');
                 return;
             }
 
             const workspaceContainer = this.ctx.container?.parentElement;
             if (!workspaceContainer) return;
 
-            const { authFetch } = await import('../../api/client.js');
             const FormRenderer = (await import('../FormRenderer.js')).default;
+            const logger = (await import('../../utils/clientLogger.js')).default;
 
-            // Vuelve al formulario padre
-            const restoreParent = async () => {
-                workspaceContainer.innerHTML = '';
-                try {
-                    const res = await authFetch(`/api/files/content?path=${encodeURIComponent(formPath)}`);
-                    const parentXml = await res.text();
-                    const container = document.createElement('div');
-                    workspaceContainer.appendChild(container);
-                    new FormRenderer().render(container, parentXml, { formPath });
-                } catch (err) {
-                    console.error('[LayoutProcessor] No se pudo restaurar el formulario padre:', err);
-                }
-            };
+            // El padre sale del DOM tal cual (con sus listeners y estado).
+            const parentNodes = [...workspaceContainer.childNodes];
+            parentNodes.forEach(n => n.remove());
 
-            // Reemplazar workspace con el subform
-            workspaceContainer.innerHTML = '';
-
+            const subWrapper = document.createElement('div');
             const backBtn = document.createElement('button');
             backBtn.type = 'button';
             backBtn.className = 'subform-back-btn';
             backBtn.textContent = '← Volver';
-            backBtn.addEventListener('click', restoreParent);
-            workspaceContainer.appendChild(backBtn);
-
             const subContainer = document.createElement('div');
-            workspaceContainer.appendChild(subContainer);
-            new FormRenderer().render(subContainer, xmlString, { formPath: subformPath });
+            subWrapper.append(backBtn, subContainer);
+            workspaceContainer.appendChild(subWrapper);
+
+            const subRenderer = new FormRenderer();
+            subRenderer.render(subContainer, xmlString, { formPath: subformPath });
+
+            /** Vuelve al padre; savedData = registro creado en el subform (o null si se volvió sin guardar). */
+            const restoreParent = (savedData = null) => {
+                const subTitle = subRenderer.ctx?.title || subformConfig.form;
+                subRenderer.destroy(); // aborta su signal → suelta el sink del logger
+                subWrapper.remove();
+                workspaceContainer.append(...parentNodes);
+
+                // El sink del logger era del subform: vuelve a la barra del padre.
+                const parentStatus = this.ctx.statusBar;
+                if (parentStatus) {
+                    logger.setStatusSink((level, _component, message) => {
+                        parentStatus.push(level === 'ERROR' ? 'error' : 'warning', message);
+                    });
+                }
+
+                // Select de catálogo → queda elegido el registro nuevo (el
+                // 'change' hace que Autocomplete resuelva overlay y <copy>; el
+                // catálogo ya lo invalidó RecordService al insertar). Si no, el
+                // valor disparador no queda elegido.
+                const key = fieldConfig.lookupConfig?.key;
+                const newKey = key && savedData ? savedData[key] : null;
+                this._setFieldValue(el, newKey != null ? String(newKey) : '');
+
+                if (newKey != null) {
+                    const label = fieldConfig.labelTxt || fieldConfig.id || '';
+                    parentStatus?.push('success',
+                        `${subTitle}: se guardó con el N° ${newKey} y ya figura en "${label}".`,
+                        { sticky: true });
+                }
+            };
+
+            backBtn.addEventListener('click', () => restoreParent(null));
 
             // Aplicar valores heredados después de que los campos se registren (setTimeout 0)
             if (Object.keys(inheritedValues).length > 0) {
@@ -454,16 +480,19 @@ export class LayoutProcessor {
                 }, 0);
             }
 
-            // Al guardar: invalidar catálogo y volver al padre tras el feedback
-            subContainer.addEventListener('sf:record-saved', async () => {
-                try {
-                    const LookupService = (await import('../../services/LookupService.js')).default;
-                    LookupService.invalidateCache(subformConfig.form);
-                } catch (_) { /* sin cache, no importa */ }
-                setTimeout(restoreParent, 1500);
+            // Al guardar: volver al padre enseguida — la confirmación (con el N°)
+            // se muestra en la barra del padre.
+            subContainer.addEventListener('sf:record-saved', (e) => {
+                restoreParent(e.detail?.data ?? null);
             }, { once: true });
 
         }, signal ? { signal } : undefined);
+    }
+
+    /** Cambia el valor de un campo y avisa ('change'), como si lo hubiera elegido el usuario. */
+    _setFieldValue(el, value) {
+        el.value = value;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
     }
 }
 

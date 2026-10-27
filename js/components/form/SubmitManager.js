@@ -198,10 +198,17 @@ export class SubmitManager {
                 }
 
             } catch (error) {
-                // logger.error lo registra (consola + log del server) y lo pasa a la
-                // barra de estado con el detalle técnico; el push de abajo lo
-                // reemplaza por lo que tiene que leer el usuario.
-                logger.error('SubmitManager', `Error guardando tabla=${this.ctx.tableConfig?.table ?? '?'}`, error);
+                // El logger lo registra (consola + log del server) y lo pasa a la
+                // barra de estado; el push de abajo lo reemplaza por lo que tiene
+                // que leer el usuario. Un rechazo del validate() del handler es
+                // esperable (ej. "Las ventas registradas no se modifican") → warn,
+                // sin stack; cualquier otra cosa sí es un error.
+                const tabla = this.ctx.tableConfig?.table ?? '?';
+                if (error.userFacing) {
+                    logger.warn('SubmitManager', `Guardado rechazado por el handler tabla=${tabla}: ${error.message}`);
+                } else {
+                    logger.error('SubmitManager', `Error guardando tabla=${tabla}`, error);
+                }
                 this.ctx.statusBar?.push('error', error.userFacing
                     ? error.message
                     : `No se pudo guardar: ${error.message}`);
@@ -232,10 +239,10 @@ export class SubmitManager {
 
         if (submission) {
             if (submission.created) {
-                submitBtn.textContent = `¡CREADO! (ID: ${submission.id})`;
+                submitBtn.textContent = `¡CREADO! (N° ${submission.id})`;
                 statusMsg = `Registro N° ${submission.id} creado`;
             } else if (submission.updated) {
-                submitBtn.textContent = `¡ACTUALIZADO! (ID: ${submission.id})`;
+                submitBtn.textContent = `¡ACTUALIZADO! (N° ${submission.id})`;
                 statusMsg = `Registro N° ${submission.id} actualizado`;
             } else {
                 const stats = PersistenceService.getStats(this.ctx.formId);

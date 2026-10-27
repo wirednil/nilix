@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture — alta rápida que abre dev/form/subform_parent.xml. Sin keyField: siempre inserta. -->
+<form id="subform_marca_nueva" title="Marca nueva" database="app" table="sf_marcas">
+    <layout>
+        <field id="nombre" label="Nombre" type="text" size="30">
+            <validation><required>true</required></validation>
+        </field>
+    </layout>
+</form>

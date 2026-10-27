@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture — select de catálogo con <subform>, como Clienta en ventas.xml de
+  thym-pos ("0 - Nueva clienta"). Al volver del alta, lo cargado en el padre
+  se conserva y el registro nuevo queda elegido. Ver tests/e2e.test.js #24 y
+  dev/form/subform_marca_nueva.xml.
+-->
+<form id="subform_parent" title="Subform Parent (fixture)">
+    <layout>
+        <field id="nota" label="Nota" type="text" size="30"/>
+        <field id="id_marca" label="Marca" type="select" size="6">
+            <validation>
+                <in-table table="sf_marcas" key="id" display="nombre">
+                    <copy from="nombre" to="nombre_marca"/>
+                </in-table>
+            </validation>
+            <subform trigger-value="0" form="subform_marca_nueva"/>
+        </field>
+        <field id="nombre_marca" label="Nombre marca" type="text" size="20" readonly="true" skip="true"/>
+    </layout>
+</form>

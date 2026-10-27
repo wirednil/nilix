@@ -245,6 +245,20 @@ async function seedMultifieldFixture() {
         console.log('  ✓ comprobante_fixture (1 fila) creada');
     }
 
+    // Fixture para dev/form/subform_parent.xml — catálogo con la centinela
+    // id 0 que dispara el <subform> de alta (como la clienta 0 de thym-pos).
+    // Tabla propia para no sumar una fila 0 a mf_productos, que usan otros
+    // tests. Ver tests/e2e.test.js #24.
+    db.run(`CREATE TABLE IF NOT EXISTS sf_marcas (
+        id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT    NOT NULL
+    )`);
+    const existingMarca = db.exec(`SELECT id FROM sf_marcas WHERE id = 1`);
+    if (!existingMarca.length || !existingMarca[0].values.length) {
+        db.run(`INSERT INTO sf_marcas (id, nombre) VALUES (0, '— Nueva marca —'), (1, 'Marca Uno')`);
+        console.log('  ✓ sf_marcas fixture (centinela 0 + 1 fila) creada');
+    }
+
     fs.writeFileSync(DEV_DB, Buffer.from(db.export()));
     db.close();
 }
