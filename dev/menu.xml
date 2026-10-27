@@ -10,6 +10,7 @@
     <option label="Venta Draft" type="form" target="form/venta_draft.xml" permissions="RADU"/>
     <option label="Catalog Keyfield" type="form" target="form/catalog_keyfield.xml" permissions="RADU"/>
     <option label="Comprobante Fixture" type="form" target="form/comprobante_fixture.xml" permissions="RADU"/>
+    <option label="Validacion Fixture" type="form" target="form/validacion_fixture.xml" permissions="RADU"/>
     <option label="Subform Parent" type="form" target="form/subform_parent.xml" permissions="RADU"/>
     <option label="Mes Fixture" type="report" target="reports/mes_fixture.yaml" permissions="R"/>
 </menu>

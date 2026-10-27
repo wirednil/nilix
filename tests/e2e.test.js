@@ -541,9 +541,9 @@ describe('E2E — Dev Sandbox', async () => {
         // + reportValidity() (native browser tooltip) for required fields. Now
         // formEl.noValidate=true (FormRenderer.js) and the submit handler calls
         // ValidationCoordinator.validateAll(), which marks every invalid field
-        // inline (.field-error/.error-msg, same as the existing blur-time
-        // validation) and pushes a summary to the StatusBar — no native popup,
-        // no silent submit with missing required data.
+        // (.field-error) and pushes a summary to the StatusBar — no native
+        // popup, no silent submit with missing required data. Since #28 an
+        // empty required field gets no inline text: the summary names it.
         const { page, baseUrl, context, loginAsOperador } = ctx;
         await context.clearCookies();
         await loginAsOperador();
@@ -566,8 +566,7 @@ describe('E2E — Dev Sandbox', async () => {
             assert.equal(submitPosted, false, 'an invalid submit must not reach the server');
             assert.equal(await page.locator('#nombre').evaluate(el => el.classList.contains('field-error')), true,
                 'the empty required field must get .field-error');
-            const inlineMsg = await page.locator('.error-msg').first().textContent();
-            assert.ok(inlineMsg.includes('obligatorio'), `expected inline "obligatorio" message, got: ${inlineMsg}`);
+            assert.equal(await page.locator('.error-msg').count(), 0, 'no inline text for an empty required field (#28)');
             const statusText = await page.textContent('.status-bar');
             assert.ok(statusText.includes('Nombre'), `expected StatusBar summary to name the field, got: ${statusText}`);
         } finally {
@@ -1186,11 +1185,13 @@ describe('E2E — Dev Sandbox', async () => {
             const print = page.locator('.report-modal-print');
             assert.equal(await print.getAttribute('aria-disabled'), 'true', 'IMPRIMIR disabled while loading');
             assert.equal(await print.evaluate(el => el.ownerDocument.defaultView.getComputedStyle(el).pointerEvents), 'none', 'IMPRIMIR not clickable while loading');
+            assert.equal(await print.evaluate(el => el.tabIndex), -1, 'IMPRIMIR out of the Tab order while loading');
 
             release();
             await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
             assert.equal(await page.locator('.report-modal-loading').count(), 0, 'the loading message goes away');
             assert.equal(await print.getAttribute('aria-disabled'), null, 'IMPRIMIR enabled once loaded');
+            assert.equal(await print.evaluate(el => el.tabIndex), 0, 'IMPRIMIR back in the Tab order');
             await page.click('.report-modal-back');
             await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
         } finally {
@@ -1224,5 +1225,173 @@ describe('E2E — Dev Sandbox', async () => {
             () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
         assert.equal(await page.locator('.status-bar').isVisible(), true, 'the message is shown');
         assert.equal(await submitTop(), before, 'ENVIAR stays where it was');
+    });
+    it('28. A required field left empty is only marked red (the summary is in the status bar) — no text that pushes the buttons or splits a select', async () => {
+        // UX recorrido thym-pos 2026-10-27: on ENVIAR with required fields
+        // empty, "Este campo es obligatorio." was appended to the input's
+        // parent — for a select that is the box between the input and its ▾,
+        // so the control broke in two; for a catalog select the empty
+        // "clave - nombre" overlay ([hidden] lost to display:flex) covered
+        // both the red input and the message. Every message also pushed
+        // ANT/SIG/ENVIAR down. See dev/form/validacion_fixture.xml.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        const rowTop = () => page.locator('button[type="submit"]').evaluate(
+            el => el.parentElement.getBoundingClientRect().top);
+        const before = await rowTop();
+
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+        const status = await page.textContent('.status-bar-message');
+        assert.ok(status.includes('Faltan 3 campos: Nombre, Producto, Canal.'), `summary, got: ${status}`);
+
+        assert.equal(await page.locator('form .error-msg').count(), 0, 'no per-field text for an empty required field');
+        assert.equal(await rowTop(), before, 'ENVIAR stays where it was');
+
+        for (const id of ['nombre', 'id_producto', 'canal']) {
+            // What the user actually sees at the field's center must be red,
+            // not an overlay painted over it.
+            const seen = await page.locator(`#${id}`).evaluate(el => {
+                const r = el.getBoundingClientRect();
+                const top = el.ownerDocument.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                return { same: top === el, red: el.classList.contains('field-error'),
+                    bg: el.ownerDocument.defaultView.getComputedStyle(el).backgroundColor };
+            });
+            assert.ok(seen.red, `#${id} marked as field-error`);
+            assert.ok(seen.same, `#${id} is not covered by another element`);
+            assert.equal(seen.bg, 'rgb(255, 235, 238)', `#${id} shows the error background`);
+        }
+
+        // Each select stays in one piece: its ▾ right next to the input box.
+        const gaps = await page.$$eval('form .autocomplete-wrapper', ws => ws.map(w =>
+            w.querySelector('.autocomplete-btn').getBoundingClientRect().left
+            - w.querySelector('.autocomplete-input-box').getBoundingClientRect().right));
+        for (const gap of gaps) assert.ok(Math.abs(gap) < 1, `▾ attached to its input, gap ${gap}px`);
+    });
+
+    it('29. A non-required error (out of range) shows its text below the whole control', async () => {
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        // A catalog key that doesn't exist → "Valor no encontrado…": below
+        // the whole select, not between its input and its ▾.
+        await page.fill('#id_producto', '999');
+        await page.locator('#id_producto').blur();
+        await page.waitForSelector('form .error-msg', { timeout: 5000 });
+        const catalog = await page.locator('#id_producto').evaluate(el => {
+            const wrapper = el.closest('.autocomplete-wrapper');
+            const msg = el.closest('form').querySelector('.error-msg');
+            return { inside: wrapper.contains(msg), below: msg.getBoundingClientRect().top >= wrapper.getBoundingClientRect().bottom,
+                gap: wrapper.querySelector('.autocomplete-btn').getBoundingClientRect().left
+                    - wrapper.querySelector('.autocomplete-input-box').getBoundingClientRect().right };
+        });
+        assert.equal(catalog.inside, false, 'the message is not inside the select');
+        assert.ok(catalog.below, 'the message is below the select');
+        assert.ok(Math.abs(catalog.gap) < 1, `▾ still attached, gap ${catalog.gap}px`);
+
+        await page.fill('#nombre', 'Rango E2E');
+        await page.click('#id_producto');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.click('#canal');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Local' }).first().click();
+        await page.fill('#monto', '0');
+        // Blur first: the blur-time message pushes ENVIAR down between
+        // mousedown and mouseup, so a direct click would miss the button.
+        await page.locator('#monto').blur();
+        await page.waitForTimeout(300);
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+
+        const placed = await page.locator('#monto').evaluate(el => {
+            const msg = [...el.closest('form').querySelectorAll('.error-msg')].find(m => m.textContent.includes('al menos'));
+            return msg && { text: msg.textContent, below: msg.getBoundingClientRect().top >= el.getBoundingClientRect().bottom };
+        });
+        assert.ok(placed, 'the out-of-range message is shown');
+        assert.ok(placed.text.length > 2, `with its text, got: ${placed.text}`);
+        assert.ok(placed.below, 'below the control');
+    });
+
+    it('30. Tab stays inside an open modal (comprobante and multifield row)', async () => {
+        // UX recorrido thym-pos 2026-10-27: with the comprobante open, Tab went
+        // VOLVER → IMPRIMIR → body → the form's buttons behind the backdrop.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        const inside = sel => page.evaluate(s => !!document.activeElement?.closest(s), sel);
+        async function assertTrapped(sel) {
+            for (let i = 0; i < 6; i++) {
+                await page.keyboard.press('Tab');
+                assert.ok(await inside(sel), `Tab #${i + 1} left ${sel}`);
+            }
+            for (let i = 0; i < 6; i++) {
+                await page.keyboard.press('Shift+Tab');
+                assert.ok(await inside(sel), `Shift+Tab #${i + 1} left ${sel}`);
+            }
+        }
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.fill('#nombre', 'Foco E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+        await assertTrapped('.report-modal');
+        await page.click('.report-modal-back');
+        await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+
+        // The multifield row modal ("+ AGREGAR PRODUCTO" in Venta) too.
+        await page.click('.tree-node:has(span:text("MF Pedidos"))');
+        await page.waitForSelector('#id', { timeout: 10000 });
+        await page.click('text=+ AGREGAR ITEM');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        await page.focus('.mf-row-modal-cancel-btn');
+        await assertTrapped('.mf-row-modal');
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+    });
+
+    it('31. The "N° X creado" confirmation goes away once the user starts entering the next record', async () => {
+        // UX recorrido thym-pos 2026-10-27: after #25 made it sticky, "Registro
+        // N° 35 creado" stayed under the next sale while it was being entered.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.fill('#nombre', 'Confirmación E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+        await page.click('.report-modal-back');
+        await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.waitForTimeout(500);
+        assert.equal(await page.locator('.status-bar').isVisible(), true, 'confirmation shown after VOLVER');
+
+        // Picking from a select counts too, not only typing.
+        await page.click('#id_producto');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('.status-bar').isVisible(), false, 'confirmation gone once the next record starts');
     });
 });

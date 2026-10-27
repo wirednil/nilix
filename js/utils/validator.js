@@ -144,21 +144,25 @@ export function clearErrors() {
 }
 
 /**
- * Muestra un mensaje de error debajo del input específico.
+ * Contenedor donde va el mensaje de error de un campo: el padre del control
+ * entero. Para un select (autocomplete) el padre del input es la caja entre
+ * el input y su ▾ — el mensaje ahí partía el control en dos (y en un
+ * catálogo lo tapaba el overlay "clave - nombre").
+ */
+export function errorContainerOf(inputEl) {
+    return (inputEl.closest('.autocomplete-wrapper') ?? inputEl).parentElement;
+}
+
+/**
+ * Muestra un mensaje de error debajo del control del campo.
  */
 export function showErrorOnField(fieldId, message) {
     const inputEl = document.getElementById(fieldId);
     if (!inputEl) return;
 
-    // Buscar el padre .input-group o .simple-field para insertar el error
-    let container = inputEl.parentElement;
-    
-    // Si estamos en un grupo horizontal (simple-field), ahí va el error.
-    // Si estamos en vertical (input-group), ahí va el error.
-    
     const errorEl = document.createElement('div');
     errorEl.className = 'error-msg';
     errorEl.textContent = `❌ ${message}`;
-    
-    container.appendChild(errorEl);
+
+    errorContainerOf(inputEl)?.appendChild(errorEl);
 }

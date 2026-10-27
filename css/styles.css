@@ -865,6 +865,11 @@ select:disabled {
     cursor: text;
 }
 
+/* Sin esto display:flex le gana al [hidden] del UA (misma especificidad,
+   CSS de autor después) y la capa vacía tapaba el input: no se veía el
+   borde rojo de un obligatorio ni lo que se tipeaba al buscar. */
+.autocomplete-display-overlay[hidden] { display: none; }
+
 .autocomplete-wrapper input:focus {
     outline: none;
     border-color: var(--border-color);

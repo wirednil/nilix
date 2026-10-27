@@ -228,9 +228,11 @@ export class ValidationCoordinator {
             const label = fieldXml.getAttribute('label') || inputEl.id;
             const value = inputEl.type === 'checkbox' ? (inputEl.checked ? '1' : '') : inputEl.value;
 
+            // Obligatorio vacío: solo el borde rojo, sin texto — el resumen de
+            // la barra de estado ya lo nombra ("Faltan 3 campos: …"), y un
+            // texto por campo empujaba ANT/SIG/ENVIAR hacia abajo.
             if (inputEl.required && !value.trim()) {
                 const message = 'Este campo es obligatorio.';
-                validator.showErrorOnField(inputEl.id, message);
                 inputEl.classList.add('field-error');
                 invalid.push({ fieldId: inputEl.id, label, message });
                 return;
@@ -265,8 +267,7 @@ export class ValidationCoordinator {
         const inputEl = this.ctx.getField(fieldId) || document.getElementById(fieldId);
         if (!inputEl) return;
 
-        const container = inputEl.parentElement;
-        const errorMsg = container?.querySelector('.error-msg');
+        const errorMsg = validator.errorContainerOf(inputEl)?.querySelector(':scope > .error-msg');
         if (errorMsg) errorMsg.remove();
 
         inputEl.classList.remove('field-error');

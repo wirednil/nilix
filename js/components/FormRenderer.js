@@ -105,7 +105,20 @@ class FormRenderer {
             formEl.appendChild(statusBar.el);
             submitManager.addFormActions(formEl);
             if (options.initialStatus) {
-                statusBar.push(options.initialStatus.level, options.initialStatus.message, { sticky: true });
+                const statusId = statusBar.push(options.initialStatus.level, options.initialStatus.message, { sticky: true });
+                // "Registro N° X creado" se queda hasta que se empieza a cargar
+                // el próximo registro (tipear o elegir en un campo) — si no,
+                // quedaba colgado debajo de una venta que ya era otra.
+                // isTrusted: los change/input que dispara el propio render
+                // (defaults, copias de catálogo) no cuentan.
+                const onUserEdit = (e) => {
+                    if (!e.isTrusted) return;
+                    // ANT/SIG/ENVIAR ya reemplazan el mensaje; el [?] es solo ayuda.
+                    if (e.type === 'click' && e.target.closest('.actions-nav, .help-icon, .help-tooltip')) return;
+                    statusBar.dismiss(statusId);
+                };
+                formEl.addEventListener('input', onUserEdit, { signal: ctx.signal });
+                formEl.addEventListener('click', onUserEdit, { signal: ctx.signal });
             }
 
             windowDiv.appendChild(formEl);

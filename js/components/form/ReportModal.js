@@ -10,12 +10,14 @@
  */
 
 import logger from '../../utils/clientLogger.js';
+import { trapFocus } from '../../utils/focusTrap.js';
 
 export class ReportModal {
     constructor() {
         this._backdrop = null;
         this._onKeydown = null;
         this._onClose = null;
+        this._releaseFocus = null;
     }
 
     /**
@@ -100,6 +102,7 @@ export class ReportModal {
             if (e.key === 'Escape') this.close();
         };
         document.addEventListener('keydown', this._onKeydown);
+        this._releaseFocus = trapFocus(modal);
 
         backBtn.focus();
 
@@ -129,6 +132,7 @@ export class ReportModal {
     close() {
         if (!this._backdrop) return;
         document.removeEventListener('keydown', this._onKeydown);
+        this._releaseFocus?.();
         this._backdrop.remove();
         this._backdrop = null;
         const onClose = this._onClose;

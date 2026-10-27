@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture — errores de validación de cada tipo de control: texto, catálogo
+  (autocomplete con overlay "clave - nombre"), select de opciones fijas y un
+  <min>. Replica los forms de thym-pos (N° + nombre en fila, Clienta, Cómo
+  pagó). Nunca llega a guardar: ver tests/e2e.test.js #28-#29.
+-->
+<form id="validacion_fixture" title="Validación (fixture)" database="app" table="comprobante_fixture" handler="none">
+    <layout>
+        <container type="horizontal">
+            <field id="id" label="N°" type="number" keyField="true" size="5"/>
+            <field id="nombre" label="Nombre" type="text" size="30">
+                <validation><required>true</required></validation>
+            </field>
+        </container>
+        <field id="id_producto" label="Producto" type="select" size="6">
+            <validation>
+                <required>true</required>
+                <in-table table="mf_productos" key="id" display="nombre"/>
+            </validation>
+        </field>
+        <field id="canal" label="Canal" type="select" size="10">
+            <options>
+                <option value="Web">Web</option>
+                <option value="Local">Local</option>
+            </options>
+            <validation><required>true</required></validation>
+        </field>
+        <field id="monto" label="Monto" type="number" size="10">
+            <validation><min>1</min></validation>
+        </field>
+    </layout>
+</form>

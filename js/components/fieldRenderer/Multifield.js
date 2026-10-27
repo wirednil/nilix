@@ -9,6 +9,7 @@ import { createLabel, createHelpTooltip } from './Label.js';
 import { createFieldWrapper, createInputElement, renderInputField } from './InputField.js';
 import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
+import { trapFocus } from '../../utils/focusTrap.js';
 
 // ============================================
 // CONSTANTES
@@ -753,13 +754,16 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
     modal.appendChild(footer);
 
     const onKeydown = (e) => { if (e.key === 'Escape') close(); };
+    let releaseFocus = null;
 
     function close() {
         backdrop.remove();
         document.removeEventListener('keydown', onKeydown);
+        releaseFocus?.();
     }
 
     document.addEventListener('keydown', onKeydown);
+    releaseFocus = trapFocus(modal);
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
     cancelBtn.addEventListener('click', close);
 
