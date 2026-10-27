@@ -1159,4 +1159,70 @@ describe('E2E — Dev Sandbox', async () => {
             page.off('console', onConsole);
         }
     });
+    it('26. While the <output> report loads, the modal says so and IMPRIMIR stays disabled', async () => {
+        // UX recorrido thym-pos 2026-10-27 (13.2): the comprobante modal sat
+        // empty for ~5 s while DuckDB loaded, with IMPRIMIR already clickable
+        // (it opened report.html before there was anything to print). The
+        // report's YAML is held here so the loading state can be observed.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        let release;
+        const held = new Promise(resolve => { release = resolve; });
+        const route = '**/reports/comprobante_fixture.yaml';
+        // .catch: if an assert fails first, finally unroutes while this is still
+        // pending, and continue() would reject unhandled (killing the runner).
+        await page.route(route, async r => { await held; await r.continue().catch(() => {}); });
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+            await page.fill('#nombre', 'Carga E2E');
+            await page.click('button[type="submit"]');
+            await page.waitForSelector('.report-modal-backdrop', { timeout: 20000 });
+
+            assert.equal(await page.locator('.report-modal-loading').isVisible(), true, 'a loading message while the report loads');
+            const print = page.locator('.report-modal-print');
+            assert.equal(await print.getAttribute('aria-disabled'), 'true', 'IMPRIMIR disabled while loading');
+            assert.equal(await print.evaluate(el => el.ownerDocument.defaultView.getComputedStyle(el).pointerEvents), 'none', 'IMPRIMIR not clickable while loading');
+
+            release();
+            await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+            assert.equal(await page.locator('.report-modal-loading').count(), 0, 'the loading message goes away');
+            assert.equal(await print.getAttribute('aria-disabled'), null, 'IMPRIMIR enabled once loaded');
+            await page.click('.report-modal-back');
+            await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+        } finally {
+            release();
+            await page.unroute(route);
+        }
+    });
+
+    it('27. Showing a status message does not push the action buttons down', async () => {
+        // UX recorrido thym-pos 2026-10-27 (13.4): the status bar sits between
+        // the fields and ANT/SIG/ENVIAR and was display:none while empty, so
+        // every message (and every auto-hide) made the buttons jump.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        // The row, not the button: the mouse stays over ENVIAR after the
+        // click and its :hover nudges the button itself by ~1px.
+        const submitTop = () => page.locator('button[type="submit"]').evaluate(
+            el => el.parentElement.getBoundingClientRect().top);
+        const before = await submitTop();
+        assert.equal(await page.locator('.status-bar').isVisible(), false, 'no message yet');
+
+        await page.click('button[type="submit"]'); // sin nombre → mensaje del handler
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+        assert.equal(await page.locator('.status-bar').isVisible(), true, 'the message is shown');
+        assert.equal(await submitTop(), before, 'ENVIAR stays where it was');
+    });
 });

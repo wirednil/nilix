@@ -564,10 +564,13 @@ body.dark-mode .readonly-field {
     font-size: 0.85rem;
 }
 
-/* [hidden] y .status-bar{display:flex} empatan en especificidad (0,1,0) —
-   sin esto gana el que aparece último en la cascada (el CSS de autor,
-   después del UA stylesheet), así que la barra vacía se mostraba igual. */
-.status-bar[hidden] { display: none; }
+/* Sin mensaje la barra queda invisible pero ocupando su lugar: está entre
+   los campos y ANT/SIG/ENVIAR, y con display:none cada mensaje (y cada
+   auto-ocultado) hacía saltar los botones. visibility también la saca del
+   árbol de accesibilidad. El nbsp le da al mensaje vacío la misma altura de
+   línea que uno con texto. */
+.status-bar[hidden] { visibility: hidden; }
+.status-bar-message:empty::before { content: '\00a0'; }
 
 .status-bar[data-level="error"] { background: var(--error-bg); border-color: var(--error-color); }
 .status-bar[data-level="warning"] { background: var(--warning-bg); border-color: var(--warning-color); }
@@ -2774,6 +2777,17 @@ body.dark-mode .report-card {
 
 .report-modal-print:hover {
     background: var(--help-bg);
+}
+
+/* Mientras el comprobante carga (ReportModal.js) */
+.report-modal-print[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default;
+}
+
+.report-modal-loading {
+    padding: 1.5rem;
 }
 
 /* ── Modal de fila de multifield (alta/edición de un registro) ─────────

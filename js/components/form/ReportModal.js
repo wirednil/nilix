@@ -64,7 +64,9 @@ export class ReportModal {
         // Imprimir/PDF sigue disponible en report.html (botón propio + CSS de
         // impresión) — abierto por un click del usuario, no lo bloquea el
         // navegador como bloqueaba el window.open automático post-guardado.
-        reports.forEach(({ report, params }) => {
+        // Deshabilitado hasta que su reporte termina de cargar: la primera vez
+        // DuckDB tarda varios segundos y no había nada para imprimir todavía.
+        const printLinks = reports.map(({ report, params }) => {
             const query = new URLSearchParams({ file: report, ...params });
             const printLink = document.createElement('a');
             printLink.className = 'report-modal-print';
@@ -72,8 +74,19 @@ export class ReportModal {
             printLink.target = '_blank';
             printLink.rel = 'noopener';
             printLink.textContent = reports.length > 1 ? `IMPRIMIR ${report.toUpperCase()}` : 'IMPRIMIR';
+            printLink.setAttribute('aria-disabled', 'true');
+            printLink.tabIndex = -1;
+            printLink.addEventListener('click', (e) => {
+                if (printLink.getAttribute('aria-disabled') === 'true') e.preventDefault();
+            });
             actions.appendChild(printLink);
+            return printLink;
         });
+
+        const loading = document.createElement('div');
+        loading.className = 'report-loading report-modal-loading';
+        loading.textContent = 'Cargando comprobante';
+        body.appendChild(loading);
 
         modal.append(closeBtn, heading, body, actions);
         backdrop.appendChild(modal);
@@ -91,15 +104,17 @@ export class ReportModal {
         backBtn.focus();
 
         const { ReportEngine } = await import('../report/ReportEngine.js');
-        for (const { report, params } of reports) {
+        for (const [i, { report, params }] of reports.entries()) {
             const section = document.createElement('div');
             section.className = 'terminal-window';
-            body.appendChild(section);
+            body.insertBefore(section, loading);
             try {
                 const engine = new ReportEngine();
                 await engine.load(`/reports/${report}.yaml`, null, null, params);
                 if (!this._backdrop) return; // cerrado mientras cargaba
                 section.appendChild(await engine.render());
+                printLinks[i].removeAttribute('aria-disabled');
+                printLinks[i].removeAttribute('tabindex');
             } catch (err) {
                 logger.error('ReportModal', `No se pudo mostrar el reporte "${report}"`, err);
                 const errEl = document.createElement('div');
@@ -108,6 +123,7 @@ export class ReportModal {
                 section.appendChild(errEl);
             }
         }
+        loading.remove();
     }
 
     close() {
