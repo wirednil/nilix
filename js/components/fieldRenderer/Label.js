@@ -33,7 +33,8 @@ export const createHelpTooltip = (fieldId, fieldLabel, helpText) => {
     tooltip.style.display = 'none';
 
     // Prompt estilo terminal
-    const prompt = createElement('div', 'help-prompt', `> help ${fieldId}`);
+    // La etiqueta, no el id interno — se leía "> HELP ID_CLIENTA".
+    const prompt = createElement('div', 'help-prompt', `> help ${fieldLabel || fieldId}`);
     const message = createElement('div', 'help-text', helpText);
 
     tooltip.appendChild(prompt);

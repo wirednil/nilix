@@ -56,6 +56,25 @@ export class SubmitManager {
         this.attachSubmitHandler(formEl, submitBtn);
     }
 
+    /**
+     * El resumen "Faltan…" se va solo cuando ya no queda ningún campo
+     * marcado — si no, seguía nombrando campos ya completos. Corre en
+     * burbujeo, después de que el propio campo limpió su marca
+     * (ValidationCoordinator: 'input'/'change'; Multifield: al agregar fila).
+     */
+    _dismissSummaryWhenFixed(formEl, summaryId) {
+        this._summaryWatch?.abort();
+        const watch = this._summaryWatch = new AbortController();
+        const signals = [watch.signal, this.ctx.signal].filter(Boolean);
+        const opts = { signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0] };
+        const check = () => {
+            if (formEl.querySelector('.field-error')) return;
+            this.ctx.statusBar?.dismiss(summaryId);
+            watch.abort();
+        };
+        ['input', 'change', 'sf:user-change'].forEach(type => formEl.addEventListener(type, check, opts));
+    }
+
     attachSubmitHandler(formEl, submitBtn) {
         const signal = this.ctx.signal;
 
@@ -73,8 +92,10 @@ export class SubmitManager {
                 const summary = invalidFields.length === 1
                     ? `Falta "${invalidFields[0].label}".`
                     : `Faltan ${invalidFields.length} campos: ${invalidFields.map(f => f.label).join(', ')}.`;
-                this.ctx.statusBar?.push('error', summary);
-                document.getElementById(invalidFields[0].fieldId)?.focus();
+                const summaryId = this.ctx.statusBar?.push('error', summary);
+                this._dismissSummaryWhenFixed(formEl, summaryId);
+                const first = invalidFields[0];
+                (first.el?.querySelector('.multifield-add-btn') ?? document.getElementById(first.fieldId))?.focus();
                 return;
             }
 
@@ -139,7 +160,6 @@ export class SubmitManager {
                             db:       this.ctx.tableConfig.db ?? 'app'
                         }
                     );
-                    logger.info('SubmitManager', `Guardado ok tabla=${this.ctx.tableConfig.table} id=${data[this.ctx.tableConfig.keyField] ?? '?'} created=${result.created}`);
 
                     if (this.ctx.tableConfig.handler) {
                         const invalidateTables = result.invalidateTables || [];
@@ -161,6 +181,9 @@ export class SubmitManager {
                     // caso ya usa.
                     const responseKeyField = this.ctx.tableConfig.keyField || 'id';
                     const savedId = savedData[responseKeyField] ?? data[responseKeyField];
+                    // savedId, no data[keyField]: en un alta la clave del form
+                    // está vacía y el log decía "id=?".
+                    logger.info('SubmitManager', `Guardado ok tabla=${this.ctx.tableConfig.table} id=${savedId ?? '?'} created=${result.created}`);
                     savedMsg = this.showSubmitFeedback(submitBtn, {
                         id: savedId,
                         created: isCreated,
@@ -226,7 +249,10 @@ export class SubmitManager {
     _resetForm(formEl, submitBtn, savedMsg) {
         if (!formEl.isConnected) return; // subform ya cerrado/reemplazado
         if (this.ctx.reload) {
-            this.ctx.reload(savedMsg ? { initialStatus: { level: 'success', message: savedMsg } } : {});
+            this.ctx.reload({
+                ...(savedMsg ? { initialStatus: { level: 'success', message: savedMsg } } : {}),
+                focusFirst: true,
+            });
             return;
         }
         this.resetSubmitButton(submitBtn);

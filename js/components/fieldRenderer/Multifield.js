@@ -363,6 +363,7 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             if (col.isSkip || col.isReadonly) {
                 input.readOnly = true;
                 input.classList.add('readonly-field');
+                input.tabIndex = -1; // nada que tipear: Tab no se detiene acá
             }
             if (col.isExpr) {
                 input.dataset.isExpr = col.isExpr;
@@ -755,11 +756,18 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
 
     const onKeydown = (e) => { if (e.key === 'Escape') close(); };
     let releaseFocus = null;
+    // Al cerrar, el foco vuelve a lo que abrió el modal (+ AGREGAR o la
+    // fila editada) — si no, quedaba en <body>.
+    const opener = gridContainer.contains(document.activeElement)
+        ? document.activeElement
+        : gridContainer.querySelector('.multifield-add-btn');
 
     function close() {
         backdrop.remove();
         document.removeEventListener('keydown', onKeydown);
         releaseFocus?.();
+        if (opener?.isConnected) opener.focus();
+        else gridContainer.querySelector('.multifield-add-btn')?.focus();
     }
 
     document.addEventListener('keydown', onKeydown);
@@ -822,7 +830,11 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
             realAllRows.push(rowResult);
         }
         gridContainer.dataset.allRows = JSON.stringify(realAllRows);
+        gridContainer.classList.remove('field-error'); // ya tiene al menos una fila
         _rerenderDisplayGrid(gridContainer);
+        // Cambio hecho por el usuario — mismo aviso que una elección en un
+        // select (Autocomplete.js); lo escuchan FormRenderer/SubmitManager.
+        gridContainer.dispatchEvent(new CustomEvent('sf:user-change', { bubbles: true }));
         close();
     });
 
@@ -912,6 +924,13 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
     tableContainer.setAttribute('data-rows', rows);
     tableContainer.setAttribute('data-display', display);
     tableContainer.setAttribute('data-multifield-id', config.id);
+    // <validation><required> propio del multifield (no el de una columna):
+    // al menos una fila — ValidationCoordinator.validateAll() lo suma al
+    // resumen "Faltan…" en vez de dejarlo para el handler del server.
+    if (fieldXml.querySelector(':scope > validation > required')?.textContent.trim() === 'true') {
+        tableContainer.dataset.required = 'true';
+        tableContainer.dataset.label = config.labelTxt || config.id;
+    }
     tableContainer.dataset.allRows = '[]';
     tableContainer.dataset.totalRows = '0';
 

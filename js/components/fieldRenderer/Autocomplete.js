@@ -310,11 +310,16 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         return row;
     }
     
+    // Se tipeó desde que se pidió abrir la lista: abrir es async (carga del
+    // catálogo) y antes renderOptions('') pisaba lo tipeado mientras cargaba.
+    let typedWhileOpening = false;
+
     function openDropdown() {
         if (inputEl.readOnly && !inputEl.dataset.skipSelect) return;
 
+        typedWhileOpening = false;
         loadCatalog().then(() => {
-            renderOptions('');
+            renderOptions(typedWhileOpening ? inputEl.value : '');
             dropdownEl.style.display = 'block';
             isOpen = true;
             btnEl.innerHTML = '&#9650;';
@@ -431,6 +436,12 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     inputEl.addEventListener('input', () => {
         if (isOpen) {
             renderOptions(inputEl.value);
+        } else if (!inputEl.readOnly) {
+            // Tipear sin haber abierto la lista (foco con Tab) también filtra.
+            // Si ya se estaba abriendo (click + tipeo rápido), esto solo
+            // vuelve a pedir la apertura; las dos terminan filtrando.
+            openDropdown();
+            typedWhileOpening = true;
         }
 
         if (lookupConfig && lookupConfig.copyFields && lookupConfig.copyFields.length > 0) {

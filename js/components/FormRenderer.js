@@ -109,16 +109,28 @@ class FormRenderer {
                 // "Registro N° X creado" se queda hasta que se empieza a cargar
                 // el próximo registro (tipear o elegir en un campo) — si no,
                 // quedaba colgado debajo de una venta que ya era otra.
-                // isTrusted: los change/input que dispara el propio render
-                // (defaults, copias de catálogo) no cuentan.
+                // Solo un cambio de valor cuenta — no un click en un campo ni
+                // abrir una lista. isTrusted: los input/change que dispara el
+                // propio render (defaults, copias de catálogo) no cuentan;
+                // elegir en un select o agregar una fila de multifield avisan
+                // con sf:user-change (Autocomplete.js, Multifield.js).
                 const onUserEdit = (e) => {
-                    if (!e.isTrusted) return;
-                    // ANT/SIG/ENVIAR ya reemplazan el mensaje; el [?] es solo ayuda.
-                    if (e.type === 'click' && e.target.closest('.actions-nav, .help-icon, .help-tooltip')) return;
+                    if (e.type !== 'sf:user-change' && !e.isTrusted) return;
                     statusBar.dismiss(statusId);
                 };
-                formEl.addEventListener('input', onUserEdit, { signal: ctx.signal });
-                formEl.addEventListener('click', onUserEdit, { signal: ctx.signal });
+                ['input', 'change', 'sf:user-change'].forEach(type =>
+                    formEl.addEventListener(type, onUserEdit, { signal: ctx.signal }));
+            }
+            // Después de guardar (SubmitManager._resetForm): el foco al primer
+            // campo a completar del form limpio — vacío, editable y que no sea
+            // la clave (N°). Si no, quedaba en <body> al cerrar el comprobante.
+            if (options.focusFirst) {
+                const keyField = ctx.tableConfig?.keyField;
+                setTimeout(() => {
+                    [...formEl.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), textarea')]
+                        .find(el => !el.readOnly && !el.disabled && !el.value && el.id !== keyField && el.offsetParent !== null)
+                        ?.focus();
+                }, 0);
             }
 
             windowDiv.appendChild(formEl);

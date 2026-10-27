@@ -48,6 +48,9 @@ export class ValidationCoordinator {
         }, { signal });
 
         inputEl.addEventListener('change', async () => {
+            // Elegir en un select (Autocomplete.js) dispara 'change', no
+            // 'input' — sin esto el campo quedaba rojo con un valor ya puesto.
+            if (inputEl.value.trim()) this.clearFieldError(fieldId);
             // Skip handler calls during programmatic fillForm to avoid N×callAfter per load
             if (!this._filling && handlerBridge) {
                 await handlerBridge.callAfter(fieldId, inputEl.value);
@@ -88,7 +91,7 @@ export class ValidationCoordinator {
             const result = await LookupService.validateAndCopy(table, key, value, copyFields, isKeyField, db);
 
             if (!result.valid) {
-                validator.showErrorOnField(inputEl.id, `Valor no encontrado en tabla ${table}`);
+                validator.showErrorOnField(inputEl.id, 'No existe en la lista.');
                 inputEl.classList.add('field-error');
             } else if (result.copies) {
                 this.applyFieldCopies(result.copies);
@@ -247,6 +250,22 @@ export class ValidationCoordinator {
                 invalid.push({ fieldId: inputEl.id, label, message: result.message });
             }
         });
+
+        // Multifield con <required> propio: al menos una fila. No está en
+        // this._fields (no es un input); el grid lo marca Multifield.js con
+        // data-required. Excluye el mini-grid del modal de fila.
+        const formEl = this._fields.find(f => f.inputEl.isConnected)?.inputEl.closest('form');
+        formEl?.querySelectorAll('.multifield-grid[data-required="true"]:not(.mf-row-modal-grid)').forEach(grid => {
+            const rows = JSON.parse(grid.dataset.allRows || '[]')
+                .filter(row => Object.entries(row).some(([k, v]) => !k.startsWith('__') && String(v ?? '').trim()));
+            grid.classList.toggle('field-error', rows.length === 0);
+            if (rows.length === 0) {
+                invalid.push({ fieldId: grid.dataset.multifieldId, label: grid.dataset.label, message: 'Agregá al menos una fila.', el: grid });
+            }
+        });
+        // En el orden en que aparecen en el form, no "inputs primero".
+        const elOf = f => f.el ?? document.getElementById(f.fieldId);
+        invalid.sort((a, b) => (elOf(a).compareDocumentPosition(elOf(b)) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
 
         return invalid;
     }

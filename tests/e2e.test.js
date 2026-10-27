@@ -1243,15 +1243,16 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForSelector('#canal', { timeout: 10000 });
         await page.waitForTimeout(300);
 
+        // Relative to the form: clicking ENVIAR may scroll the page.
         const rowTop = () => page.locator('button[type="submit"]').evaluate(
-            el => el.parentElement.getBoundingClientRect().top);
+            el => el.parentElement.getBoundingClientRect().top - el.closest('form').getBoundingClientRect().top);
         const before = await rowTop();
 
         await page.click('button[type="submit"]');
         await page.waitForFunction(
             () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
         const status = await page.textContent('.status-bar-message');
-        assert.ok(status.includes('Faltan 3 campos: Nombre, Producto, Canal.'), `summary, got: ${status}`);
+        assert.ok(status.includes('Faltan 4 campos: Nombre, Producto, Canal, Items.'), `summary, got: ${status}`);
 
         assert.equal(await page.locator('form .error-msg').count(), 0, 'no per-field text for an empty required field');
         assert.equal(await rowTop(), before, 'ENVIAR stays where it was');
@@ -1290,15 +1291,16 @@ describe('E2E — Dev Sandbox', async () => {
         // A catalog key that doesn't exist → "Valor no encontrado…": below
         // the whole select, not between its input and its ▾.
         await page.fill('#id_producto', '999');
-        await page.locator('#id_producto').blur();
+        await page.press('#id_producto', 'Tab'); // like the user: Tab also closes the (filtered) list
         await page.waitForSelector('form .error-msg', { timeout: 5000 });
         const catalog = await page.locator('#id_producto').evaluate(el => {
             const wrapper = el.closest('.autocomplete-wrapper');
             const msg = el.closest('form').querySelector('.error-msg');
-            return { inside: wrapper.contains(msg), below: msg.getBoundingClientRect().top >= wrapper.getBoundingClientRect().bottom,
+            return { text: msg.textContent, inside: wrapper.contains(msg), below: msg.getBoundingClientRect().top >= wrapper.getBoundingClientRect().bottom,
                 gap: wrapper.querySelector('.autocomplete-btn').getBoundingClientRect().left
                     - wrapper.querySelector('.autocomplete-input-box').getBoundingClientRect().right };
         });
+        assert.equal(catalog.text, '❌ No existe en la lista.', 'plain wording, not "Valor no encontrado en tabla …"');
         assert.equal(catalog.inside, false, 'the message is not inside the select');
         assert.ok(catalog.below, 'the message is below the select');
         assert.ok(Math.abs(catalog.gap) < 1, `▾ still attached, gap ${catalog.gap}px`);
@@ -1385,13 +1387,290 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
         await page.waitForSelector('#nombre', { timeout: 10000 });
         await page.waitForTimeout(500);
-        assert.equal(await page.locator('.status-bar').isVisible(), true, 'confirmation shown after VOLVER');
+        const shown = () => page.locator('.status-bar').isVisible();
+        assert.equal(await shown(), true, 'confirmation shown after VOLVER');
 
-        // Picking from a select counts too, not only typing.
+        // Only a real value change counts — not clicking into a field or
+        // opening a list (2nd Chrome round: it vanished on a click on Fecha).
+        await page.click('#monto');
         await page.click('#id_producto');
-        await page.waitForTimeout(300);
+        await page.waitForSelector('.autocomplete-item', { timeout: 5000 });
+        assert.equal(await shown(), true, 'still shown after clicking a field and opening a list');
+
+        // Picking from a select counts, not only typing.
         await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
         await page.waitForTimeout(200);
-        assert.equal(await page.locator('.status-bar').isVisible(), false, 'confirmation gone once the next record starts');
+        assert.equal(await shown(), false, 'confirmation gone once a value is picked');
+
+        // Typing counts too (new save to get the confirmation back).
+        await page.fill('#nombre', 'Confirmación E2E 2');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+        await page.click('.report-modal-back');
+        await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.waitForTimeout(500);
+        assert.equal(await shown(), true, 'confirmation shown again');
+        await page.type('#monto', '5');
+        await page.waitForTimeout(200);
+        assert.equal(await shown(), false, 'confirmation gone once something is typed');
+    });
+    it('32. Picking a value clears a select\'s red mark, and the "Faltan…" summary goes once every marked field is filled', async () => {
+        // 2nd Chrome round 2026-10-27: field-error was only cleared on 'input'
+        // (typing); a pick from a list fires 'change', so Cómo pagó / Clienta /
+        // De dónde vino stayed red with a value, under a stale summary.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+        const red = id => page.locator(`#${id}`).evaluate(el => el.classList.contains('field-error'));
+
+        await page.click('#canal');
+        await page.locator('.autocomplete-item', { hasText: 'Local' }).first().click();
+        assert.equal(await red('canal'), false, 'static select cleared by a pick');
+        await page.click('#id_producto');
+        await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        assert.equal(await red('id_producto'), false, 'catalog select cleared by a pick');
+        assert.equal(await page.locator('.status-bar').isVisible(), true, 'summary stays while Nombre/Items are missing');
+
+        await page.click('text=+ AGREGAR ITEM');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        await page.fill('.mf-row-modal input[data-col-id="detalle"]', 'Una fila');
+        await page.click('.mf-row-modal-save-btn');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+        assert.equal(await page.locator('.multifield-grid.field-error').count(), 0, 'multifield cleared once it has a row');
+
+        await page.type('#nombre', 'Completo');
+        await page.waitForTimeout(200);
+        assert.equal(await red('nombre'), false);
+        assert.equal(await page.locator('.status-bar').isVisible(), false, 'summary gone once nothing is marked');
+    });
+
+    it('33. "+ AGREGAR …" stays legible on hover', async () => {
+        // 2nd Chrome round 2026-10-27: dark text on a dark hover background.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("MF Pedidos"))');
+        await page.waitForSelector('.multifield-add-btn', { timeout: 10000 });
+        await page.hover('.multifield-add-btn');
+        await page.waitForTimeout(250); // transition
+        const ratio = await page.locator('.multifield-add-btn').evaluate(el => {
+            const cs = el.ownerDocument.defaultView.getComputedStyle(el);
+            const lum = c => {
+                const [r, g, b] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number).map(v => {
+                    v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+                });
+                return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            };
+            const [a, b] = [lum(cs.color), lum(cs.backgroundColor)].sort((x, y) => y - x);
+            return (a + 0.05) / (b + 0.05);
+        });
+        assert.ok(ratio >= 4.5, `text/background contrast on hover ${ratio.toFixed(2)} < 4.5`);
+    });
+
+    it('34. Closing a modal puts the focus back where the user continues', async () => {
+        // 2nd Chrome round 2026-10-27: after VOLVER / Escape / ✕ the focus
+        // was on <body>. Row modal → back on "+ AGREGAR …"; comprobante → the
+        // first field to fill in the clean form (not the N° key).
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        const active = () => page.evaluate(() => {
+            const a = document.activeElement;
+            return a.id || a.className;
+        });
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("MF Pedidos"))');
+        await page.waitForSelector('.multifield-add-btn', { timeout: 10000 });
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        await page.keyboard.press('Escape');
+        assert.ok((await active()).includes('multifield-add-btn'), `after Escape, got: ${await active()}`);
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        await page.click('.mf-row-modal-cancel-btn');
+        assert.ok((await active()).includes('multifield-add-btn'), `after Volver, got: ${await active()}`);
+
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        for (const close of ['.report-modal-back', '.report-modal-close', 'Escape']) {
+            await page.fill('#nombre', `Foco ${close}`);
+            await page.click('button[type="submit"]');
+            await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+            if (close === 'Escape') await page.keyboard.press('Escape');
+            else await page.click(close);
+            await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+            await page.waitForFunction(() => document.activeElement?.id === 'nombre', null, { timeout: 5000 })
+                .catch(() => {});
+            assert.equal(await active(), 'nombre', `after ${close}, focus on the first field to fill`);
+        }
+    });
+
+    it('35. A field disabled by <enabled-when> looks disabled', async () => {
+        // 2nd Chrome round 2026-10-27: Costo de envío (disabled until "Envío")
+        // was white like any other input — clicks did nothing, no hint why.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Conditional Fields"))');
+        await page.waitForSelector('#envio_costo', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const look = () => page.locator('#envio_costo').evaluate(el => {
+            const cs = el.ownerDocument.defaultView.getComputedStyle(el);
+            return { disabled: el.disabled, bg: cs.backgroundColor, cursor: cs.cursor, border: cs.borderStyle };
+        });
+        const off = await look();
+        assert.equal(off.disabled, true);
+        assert.equal(off.cursor, 'not-allowed');
+        assert.notEqual(off.bg, 'rgb(255, 255, 255)', 'not white like an enabled input');
+        assert.equal(off.border, 'dashed', 'same dashed border as a read-only field');
+
+        await page.click('#envio_retiro');
+        await page.locator('.autocomplete-item', { hasText: 'Envío' }).first().click();
+        await page.waitForTimeout(200);
+        const on = await look();
+        assert.equal(on.disabled, false);
+        assert.notEqual(on.bg, off.bg, 'enabled again looks normal');
+    });
+
+    it('36. Read-only columns in the row modal are skipped by Tab', async () => {
+        // 2nd Chrome round 2026-10-27: Tab stopped on Subtotal (read-only).
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('.multifield-add-btn', { timeout: 10000 });
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        const seen = [];
+        await page.focus('.mf-row-modal-cancel-btn');
+        for (let i = 0; i < 6; i++) {
+            await page.keyboard.press('Tab');
+            seen.push(await page.evaluate(() => document.activeElement.dataset.colId || document.activeElement.className));
+        }
+        assert.ok(seen.includes('cantidad'), `Tab reaches the editable columns, went: ${seen.join(' → ')}`);
+        assert.ok(!seen.includes('precio_total'), `Tab must skip the read-only Subtotal, went: ${seen.join(' → ')}`);
+        await page.keyboard.press('Escape');
+    });
+
+    it('37. The [?] help shows the field label, not its internal id', async () => {
+        // 2nd Chrome round 2026-10-27: the tooltip read "> HELP ID_CLIENTA".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Clientes"))');
+        await page.waitForSelector('#clieno', { timeout: 10000 });
+        await page.click('.help-icon[data-field="clieno"]');
+        const prompt = await page.textContent('.help-tooltip[data-field="clieno"] .help-prompt');
+        assert.ok(prompt.includes('N° Cliente'), `label in the help, got: ${prompt}`);
+        assert.ok(!prompt.includes('clieno'), `no internal id, got: ${prompt}`);
+    });
+
+    it('38. Typing in a select filters its list, even before the list was opened', async () => {
+        // 2nd Chrome round 2026-10-27: typing "2" in Clienta listed everyone.
+        // The list only filtered on 'input' while already open, and opening
+        // is async (catalog load) — it then rendered unfiltered.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#id_producto', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.focus('#id_producto');
+        await page.keyboard.type('Moch');
+        await page.waitForSelector('#id_producto ~ .autocomplete-dropdown .autocomplete-item, .autocomplete-wrapper:has(#id_producto) .autocomplete-item',
+            { timeout: 5000 });
+        const items = await page.$$eval('.autocomplete-wrapper:has(#id_producto) .autocomplete-item', els => els.map(e => e.textContent.trim()));
+        assert.deepEqual(items.map(t => t.includes('Mochila')), items.map(() => true), `only matching items, got: ${items.join(' | ')}`);
+        assert.ok(items.length >= 1);
+
+        // Click (opens, async) and type right away: the text must still filter.
+        await page.click('#canal');
+        await page.keyboard.type('Lo');
+        await page.waitForTimeout(500);
+        const canal = await page.$$eval('.autocomplete-wrapper:has(#canal) .autocomplete-item', els => els.map(e => e.textContent.trim()));
+        assert.equal(canal.length, 1, `only "Local", got: ${canal.join(' | ')}`);
+        assert.ok(canal[0].includes('Local'), `got: ${canal[0]}`);
+    });
+
+    it('39. A required multifield with no rows is in the "Faltan…" summary and marked red', async () => {
+        // 2nd Chrome round 2026-10-27: a venta without products was only
+        // caught by the server handler after ENVIAR.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        let posted = false;
+        const onRequest = req => { if (req.method() === 'POST' && req.url().includes('/api/v1/records/')) posted = true; };
+        page.on('request', onRequest);
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+            await page.waitForSelector('#canal', { timeout: 10000 });
+            await page.waitForTimeout(300);
+            await page.fill('#nombre', 'Sin filas');
+            await page.click('#id_producto');
+            await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+            await page.click('#canal');
+            await page.locator('.autocomplete-item', { hasText: 'Local' }).first().click();
+            await page.click('button[type="submit"]');
+            await page.waitForFunction(
+                () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
+            assert.equal(await page.textContent('.status-bar-message'), '❌ Falta "Items".');
+            assert.equal(await page.locator('.multifield-grid.field-error').count(), 1, 'the multifield is marked');
+            assert.equal(posted, false, 'never reaches the server');
+        } finally {
+            page.off('request', onRequest);
+        }
+    });
+
+    it('40. The save log line carries the real new N°, not "id=?"', async () => {
+        // Chrome round 2026-10-27 (12): on a create the key is empty in the
+        // form data, so the client log said "Guardado ok … id=?".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        const logs = [];
+        const onRequest = req => {
+            if (req.method() === 'POST' && req.url().endsWith('/api/v1/log')) logs.push(req.postData() ?? '');
+        };
+        page.on('request', onRequest);
+        try {
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+            await page.fill('#nombre', 'Log E2E');
+            await page.click('button[type="submit"]');
+            await page.waitForSelector('.report-modal-backdrop', { timeout: 20000 });
+            const savedId = (await page.textContent('.report-modal-title')).match(/N° (\d+)/)[1];
+            await page.waitForTimeout(500);
+            const line = logs.find(l => l.includes('Guardado ok'));
+            assert.ok(line, 'a "Guardado ok" log line was sent');
+            assert.ok(line.includes(`id=${savedId} `), `log must carry id=${savedId}, got: ${line}`);
+            await page.click('.report-modal-back');
+        } finally {
+            page.off('request', onRequest);
+        }
     });
 });

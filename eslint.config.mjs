@@ -36,6 +36,8 @@ const browserGlobals = {
     MutationObserver:      'readonly',
     HTMLElement:           'readonly',
     AbortController:       'readonly',
+    AbortSignal:           'readonly',
+    Node:                  'readonly',
     FormData:              'readonly',
     Blob:                  'readonly',
     Worker:                'readonly',

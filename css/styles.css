@@ -462,6 +462,33 @@ body.dark-mode .readonly-field {
     background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
+/* Deshabilitado por <enabled-when> (ej. Costo de envío hasta elegir
+   "Envío"): mismo aspecto que un campo de solo lectura — antes se veía
+   blanco como cualquier input y el click no hacía nada. */
+input:disabled,
+textarea:disabled {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    cursor: not-allowed;
+    opacity: 0.8;
+    border-style: dashed !important;
+}
+
+body.dark-mode input:disabled,
+body.dark-mode textarea:disabled {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Multifield obligatorio sin filas (ValidationCoordinator.validateAll) */
+.multifield-grid.field-error {
+    border-color: #d32f2f !important;
+    outline: 2px solid rgba(211, 47, 47, 0.2);
+}
+
+body.dark-mode .multifield-grid.field-error {
+    border-color: #ff6b6b !important;
+    outline-color: rgba(255, 107, 107, 0.2);
+}
+
 /* --- ESTILOS DEL FORMULARIO (Integrados) --- */
 .terminal-window {
     border: 3px solid var(--border-color);
@@ -1210,6 +1237,9 @@ body.dark-mode .multifield-cell-input.readonly-field {
 
 .multifield-btn:hover:not(:disabled) {
     background: var(--btn-hover-bg);
+    /* button[type="button"] le deja el texto en --text-color (oscuro sobre
+       el fondo oscuro del hover): invertido, como el resto de los botones. */
+    color: var(--btn-text);
     box-shadow: 4px 4px 0 var(--btn-border);
     transform: translate(-1px, -1px);
 }
