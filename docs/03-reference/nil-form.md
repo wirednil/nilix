@@ -316,7 +316,7 @@ Los mensajes se referencian desde `<field>` mediante el elemento hijo `<help>` (
 
 ### Directiva `<output>` — Pipeline Formulario → Reporte
 
-Permite que el formulario abra automáticamente un reporte en una nueva pestaña del navegador tras un guardado exitoso. Se declara dentro del elemento `<form>`, antes de `<form-attributes>`:
+Permite que el formulario muestre automáticamente un reporte (ej. un comprobante) tras un guardado exitoso. El reporte se abre en un modal sobre el mismo formulario (`ReportModal.js`), no en otra pestaña. Se declara dentro del elemento `<form>`, antes de `<form-attributes>`:
 
 ```xml
 <form id="orden" title="Orden de Servicio" database="app" table="ordenes" handler="orden_handler">
@@ -340,7 +340,11 @@ Permite que el formulario abra automáticamente un reporte en una nueva pestaña
 
 Pueden declararse múltiples elementos `<output>` en el mismo formulario; cada uno se evalúa de forma independiente.
 
-**Fallback por bloqueador de popups:** si el navegador bloquea la apertura de la pestaña, aparece un enlace clickeable directamente en el formulario.
+**El modal del comprobante:** el título muestra el N° guardado (`Guardado — N° 31`). Se cierra con ✕, VOLVER, Escape o un click en el fondo, y al cerrarlo el formulario se vuelve a dibujar desde su XML: queda limpio y completo (defaults, selects de catálogo y multifield vacíos), con el N° guardado en la barra de estado. El botón IMPRIMIR abre el mismo reporte en `report.html` (en una pestaña nueva, por click del usuario) para imprimir o guardar como PDF. Si hay varios `<output>` que aplican, se muestran uno debajo del otro en el mismo modal.
+
+> Hasta 2026-10-27 el reporte se abría con `window.open()` en una pestaña nueva, con un enlace de respaldo si el navegador la bloqueaba. En la práctica la pestaña quedaba en segundo plano y nadie la veía, y el formulario quedaba a medio limpiar (`formEl.reset()` no vacía selects de catálogo ni multifield) — parecía no guardado. Ver `KNOWN-BUGS.md`, Bug 7.
+
+**Después de guardar, sin `<output>`:** tras un alta, a los 2 segundos el formulario se vuelve a dibujar limpio (mismo mecanismo). Tras una actualización, el registro queda cargado para seguir navegando con ANT/SIG.
 
 **Output desde handler:** el handler puede disparar un reporte asignando `data.__output = { report: 'nombre', param: 'campo' }` en `beforeSave`. La salida indicada por el handler tiene prioridad sobre cualquier directiva `<output>` en el XML.
 

@@ -959,4 +959,106 @@ describe('E2E — Dev Sandbox', async () => {
         const modalOverlay = await page.textContent('.mf-row-modal-backdrop [data-col-id="id_producto"] ~ .autocomplete-display-overlay');
         assert.equal(modalOverlay, '1 - Tote Fixture', `modal overlay must show the product, got: ${modalOverlay}`);
     });
+    it('22. A handler validate() message reaches the status bar verbatim — not "Validation failed" plus a stack frame', async () => {
+        // Regression test: recordController.js answers a failed handler
+        // validate() with 400 { error: { message: 'Validation failed',
+        // errors: [<the handler's own text>] } }, but RecordService.js only
+        // read error.message — so the user saw "❌ Error guardando
+        // tabla=ventas | Validation failed — at RecordService.upsert (...)"
+        // instead of thym-pos's "Las ventas registradas no se modifican…".
+        // See dev/apps/comprobante_fixture.handler.js.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+
+        const statusText = async () => (await page.textContent('.status-bar-message')) ?? '';
+
+        // Insert without nombre → the handler's own message.
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(() => document.querySelector('.status-bar-message')?.textContent.trim(), null, { timeout: 5000 });
+        let status = await statusText();
+        assert.ok(status.includes('Escribí un nombre para el comprobante.'), `expected the handler message, got: ${status}`);
+        assert.ok(!status.includes('Validation failed') && !status.includes('RecordService'), `no generic text or stack frame, got: ${status}`);
+
+        // Modifying a saved record (id 1) → rejected with the handler's message.
+        await page.fill('#id', '1');
+        await page.locator('#id').blur();
+        await page.waitForFunction(() => document.querySelector('#nombre')?.value === 'Comprobante Existente', null, { timeout: 5000 });
+        await page.fill('#nombre', 'Comprobante Cambiado');
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(
+            () => document.querySelector('.status-bar-message')?.textContent.includes('no se modifican'), null, { timeout: 5000 });
+        status = await statusText();
+        assert.ok(status.includes('Los comprobantes registrados no se modifican.'), `got: ${status}`);
+        assert.ok(!status.includes('Validation failed') && !status.includes('RecordService'), `got: ${status}`);
+    });
+
+    it('23. An <output> report opens in a modal in the same view, and closing it ([X] or VOLVER) leaves a fully clean form', async () => {
+        // Regression test (thym-pos, 2026-10-27): after ENVIAR the comprobante
+        // opened in a background tab nobody noticed, and formEl.reset() only
+        // half-cleared the form — native inputs emptied, but the catalog
+        // select ("2 - Keyla") and the multifield rows stayed — so it looked
+        // unsaved and invited a duplicate sale. Now the report renders in a
+        // modal over the form (same backdrop pattern as SubformModal), shows
+        // the saved N°, and closing it re-renders the form from its XML.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        async function saveAndOpenModal(nombre, monto) {
+            await page.fill('#nombre', nombre);
+            await page.click('#id_producto');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+            await page.waitForTimeout(300);
+            await page.fill('#monto', String(monto));
+
+            const pagesBefore = context.pages().length;
+            await page.click('button[type="submit"]');
+            await page.waitForSelector('.report-modal-backdrop .report-container', { timeout: 20000 });
+            await page.waitForFunction(
+                n => document.querySelector('.report-modal-backdrop')?.textContent.includes(n), nombre, { timeout: 20000 });
+            assert.equal(context.pages().length, pagesBefore, 'no new tab/popup for the comprobante');
+
+            const title = await page.textContent('.report-modal-title');
+            const idMatch = title.match(/N° (\d+)/);
+            assert.ok(idMatch, `modal title must show the saved N°, got: ${title}`);
+            return idMatch[1];
+        }
+
+        async function assertCleanForm(savedId) {
+            await page.waitForSelector('.report-modal-backdrop', { state: 'detached', timeout: 5000 });
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+            for (const id of ['id', 'nombre', 'id_producto', 'nombre_producto', 'monto']) {
+                assert.equal(await page.inputValue(`#${id}`), '', `#${id} must be empty after closing the comprobante`);
+            }
+            const overlay = await page.locator('#id_producto ~ .autocomplete-display-overlay').evaluate(
+                el => (el.hidden ? '' : el.textContent.trim()));
+            assert.equal(overlay, '', 'the catalog select overlay must not keep the previous pick');
+            const status = await page.textContent('.status-bar-message');
+            assert.ok(status.includes(`N° ${savedId}`), `status bar must confirm the saved N°, got: ${status}`);
+        }
+
+        // 1. Save → modal with the comprobante → close with [X].
+        const id1 = await saveAndOpenModal('Nuevo E2E', 250);
+        const modalText = await page.textContent('.report-modal-backdrop');
+        assert.ok(modalText.includes('COMPROBANTE FIXTURE') && modalText.includes('$250,00'), `comprobante content, got: ${modalText}`);
+        await page.click('.report-modal-close');
+        await assertCleanForm(id1);
+
+        // 2. Save again → close with VOLVER.
+        const id2 = await saveAndOpenModal('Otro E2E', 300);
+        assert.equal(Number(id2), Number(id1) + 1, 'second save is a new record');
+        await page.click('.report-modal-back');
+        await assertCleanForm(id2);
+    });
 });

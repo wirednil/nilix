@@ -1,18 +1,40 @@
 # Known Bugs — Nilix
 
-**Última actualización:** 2026-10-26
+**Última actualización:** 2026-10-27
 
 ---
 
 ## ⚠️ Abiertos
 
-### Test e2e #6 intermitente — "Update record — Clientes"
-
-**Síntoma:** `tests/e2e.test.js` #6 falla en algunas corridas y pasa en otras sin cambios de código. Corrido aislado 3 veces el 2026-10-26: falló 2/3 sobre `HEAD` sin modificar (`git stash`) y 2/3 con el fix del Bug 5 — preexistente, no relacionado. Ya figuraba como "falla intermitente conocida" en `MOBILE-UX-IMPROVEMENT-PLAN.md` §4. Causa sin investigar (probable timing: usa `waitForTimeout` fijos en vez de esperar un estado).
+_(ninguno)_
 
 ---
 
 ## ✅ Resueltos
+
+### Bug 6 — El mensaje de validación del handler no llega a la pantalla — ✅ FIXED (2026-10-27)
+
+**Síntoma (detectado en thym-pos):** al intentar modificar una venta registrada, `ventas.handler.js` la rechaza con "Las ventas registradas no se modifican…", pero la usuaria veía `❌ Error guardando tabla=ventas | Validation failed — at RecordService.upsert (…/RecordService.js:70:19)`.
+
+**Causa:** `recordController.js` responde un `validate()` fallido con `400 { error: { message: 'Validation failed', errors: [<texto del handler>] } }`. `RecordService.js` solo leía `error.message`. Y `SubmitManager.js` mostraba el error vía `logger.error`, que arma el texto con el stack.
+
+**Fix:** `RecordService.js` — `responseError()`: el `Error` lleva el texto de `errors[]` (marcado `userFacing`). `SubmitManager.js` — después de registrar el error, la barra de estado muestra solo ese texto (o "No se pudo guardar: …" si no vino del handler).
+
+**Tests:** `tests/e2e.test.js` #22. Fixture: `dev/form/comprobante_fixture.xml` + `dev/apps/comprobante_fixture.handler.js`. En thym-pos: `tests/ui.test.js` (punto 7).
+
+### Bug 7 — Después de guardar, el form queda a medias y el comprobante no se ve — ✅ FIXED (2026-10-27)
+
+**Síntoma (detectado en thym-pos):** al guardar una venta, el comprobante (`<output>`) se abría en una pestaña nueva que quedaba en segundo plano, y el form se vaciaba solo en parte: fecha, total y combos fijos sí; la clienta ("2 - Keyla") y los productos no. Sin ningún mensaje visible, parecía no guardada — riesgo de cargar la venta dos veces.
+
+**Causa:** `SubmitManager.js` abría el reporte con `window.open()` y a los 2 s llamaba `formEl.reset()`, que solo vacía inputs nativos: no toca el valor/overlay de los select de catálogo (Autocomplete) ni las filas del multifield, y además deja vacíos los campos con `<default>` (ej. fecha `today`).
+
+**Fix:** el comprobante se muestra en un modal sobre el form (`js/components/form/ReportModal.js`, mismo backdrop que `SubformModal`), con el N° guardado en el título, VOLVER/✕ e IMPRIMIR (abre `report.html`). Al cerrarlo, el form se vuelve a dibujar desde su XML (`FormRenderer` — `ctx.reload()`) con el N° guardado en la barra. Sin `<output>`: tras un alta, mismo redibujado a los 2 s; tras una actualización, el registro queda cargado.
+
+**Tests:** `tests/e2e.test.js` #23. En thym-pos: `tests/ui.test.js` (punto 14).
+
+### e2e #6 intermitente — "Update record — Clientes" — ✅ FIXED (2026-10-27)
+
+**Causa (ya no "sin investigar"):** `SubmitManager.js` reseteaba el form 2 s después de **todo** guardado, y el test espera esos mismos 2 s antes de navegar con SIG/ANT desde el registro actualizado — carrera entre el `setTimeout` y el `waitForTimeout`. Si el reset ganaba, navegaba desde un form vacío. **Fix:** después de una actualización el registro queda cargado (ver Bug 7). Corrido aislado 4/4 y la suite completa 2/2 sin fallas.
 
 ### Bug 5 — Select catálogo no refleja el registro cargado — ✅ FIXED (2026-10-26)
 

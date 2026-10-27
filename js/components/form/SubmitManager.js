@@ -7,6 +7,7 @@ import PersistenceService from '../../services/PersistenceService.js';
 import uiComponents from '../uiComponents/index.js';
 import { RADU } from '../../utils/RADU.js';
 import logger from '../../utils/clientLogger.js';
+import ReportModal from './ReportModal.js';
 
 export class SubmitManager {
     constructor(ctx) {
@@ -100,6 +101,16 @@ export class SubmitManager {
                 return;
             }
 
+            // Mensaje de guardado ok — se vuelve a mostrar en el form redibujado.
+            let savedMsg = null;
+            // true cuando hay comprobante: el form se redibuja al cerrarlo, no a los 2s.
+            let reportsShown = false;
+            // Alta → form limpio para cargar el siguiente. Actualización → el
+            // registro queda cargado (se sigue navegando desde él con ANT/SIG) y
+            // solo vuelve el botón. Antes se reseteaba siempre, y eso corría
+            // contra quien navegaba justo después de actualizar (e2e #6).
+            let clearAfterSave = true;
+
             try {
                 if (this.ctx.tableConfig) {
                     const RecordService = (await import('../../services/RecordService.js')).default;
@@ -142,14 +153,16 @@ export class SubmitManager {
                     }
 
                     const isCreated = result.created;
+                    clearAfterSave = !!isCreated;
                     const savedData = result.data || data;
                     // Sin keyField declarado client-side (form con handler que arma
                     // su propio ID, ej. ventas.handler.js: data.id = ventaId), 'id'
                     // es el fallback razonable — es la convención de nombre que ese
                     // caso ya usa.
                     const responseKeyField = this.ctx.tableConfig.keyField || 'id';
-                    this.showSubmitFeedback(submitBtn, {
-                        id: savedData[responseKeyField] ?? data[responseKeyField],
+                    const savedId = savedData[responseKeyField] ?? data[responseKeyField];
+                    savedMsg = this.showSubmitFeedback(submitBtn, {
+                        id: savedId,
                         created: isCreated,
                         updated: result.updated
                     });
@@ -160,28 +173,57 @@ export class SubmitManager {
                         detail: { data: savedData, created: isCreated }
                     }));
 
-                    // Open output reports (non-blocking)
-                    try {
-                        this._openOutputReports(result, isCreated, formEl);
-                    } catch (err) {
-                        console.error('[SubmitManager] Failed to open output reports:', err);
+                    // Comprobante(s) de <output>: en un modal sobre el form, no en
+                    // otra pestaña. formEl desconectado = subform que ya se cerró
+                    // con sf:record-saved (SubformModal/LayoutProcessor).
+                    const reports = this._outputReports(result, isCreated);
+                    if (reports.length > 0 && formEl.isConnected) {
+                        reportsShown = true;
+                        new ReportModal().open({
+                            title: savedId != null ? `Guardado — N° ${savedId}` : 'Guardado',
+                            reports,
+                            onClose: () => this._resetForm(formEl, submitBtn, savedMsg),
+                        });
                     }
                 } else {
                     const submission = PersistenceService.save(this.ctx.formId, data);
                     console.log(`✅ Formulario guardado con ID: ${submission.id}`);
-                    this.showSubmitFeedback(submitBtn, submission);
+                    savedMsg = this.showSubmitFeedback(submitBtn, submission);
                 }
 
-                setTimeout(() => {
-                    this.resetSubmitButton(submitBtn);
-                    formEl.reset();
-                }, 2000);
+                if (!reportsShown) {
+                    setTimeout(() => (clearAfterSave
+                        ? this._resetForm(formEl, submitBtn, savedMsg)
+                        : this.resetSubmitButton(submitBtn)), 2000);
+                }
 
             } catch (error) {
-                // logger.error already surfaces this in the form's status bar (see StatusBar sink)
+                // logger.error lo registra (consola + log del server) y lo pasa a la
+                // barra de estado con el detalle técnico; el push de abajo lo
+                // reemplaza por lo que tiene que leer el usuario.
                 logger.error('SubmitManager', `Error guardando tabla=${this.ctx.tableConfig?.table ?? '?'}`, error);
+                this.ctx.statusBar?.push('error', error.userFacing
+                    ? error.message
+                    : `No se pudo guardar: ${error.message}`);
             }
         }, { signal });
+    }
+
+    /**
+     * Deja el form limpio después de guardar: lo redibuja desde su XML
+     * (FormRenderer ctx.reload) — defaults, select de catálogo y multifield
+     * vacíos, como recién abierto — con el mensaje de guardado en la barra.
+     * formEl.reset() nativo dejaba el valor/overlay de los catálogos y las
+     * filas del multifield, y el form parecía no guardado.
+     */
+    _resetForm(formEl, submitBtn, savedMsg) {
+        if (!formEl.isConnected) return; // subform ya cerrado/reemplazado
+        if (this.ctx.reload) {
+            this.ctx.reload(savedMsg ? { initialStatus: { level: 'success', message: savedMsg } } : {});
+            return;
+        }
+        this.resetSubmitButton(submitBtn);
+        formEl.reset();
     }
 
     showSubmitFeedback(submitBtn, submission = null) {
@@ -191,10 +233,10 @@ export class SubmitManager {
         if (submission) {
             if (submission.created) {
                 submitBtn.textContent = `¡CREADO! (ID: ${submission.id})`;
-                statusMsg = `Registro creado (ID: ${submission.id})`;
+                statusMsg = `Registro N° ${submission.id} creado`;
             } else if (submission.updated) {
                 submitBtn.textContent = `¡ACTUALIZADO! (ID: ${submission.id})`;
-                statusMsg = `Registro actualizado (ID: ${submission.id})`;
+                statusMsg = `Registro N° ${submission.id} actualizado`;
             } else {
                 const stats = PersistenceService.getStats(this.ctx.formId);
                 submitBtn.textContent = `¡GUARDADO! (Total: ${stats.total})`;
@@ -209,6 +251,7 @@ export class SubmitManager {
         submitBtn.style.borderColor = "#4CAF50";
         submitBtn.dataset.originalText = originalText;
         this.ctx.statusBar?.push('success', statusMsg);
+        return statusMsg;
     }
 
     resetSubmitButton(submitBtn) {
@@ -291,19 +334,25 @@ export class SubmitManager {
 
     // ── Output reports (post-save) ───────────────────────────────────────────
 
-    _openOutputReports(result, isCreated, formEl) {
+    /**
+     * Reportes de salida de este guardado como [{ report, params }]: el hint
+     * del handler (data.__output) tiene prioridad sobre las directivas
+     * <output> del XML. Uno sin su parámetro en los datos guardados se omite.
+     */
+    _outputReports(result, isCreated) {
         const savedData = result.data || {};
-        const outputsToOpen = [];
+        const hints = result.output
+            ? [result.output]
+            : this._matchOutputs(savedData, isCreated);
 
-        if (result.output) {
-            // Handler-driven output takes priority
-            outputsToOpen.push(result.output);
-        } else {
-            const matched = this._matchOutputs(savedData, isCreated);
-            outputsToOpen.push(...matched);
-        }
-
-        outputsToOpen.forEach(hint => this._openReport(hint, savedData, formEl));
+        return hints.flatMap(hint => {
+            const paramValue = savedData[hint.param];
+            if (paramValue == null || paramValue === '') {
+                logger.warn('SubmitManager', `Reporte "${hint.report}": falta el parámetro "${hint.param}" en los datos guardados`);
+                return [];
+            }
+            return [{ report: hint.report, params: { [hint.param]: String(paramValue) } }];
+        });
     }
 
     _matchOutputs(data, isCreated) {
@@ -324,43 +373,6 @@ export class SubmitManager {
             return fieldVal === cmpVal;
         }
         return true; // unknown condition → allow
-    }
-
-    _openReport(hint, data, formEl) {
-        const paramValue = data[hint.param];
-        if (paramValue == null || paramValue === '') {
-            logger.warn('SubmitManager', `Reporte "${hint.report}": falta el parámetro "${hint.param}" en los datos guardados`);
-            return;
-        }
-        const url = `/report.html?file=${encodeURIComponent(hint.report)}&${encodeURIComponent(hint.param)}=${encodeURIComponent(paramValue)}`;
-        const popup = window.open(url, '_blank');
-        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-            this._showPopupFallback(url, hint.report, formEl);
-        } else {
-            this._showToast(`Comprobante generado — revisá la nueva pestaña`);
-        }
-    }
-
-    _showPopupFallback(url, reportName, formEl) {
-        let fallback = formEl.querySelector('.report-popup-fallback');
-        if (!fallback) {
-            fallback = document.createElement('div');
-            fallback.className = 'report-popup-fallback';
-            fallback.style.cssText = 'margin-top: 0.75rem; padding: 0.5rem; border: 1px solid var(--border-color); font-family: inherit; font-size: 0.85rem;';
-            formEl.appendChild(fallback);
-        }
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.textContent = `Abrir comprobante: ${reportName}`;
-        link.style.cssText = 'display: block; margin-bottom: 0.25rem;';
-        fallback.appendChild(link);
-        this.ctx.statusBar?.push('warning', `Popup bloqueado — usá el enlace para abrir "${reportName}"`);
-    }
-
-    _showToast(msg) {
-        this.ctx.statusBar?.push('info', msg);
     }
 
     /**

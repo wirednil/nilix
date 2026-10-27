@@ -120,6 +120,15 @@ export default [
         }
     },
 
+    // ─── e2e: los callbacks de page.evaluate/waitForFunction corren en el
+    // navegador (Playwright los serializa) — document/window son reales ahí.
+    {
+        files: ['tests/e2e.test.js'],
+        languageOptions: {
+            globals: { ...browserGlobals, Node: 'readonly' },
+        },
+    },
+
     // ─── Ignorados ────────────────────────────────────────────────────────────
     {
         ignores: ['node_modules/**', 'dev/**', 'data/**']

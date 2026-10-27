@@ -57,6 +57,11 @@ class FormRenderer {
             ctx.permissions = options.permissions || null;
             ctx.formPath = options.formPath || null;
             ctx.statusBar = statusBar;
+            // Vuelve a dibujar este mismo form desde su XML — el form "limpio
+            // completo" después de guardar (defaults, catálogos, multifield).
+            // formEl.reset() nativo no alcanza: deja el valor/overlay de los
+            // select de catálogo y las filas del multifield (ver SubmitManager.js).
+            ctx.reload = (extra = {}) => this.render(container, xmlString, { ...options, ...extra });
             this.ctx = ctx;
 
             // Backward compat sync
@@ -99,6 +104,9 @@ class FormRenderer {
             // Between the fields and the action buttons (ANT/SIG/ENVIAR)
             formEl.appendChild(statusBar.el);
             submitManager.addFormActions(formEl);
+            if (options.initialStatus) {
+                statusBar.push(options.initialStatus.level, options.initialStatus.message);
+            }
 
             windowDiv.appendChild(formEl);
 

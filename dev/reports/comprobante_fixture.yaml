@@ -1,0 +1,31 @@
+name: comprobante_fixture
+description: Fixture — comprobante que abre el <output> de comprobante_fixture.xml
+kind: ledger
+
+config:
+  paginationMode: scroll
+  markdown: true
+
+fields:
+  - { name: id,     type: numeric, dbRef: { table: comprobante_fixture, field: id } }
+  - { name: nombre, type: string,  dbRef: { table: comprobante_fixture, field: nombre } }
+  - { name: monto,  type: float,   dbRef: { table: comprobante_fixture, field: monto } }
+
+dataSources:
+  comprobante:
+    table: comprobante_fixture
+    filter: "id = :id"
+
+zones:
+  - name: header
+    layout: lines
+    condition: { when: before, on: report }
+    dataSource: comprobante
+    expressions:
+      - { name: monto_fmt, field: monto, format: currency }
+    template:
+      - " # COMPROBANTE FIXTURE "
+      - ""
+      - " N°: || {id} "
+      - " NOMBRE: || {nombre} "
+      - " MONTO: || {monto_fmt} "

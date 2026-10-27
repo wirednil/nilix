@@ -229,6 +229,22 @@ async function seedMultifieldFixture() {
         console.log('  ✓ venta_draft fixture (1 venta) creada');
     }
 
+    // Fixture para dev/form/comprobante_fixture.xml — alta con <output>
+    // (comprobante post-guardado) y un handler con mensajes de validación
+    // propios. Sin empresa_id, como las tablas de thym-pos. id=1 ya guardado
+    // para probar el rechazo al modificarlo. Ver tests/e2e.test.js #22-#23.
+    db.run(`CREATE TABLE IF NOT EXISTS comprobante_fixture (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT    NOT NULL,
+        id_producto INTEGER,
+        monto       REAL
+    )`);
+    const existingComp = db.exec(`SELECT id FROM comprobante_fixture WHERE id = 1`);
+    if (!existingComp.length || !existingComp[0].values.length) {
+        db.run(`INSERT INTO comprobante_fixture (id, nombre, id_producto, monto) VALUES (1, 'Comprobante Existente', 1, 100)`);
+        console.log('  ✓ comprobante_fixture (1 fila) creada');
+    }
+
     fs.writeFileSync(DEV_DB, Buffer.from(db.export()));
     db.close();
 }
