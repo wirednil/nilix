@@ -1107,13 +1107,18 @@ describe('E2E — Dev Sandbox', async () => {
         const status = await page.textContent('.status-bar-message');
         assert.ok(status.includes('N° 2'), `status bar confirms the new record, got: ${status}`);
 
-        // 2. Open it again and go back without saving → parent kept, trigger value cleared.
+        // 2. Open it again and go back without saving → parent kept, and the
+        // select back to what it had (the marca just created), not to the
+        // trigger value (0) nor empty (#46).
         await openSubform();
         await page.click('.subform-back-btn');
         await page.waitForSelector('#nota', { timeout: 10000 });
         assert.equal(await page.inputValue('#nota'), 'Dato previo');
-        assert.equal(await page.inputValue('#id_marca'), '', 'the trigger value (0) is not left selected');
-        assert.equal(await overlay(), '', 'no "0 - Nueva marca" overlay left behind');
+        assert.equal(await page.inputValue('#id_marca'), '2', 'the previous pick, not the trigger value (0)');
+        await page.waitForFunction(
+            () => document.querySelector('#id_marca ~ .autocomplete-display-overlay')?.textContent.includes('Marca E2E'),
+            null, { timeout: 5000 });
+        assert.equal(await overlay(), '2 - Marca E2E', 'no "0 - Nueva marca" overlay left behind');
     });
 
     it('25. Save feedback says "N°" and stays visible; an expected handler rejection is logged as a warning, not an error', async () => {
@@ -1736,14 +1741,16 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('.tree-node:has(span:text("Validacion Fixture"))');
         await page.waitForSelector('#id_producto', { timeout: 10000 });
         await page.waitForTimeout(300);
-        await page.focus('#id_producto');
-        await page.keyboard.type('Moch');
-        await page.waitForSelector('.autocomplete-wrapper:has(#id_producto) .autocomplete-item', { timeout: 5000 });
+        // Canal's fixed options (Web, Local): other tests add catalog rows,
+        // so a catalog filter is not guaranteed to leave a single match.
+        await page.focus('#canal');
+        await page.keyboard.type('Lo');
+        await page.waitForSelector('.autocomplete-wrapper:has(#canal) .autocomplete-item', { timeout: 5000 });
         await page.keyboard.press('Enter');
         await page.waitForTimeout(200);
-        assert.equal(await page.inputValue('#id_producto'), '2', 'the single match is selected (its key)');
-        const overlay = await page.locator('#id_producto ~ .autocomplete-display-overlay').evaluate(el => (el.hidden ? '' : el.textContent.trim()));
-        assert.equal(overlay, '2 - Mochila Fixture');
+        assert.equal(await page.inputValue('#canal'), 'Local', 'the single match is selected');
+        await page.fill('#canal', '');
+        await page.keyboard.press('Escape');
 
         // With several items (Web, Local), Enter alone picks nothing.
         await page.click('#canal');
@@ -1753,7 +1760,7 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(await page.inputValue('#canal'), '', 'Enter with more than one item does not guess');
     });
 
-    it('44. Back from a <subform>: saved → focus on the next field to fill; not saved → on the select', async () => {
+    it('44. Back from a <subform>: with a value picked → focus on the next field to fill; empty → on the select', async () => {
         // 3rd Chrome round 2026-10-27: after "0 - Nueva clienta" the focus was
         // left on <body>, unlike the modals. Saved: the new record is already
         // picked, so the user continues with the next field (focusing the
@@ -1775,6 +1782,13 @@ describe('E2E — Dev Sandbox', async () => {
         }
         const activeId = () => page.evaluate(() => document.activeElement?.id);
 
+        // Nothing picked before, back without saving → empty → the select.
+        await openSubform();
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForFunction(() => document.activeElement?.id === 'id_marca', null, { timeout: 5000 }).catch(() => {});
+        assert.equal(await activeId(), 'id_marca', 'empty select after going back');
+
         await openSubform();
         await page.fill('#nombre', 'Marca Foco E2E');
         await page.click('button[type="submit"]');
@@ -1782,11 +1796,12 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForFunction(() => document.activeElement?.id === 'cantidad', null, { timeout: 5000 }).catch(() => {});
         assert.equal(await activeId(), 'cantidad', 'after saving: the next editable field (skips the read-only copy)');
 
+        // Back without saving, the new marca restored (#46) → next field.
         await openSubform();
         await page.click('.subform-back-btn');
         await page.waitForSelector('#nota', { timeout: 10000 });
-        await page.waitForFunction(() => document.activeElement?.id === 'id_marca', null, { timeout: 5000 }).catch(() => {});
-        assert.equal(await activeId(), 'id_marca', 'after going back without saving');
+        await page.waitForFunction(() => document.activeElement?.id === 'cantidad', null, { timeout: 5000 }).catch(() => {});
+        assert.equal(await activeId(), 'cantidad', 'after going back without saving, with the previous pick restored');
     });
 
     it('45. The [?] help icons are not Tab stops', async () => {
@@ -1803,5 +1818,107 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(tabbable, 0, 'no [?] in the Tab order');
         await page.click('.help-icon[data-field="clieno"]');
         assert.equal(await page.locator('.help-tooltip[data-field="clieno"]').isVisible(), true, 'still opens with a click');
+    });
+    it('46. Going back from a <subform> without saving keeps the value the select had before', async () => {
+        // 4th Chrome round 2026-10-27: with "15 - Validación Cinco" picked,
+        // opening "0 - Nueva clienta" and going back left Clienta empty.
+        // Leaving a modal/subform without saving must not clear anything.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const overlay = () => page.locator('#id_marca ~ .autocomplete-display-overlay')
+            .evaluate(el => (el.hidden ? '' : el.textContent.trim()));
+
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item:has(.autocomplete-key:text-is("1"))').first().click();
+        await page.click('#nota'); // the overlay only shows while the select has no focus
+        await page.waitForTimeout(300);
+        const before = { value: await page.inputValue('#id_marca'), overlay: await overlay(), copy: await page.inputValue('#nombre_marca') };
+        assert.equal(before.value, '1');
+
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+        await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        assert.ok(before.overlay.startsWith('1 - '), `overlay before: ${before.overlay}`);
+        assert.equal(await page.inputValue('#id_marca'), before.value, 'the previous pick is back');
+        assert.equal(await overlay(), before.overlay, 'with its "key - name" overlay');
+        assert.equal(await page.inputValue('#nombre_marca'), before.copy, 'and its <copy> target');
+    });
+
+    it('47. A subform\'s "se guardó…" message goes away when another subform is opened', async () => {
+        // 4th Chrome round 2026-10-27: "Clienta nueva: se guardó con el N° 15…"
+        // was still in the bar after cancelling a second alta.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        async function openSubform() {
+            await page.click('#id_marca');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+            await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+            await page.waitForSelector('#nombre', { timeout: 10000 });
+        }
+
+        await openSubform();
+        await page.fill('#nombre', 'Marca Mensaje E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForFunction(() => document.querySelector('.status-bar-message')?.textContent.includes('se guardó'), null, { timeout: 5000 });
+
+        await openSubform();
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const status = await page.locator('.status-bar').isVisible() ? await page.textContent('.status-bar-message') : '';
+        assert.ok(!status.includes('se guardó'), `stale "se guardó" message, got: ${status}`);
+    });
+
+    it('48. A report table with rowFooter has real <thead>/<tbody>/<tfoot>, footer labels next to the amounts', async () => {
+        // 4th Chrome round 2026-10-27: PRODUCTOS / ENVÍO / TOTAL A PAGAR were
+        // body rows, centered under PRODUCTO like product names.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/report.html?file=tabla_fixture&id=1`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('.report-container table', { timeout: 20000 });
+        const t = await page.$eval('.report-container table', table => ({
+            head: table.tHead?.rows.length ?? 0,
+            body: [...table.tBodies].reduce((n, b) => n + b.rows.length, 0),
+            bodyHasFooter: [...table.tBodies].some(b => /TOTAL/.test(b.textContent)),
+            bodyFirst: table.tBodies[0]?.rows[0]?.cells.length,
+            foot: [...(table.tFoot?.rows ?? [])].map(r => ({
+                cells: r.cells.length,
+                label: r.cells[0].textContent.trim(),
+                span: r.cells[0].colSpan,
+                align: r.cells[0].ownerDocument.defaultView.getComputedStyle(r.cells[0]).textAlign,
+            })),
+        }));
+        assert.equal(t.head, 1, 'one header row');
+        assert.ok(t.body >= 2, `body = the products (other tests add some), got ${t.body}`);
+        assert.equal(t.bodyHasFooter, false, 'no footer row left in the body');
+        assert.equal(t.bodyFirst, 3, 'body cells untouched');
+        assert.deepEqual(t.foot.map(f => f.label), ['SUBTOTAL', 'TOTAL']);
+        for (const f of t.foot) {
+            assert.equal(f.span, 2, `footer label spans the empty cells, got colspan ${f.span}`);
+            assert.equal(f.cells, 2, 'label + amount');
+            assert.equal(f.align, 'right', 'label next to its amount');
+        }
     });
 });

@@ -373,8 +373,40 @@ export class ReportRenderer {
         const wrapper = document.createElement('div');
         wrapper.className = 'report-lines-md';
         wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
+        const footerRows = (zone.rowFooter || []).filter(line => line.trim().startsWith('|')).length;
+        this._moveRowsToTfoot(wrapper.querySelector('table'), footerRows);
         el.appendChild(wrapper);
         return el;
+    }
+
+    /**
+     * marked.js deja todas las filas en el <tbody>: las últimas `count` (las
+     * de rowFooter) pasan a un <tfoot> real, así la tabla tiene encabezado,
+     * cuerpo y pie. En el pie, la etiqueta absorbe las celdas vacías que la
+     * siguen (colspan) y va a la derecha, junto a su importe — si no,
+     * "TOTAL A PAGAR" quedaba centrado bajo PRODUCTO como un producto más.
+     */
+    _moveRowsToTfoot(table, count) {
+        const tbody = table?.tBodies[0];
+        if (!tbody || count <= 0 || tbody.rows.length < count) return;
+        const tfoot = table.createTFoot();
+        [...tbody.rows].slice(-count).forEach(tr => {
+            tfoot.appendChild(tr);
+            let label = null;
+            [...tr.cells].forEach(cell => {
+                if (label && !cell.textContent.trim() && cell !== tr.cells[tr.cells.length - 1]) {
+                    label.colSpan += 1;
+                    cell.remove();
+                } else {
+                    label = cell.textContent.trim() ? cell : null;
+                }
+            });
+            const first = tr.cells[0];
+            if (first && first.colSpan > 1) {
+                first.classList.add('report-table-footer-label');
+                first.style.textAlign = 'right';
+            }
+        });
     }
 
     renderLinesZone(zone, context, accumulators = null, breakLevel = null) {

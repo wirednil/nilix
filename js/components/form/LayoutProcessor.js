@@ -391,8 +391,18 @@ export class LayoutProcessor {
     setupSubformTrigger(el, subformConfig, fieldConfig = {}) {
         const signal = this.ctx.signal;
 
+        // Lo que tenía el select antes de elegir el valor disparador: volver
+        // sin guardar lo restaura — salir de un subform no borra nada.
+        let previousValue = el.value !== subformConfig.triggerValue ? el.value : '';
+
         el.addEventListener('change', async () => {
-            if (el.value !== subformConfig.triggerValue) return;
+            if (el.value !== subformConfig.triggerValue) {
+                previousValue = el.value;
+                return;
+            }
+            const restoreValue = previousValue;
+            // El "se guardó…" de un subform anterior ya no corresponde.
+            this.ctx.statusBar?.dismiss(this._subformSavedStatusId);
 
             // Recolectar valores a heredar del form padre
             const inheritedValues = {};
@@ -419,7 +429,7 @@ export class LayoutProcessor {
                 xmlString = await res.text();
             } catch (err) {
                 console.error('[LayoutProcessor] No se pudo cargar el subform:', err);
-                this._setFieldValue(el, '');
+                this._setFieldValue(el, restoreValue);
                 return;
             }
 
@@ -462,24 +472,24 @@ export class LayoutProcessor {
 
                 // Select de catálogo → queda elegido el registro nuevo (el
                 // 'change' hace que Autocomplete resuelva overlay y <copy>; el
-                // catálogo ya lo invalidó RecordService al insertar). Si no, el
-                // valor disparador no queda elegido.
+                // catálogo ya lo invalidó RecordService al insertar). Sin
+                // guardar → vuelve lo que estaba elegido antes.
                 const key = fieldConfig.lookupConfig?.key;
                 const newKey = key && savedData ? savedData[key] : null;
-                this._setFieldValue(el, newKey != null ? String(newKey) : '');
+                this._setFieldValue(el, newKey != null ? String(newKey) : restoreValue);
 
                 if (newKey != null) {
                     const label = fieldConfig.labelTxt || fieldConfig.id || '';
-                    parentStatus?.push('success',
+                    this._subformSavedStatusId = parentStatus?.push('success',
                         `${subTitle}: se guardó con el N° ${newKey} y ya figura en "${label}".`,
                         { sticky: true });
                 }
 
-                // El foco no queda en <body>: guardado → el siguiente campo a
-                // completar (el registro nuevo ya está elegido; enfocar el
-                // select cambiaría su "clave - nombre" por la clave cruda);
-                // sin guardar → el select, para elegir otra cosa.
-                const next = newKey != null ? this._nextFocusable(el) : null;
+                // El foco no queda en <body>: con algo elegido (el registro
+                // nuevo, o lo de antes si se volvió sin guardar) → el siguiente
+                // campo a completar — enfocar el select cambiaría su "clave -
+                // nombre" por la clave cruda; vacío → el select, para elegir.
+                const next = el.value ? this._nextFocusable(el) : null;
                 (next ?? el).focus();
             };
 

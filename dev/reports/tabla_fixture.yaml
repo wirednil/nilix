@@ -1,0 +1,40 @@
+name: tabla_fixture
+description: Fixture — tabla con encabezado, cuerpo y pie (rowHeader/rowBody/rowFooter), como el comprobante de thym-pos. Ver tests/e2e.test.js #48.
+kind: ledger
+
+config:
+  paginationMode: scroll
+  markdown: true
+
+fields:
+  - { name: nombre,       type: string, dbRef: { table: mf_productos,        field: nombre } }
+  - { name: precio_mayor, type: float,  dbRef: { table: mf_productos,        field: precio_mayor } }
+  - { name: precio_menor, type: float,  dbRef: { table: mf_productos,        field: precio_menor } }
+  - { name: monto,        type: float,  dbRef: { table: comprobante_fixture, field: monto } }
+
+dataSources:
+  productos:
+    table: mf_productos
+  comprobante:
+    table: comprobante_fixture
+    filter: "id = :id"
+
+zones:
+  - name: tabla
+    layout: lines
+    condition: { when: after, on: report }
+    dataSource: productos
+    expressions:
+      - { name: mayor_fmt, field: precio_mayor, format: currency }
+      - { name: menor_fmt, field: precio_menor, format: currency }
+    footerDataSource: comprobante
+    footerExpressions:
+      - { name: monto_fmt, field: monto, format: currency }
+    rowHeader:
+      - "  |PRODUCTO|MAYOR|MENOR|"
+      - "  | :--: | --: | --: |"
+    rowBody:
+      - "  |{nombre}|{mayor_fmt}|{menor_fmt}|"
+    rowFooter:
+      - "  |SUBTOTAL| |{monto_fmt}|"
+      - "  |**TOTAL**| |**{monto_fmt}**|"
