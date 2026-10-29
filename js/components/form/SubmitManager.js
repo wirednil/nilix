@@ -65,9 +65,11 @@ export class SubmitManager {
      * (ValidationCoordinator: 'input'/'change'; Multifield: al agregar fila).
      */
     _watchSummary(formEl, invalidFields) {
+        // "Monto ($)" → "Monto": la unidad del final queda rara en la frase.
+        const nameOf = f => String(f.label ?? '').replace(/\s*\([^)]*\)\s*$/, '');
         const summaryOf = fields => (fields.length === 1
-            ? `Falta "${fields[0].label}".`
-            : `Faltan ${fields.length} datos: ${fields.map(f => f.label).join(', ')}.`);
+            ? `Falta "${nameOf(fields[0])}".`
+            : `Faltan ${fields.length} datos: ${fields.map(nameOf).join(', ')}.`);
         const elOf = f => f.el ?? document.getElementById(f.fieldId);
 
         this._summaryWatch?.abort();

@@ -1100,7 +1100,11 @@ textarea.multifield-textarea {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border-bottom: 2px solid var(--border-color);
-    white-space: nowrap;
+    /* Un encabezado largo ("MAYOR/MENOR ($)") parte en dos líneas en vez de
+       cortarse con "…" cuando la ventana se achica. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: bottom;
 }
 
 /* Filas del body */

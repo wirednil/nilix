@@ -165,6 +165,7 @@ Fixture nuevo `dev/form/conditional_fields.xml` + test permanente **#14** (arran
 3. ~~**Motor, bajo esfuerzo / alto impacto:** validación inline con resumen en submit.~~ ✅ Implementado y verificado 2026-08-24 (sección 4).
 4. ~~**Motor, esfuerzo medio:** sistema de visibilidad/habilitación condicional.~~ ✅ Implementado y verificado 2026-08-25 (sección 6).
 5. ~~**Mobile cards del grid completo.**~~ ⏭️ Movido a un plan aparte (sección 8) — no queda nada de escritorio pendiente en este documento.
+6. **Grilla común para el layout de forms** (anchos y alineación al agrandar/achicar la ventana) — propuesta, no implementada: ver [GRILLA-COMUN-PLAN.md](GRILLA-COMUN-PLAN.md) (2026-10-29).
 
 ---
 
