@@ -10,6 +10,7 @@ import { createFieldWrapper, createInputElement, renderInputField } from './Inpu
 import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import { trapFocus } from '../../utils/focusTrap.js';
+import { focusWithRing } from '../../utils/focusRing.js';
 
 // ============================================
 // CONSTANTES
@@ -766,8 +767,7 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
         backdrop.remove();
         document.removeEventListener('keydown', onKeydown);
         releaseFocus?.();
-        if (opener?.isConnected) opener.focus();
-        else gridContainer.querySelector('.multifield-add-btn')?.focus();
+        focusWithRing(opener?.isConnected ? opener : gridContainer.querySelector('.multifield-add-btn'));
     }
 
     document.addEventListener('keydown', onKeydown);

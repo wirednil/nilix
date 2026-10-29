@@ -10,6 +10,7 @@ import {
     renderMultifield
 } from '../fieldRenderer/index.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
+import { focusWithRing } from '../../utils/focusRing.js';
 
 export class LayoutProcessor {
     constructor(ctx, onFieldRendered) {
@@ -187,6 +188,7 @@ export class LayoutProcessor {
      */
     setupIsExpression(el, expr) {
         el.readOnly = true;
+        el.tabIndex = -1; // solo de lectura: no es una parada de Tab
         el.classList.add('computed-field');
 
         const formEl = el.closest('form');
@@ -491,10 +493,9 @@ export class LayoutProcessor {
 
                 // El foco no queda en <body>: con algo elegido (el registro
                 // nuevo, o lo de antes si se volvió sin guardar) → el siguiente
-                // campo a completar — enfocar el select cambiaría su "clave -
-                // nombre" por la clave cruda; vacío → el select, para elegir.
+                // campo a completar; vacío → el select, para elegir.
                 const next = el.value ? this._nextFocusable(el) : null;
-                (next ?? el).focus();
+                focusWithRing(next ?? el);
             };
 
             backBtn.addEventListener('click', () => restoreParent(null));

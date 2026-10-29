@@ -11,6 +11,7 @@
 
 import logger from '../../utils/clientLogger.js';
 import { trapFocus } from '../../utils/focusTrap.js';
+import { focusWithRing } from '../../utils/focusRing.js';
 
 export class ReportModal {
     constructor() {
@@ -104,7 +105,7 @@ export class ReportModal {
         document.addEventListener('keydown', this._onKeydown);
         this._releaseFocus = trapFocus(modal);
 
-        backBtn.focus();
+        focusWithRing(backBtn);
 
         const { ReportEngine } = await import('../report/ReportEngine.js');
         for (const [i, { report, params }] of reports.entries()) {

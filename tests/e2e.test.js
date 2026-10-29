@@ -1954,7 +1954,7 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForFunction(() => document.activeElement?.closest('.multifield-grid'), null, { timeout: 5000 }).catch(() => {});
 
         const focused = await page.evaluate(() => document.activeElement?.className);
-        assert.equal(focused, 'multifield-btn multifield-add-btn', `focus after going back, got: ${focused}`);
+        assert.ok(/\bmultifield-add-btn\b/.test(focused), `focus after going back, got: ${focused}`);
         assert.equal(await page.locator('.multifield-delete-btn').count(), 1, 'the row is still there');
     });
 
@@ -1987,10 +1987,101 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(await page.inputValue('#id_marca'), 'Marca', 'typed text replaces the key');
         await page.keyboard.press('Escape');
 
-        // Opening the list with the mouse also shows the real input.
-        await page.focus('#nota');
+    });
+
+    it('51. When the engine moves the focus (back from a <subform>), the focus ring is visible', async () => {
+        // 6th Chrome round 2026-10-29: the focus was on "+ AGREGAR" but with
+        // no outline — Chrome only draws :focus-visible after keyboard use.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Items"))');
+        await page.waitForSelector('#id_marca', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        // A marca picked, then the alta and back without saving: the pick is
+        // restored and the focus moves on to "+ AGREGAR".
+        const pick = async text => {
+            await page.click('#id_marca');
+            await page.waitForTimeout(300);
+            await page.locator('.autocomplete-item', { hasText: text }).first().click();
+        };
+        await pick('Marca Uno');
+        await page.waitForTimeout(300);
+        await pick('Nueva marca');
+        await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#id_marca', { timeout: 10000 });
+        await page.waitForFunction(() => document.activeElement?.classList.contains('multifield-add-btn'), null, { timeout: 5000 });
+
+        const ring = () => page.evaluate(() => {
+            const cs = window.getComputedStyle(document.activeElement);
+            return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
+        });
+        assert.equal(await ring(), true, 'outline drawn on "+ AGREGAR"');
+
+        // Only while it has the focus.
+        await page.mouse.click(5, 5);
+        const stale = await page.evaluate(() => {
+            const cs = window.getComputedStyle(document.querySelector('.multifield-add-btn'));
+            return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
+        });
+        assert.equal(stale, false, 'no outline once the focus left');
+    });
+
+    it('52. Clicking a picked select keeps "key - name" while the list is open, with the current item marked', async () => {
+        // 6th Chrome round 2026-10-29: the click showed a bare "2" and the
+        // list did not show which one was picked.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Marca Uno' }).first().click();
+        await page.waitForTimeout(300);
+
+        const overlay = '#id_marca ~ .autocomplete-display-overlay';
+        await page.click('#nota');
         await page.click('#id_marca');
         await page.waitForSelector('.autocomplete-item', { timeout: 3000 });
-        assert.equal(await page.isVisible(overlay), false, 'overlay hidden with the list open');
+        await page.waitForTimeout(200);
+        assert.equal(await page.isVisible(overlay), true, 'overlay still shown with the list open');
+        assert.equal(await page.textContent(overlay), '1 - Marca Uno');
+        const marked = await page.evaluate(() => {
+            const dd = document.querySelector('#id_marca').closest('.autocomplete-wrapper').querySelector('.autocomplete-dropdown, [class*="dropdown"]');
+            const item = dd?.querySelector('.autocomplete-item.highlighted');
+            if (!item) return null;
+            const a = item.getBoundingClientRect(), b = dd.getBoundingClientRect();
+            return { key: item.dataset.key, visible: a.top >= b.top && a.bottom <= b.bottom };
+        });
+        assert.deepEqual(marked, { key: '1', visible: true }, 'the current item is highlighted and in view');
+
+        await page.keyboard.type('Nueva');
+        assert.equal(await page.isVisible(overlay), false, 'overlay hidden once typing');
+        assert.equal(await page.inputValue('#id_marca'), 'Nueva', 'typed text replaces the key');
+        await page.keyboard.press('Escape');
+    });
+
+    it('53. Computed (is=) top-level fields are not Tab stops', async () => {
+        // 6th Chrome round 2026-10-29: Tab stopped on "Total productos" and
+        // "A pagar", read-only.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('#total', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.focus('.multifield-add-btn');
+        await page.keyboard.press('Tab');
+        const id = await page.evaluate(() => document.activeElement?.id || document.activeElement?.className);
+        assert.notEqual(id, 'total', 'Tab skips the read-only Total');
     });
 });

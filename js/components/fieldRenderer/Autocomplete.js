@@ -39,7 +39,7 @@ export function createAutocomplete({ id, size, isRequired, isSkip, lookupConfig,
     // El valor real (la clave, lo que se guarda) sigue siendo inputEl.value
     // — sin tocar eso ningún caller existente se entera. Para catálogos
     // reales (lookupConfig) se agrega una capa visual encima que muestra
-    // "clave - nombre"; al tipear o abrir la lista para buscar de nuevo, se
+    // "clave - nombre"; al tipear para buscar de nuevo, se
     // oculta y se ve el input real (igual que siempre).
     const inputBox = createElement('span', 'autocomplete-input-box');
     inputBox.appendChild(inputEl);
@@ -316,7 +316,6 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
 
     function openDropdown() {
         if (inputEl.readOnly && !inputEl.dataset.skipSelect) return;
-        if (overlayEl) overlayEl.hidden = true;
 
         typedWhileOpening = false;
         loadCatalog().then(() => {
@@ -324,9 +323,24 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             dropdownEl.style.display = 'block';
             isOpen = true;
             btnEl.innerHTML = '&#9650;';
+            markCurrentItem();
         });
     }
     
+    // Con algo elegido, la lista abre marcando esa opción y mostrándola
+    // (aunque sea la N° 500), y la clave queda seleccionada: lo que se
+    // tipee la reemplaza. La capa "clave - nombre" sigue hasta tipear.
+    function markCurrentItem() {
+        if (!overlayEl || overlayEl.hidden) return;
+        const key = String(inputEl.value ?? '').trim();
+        const items = [...dropdownEl.querySelectorAll('.autocomplete-item')];
+        const idx = items.findIndex(item => item.dataset.key === key);
+        if (idx < 0) return;
+        highlightItem(idx);
+        items[idx].scrollIntoView({ block: 'nearest' });
+        if (document.activeElement === inputEl) inputEl.select();
+    }
+
     function closeDropdown() {
         dropdownEl.style.display = 'none';
         isOpen = false;
@@ -357,7 +371,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             loadCatalog();
         }
         // La capa "clave - nombre" sigue con el foco (con Tab, "3 - Flor" no
-        // pasa a ser un "3" pelado); se oculta al tipear o abrir la lista.
+        // pasa a ser un "3" pelado) y con la lista abierta; se oculta al tipear.
         // La clave queda seleccionada: lo que se tipee la reemplaza.
         if (overlayEl && !overlayEl.hidden) inputEl.select();
     }, listenerOpts);

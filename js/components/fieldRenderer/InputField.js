@@ -76,6 +76,7 @@ export const createInputElement = ({ id, type, isRequired, size, isSkip, default
 
     if (isSkip) {
         inputEl.readOnly = true;
+        inputEl.tabIndex = -1; // solo de lectura: no es una parada de Tab
         inputEl.classList.add('readonly-field');
     }
     
@@ -177,8 +178,9 @@ export const renderInputField = (config, messages, parentContainer, formContaine
                 if (!inputEl) return;
 
                 if (!parentIsHorizontal) {
-                    // Vertical layout: always fill the available width
-                    inputEl.classList.add('expand-to-label');
+                    // Vertical layout: fill the available width, unless the
+                    // XML gave a size (a "Monto" of size 12 spanned the card)
+                    if (!size) inputEl.classList.add('expand-to-label');
                 } else {
                     // Horizontal layout: expand only if label is wider than input
                     const labelEl = fieldWrapper.querySelector('label');

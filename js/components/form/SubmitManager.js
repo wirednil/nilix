@@ -8,6 +8,7 @@ import uiComponents from '../uiComponents/index.js';
 import { RADU } from '../../utils/RADU.js';
 import logger from '../../utils/clientLogger.js';
 import ReportModal from './ReportModal.js';
+import { focusWithRing } from '../../utils/focusRing.js';
 
 export class SubmitManager {
     constructor(ctx) {
@@ -106,7 +107,7 @@ export class SubmitManager {
             if (invalidFields.length > 0) {
                 this._watchSummary(formEl, invalidFields);
                 const first = invalidFields[0];
-                (first.el?.querySelector('.multifield-add-btn') ?? document.getElementById(first.fieldId))?.focus();
+                focusWithRing(first.el?.querySelector('.multifield-add-btn') ?? document.getElementById(first.fieldId));
                 return;
             }
 
