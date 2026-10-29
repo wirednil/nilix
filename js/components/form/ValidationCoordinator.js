@@ -232,7 +232,7 @@ export class ValidationCoordinator {
             const value = inputEl.type === 'checkbox' ? (inputEl.checked ? '1' : '') : inputEl.value;
 
             // Obligatorio vacío: solo el borde rojo, sin texto — el resumen de
-            // la barra de estado ya lo nombra ("Faltan 3 campos: …"), y un
+            // la barra de estado ya lo nombra ("Faltan 3 datos: …"), y un
             // texto por campo empujaba ANT/SIG/ENVIAR hacia abajo.
             if (inputEl.required && !value.trim()) {
                 const message = 'Este campo es obligatorio.';

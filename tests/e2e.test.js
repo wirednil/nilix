@@ -1257,7 +1257,7 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForFunction(
             () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
         const status = await page.textContent('.status-bar-message');
-        assert.ok(status.includes('Faltan 4 campos: Nombre, Producto, Canal, Items.'), `summary, got: ${status}`);
+        assert.ok(status.includes('Faltan 4 datos: Nombre, Producto, Canal, Items.'), `summary, got: ${status}`);
 
         assert.equal(await page.locator('form .error-msg').count(), 0, 'no per-field text for an empty required field');
         assert.equal(await rowTop(), before, 'ENVIAR stays where it was');
@@ -1694,13 +1694,13 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('button[type="submit"]');
         await page.waitForFunction(
             () => document.querySelector('.status-bar')?.dataset.level === 'error', null, { timeout: 5000 });
-        assert.equal(await status(), '❌ Faltan 4 campos: Nombre, Producto, Canal, Items.');
+        assert.equal(await status(), '❌ Faltan 4 datos: Nombre, Producto, Canal, Items.');
 
         await page.click('#canal');
         await page.locator('.autocomplete-item', { hasText: 'Local' }).first().click();
-        assert.equal(await status(), '❌ Faltan 3 campos: Nombre, Producto, Items.');
+        assert.equal(await status(), '❌ Faltan 3 datos: Nombre, Producto, Items.');
         await page.type('#nombre', 'X');
-        assert.equal(await status(), '❌ Faltan 2 campos: Producto, Items.');
+        assert.equal(await status(), '❌ Faltan 2 datos: Producto, Items.');
         await page.click('#id_producto');
         await page.locator('.autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
         assert.equal(await status(), '❌ Falta "Items".');
@@ -2083,5 +2083,38 @@ describe('E2E — Dev Sandbox', async () => {
         await page.keyboard.press('Tab');
         const id = await page.evaluate(() => document.activeElement?.id || document.activeElement?.className);
         assert.notEqual(id, 'total', 'Tab skips the read-only Total');
+    });
+
+    it('54. After ENVIAR with fields missing, the focused one shows a focus ring on top of its red mark', async () => {
+        // 7th Chrome round 2026-10-29: the focus went to Clienta, but with
+        // outline: none it looked like every other red field.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const ringOn = sel => page.evaluate(sel => {
+            const cs = window.getComputedStyle(document.querySelector(sel));
+            return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
+        }, sel);
+
+        // Text field.
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(() => document.activeElement?.id === 'nombre', null, { timeout: 5000 });
+        assert.equal(await ringOn('#nombre'), true, 'ring on the focused text field');
+
+        // Select: the ring goes around the field and its ▾ together.
+        await page.fill('#nombre', 'Con foco');
+        await page.click('button[type="submit"]');
+        await page.waitForFunction(() => document.activeElement?.id === 'id_producto', null, { timeout: 5000 });
+        assert.equal(await page.evaluate(() => {
+            const w = document.getElementById('id_producto').closest('.autocomplete-wrapper');
+            const cs = window.getComputedStyle(w);
+            return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
+        }), true, 'ring around the whole select');
+        assert.equal(await ringOn('#nombre'), false, 'the previous field lost its ring');
     });
 });

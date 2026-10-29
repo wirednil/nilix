@@ -67,7 +67,7 @@ export class SubmitManager {
     _watchSummary(formEl, invalidFields) {
         const summaryOf = fields => (fields.length === 1
             ? `Falta "${fields[0].label}".`
-            : `Faltan ${fields.length} campos: ${fields.map(f => f.label).join(', ')}.`);
+            : `Faltan ${fields.length} datos: ${fields.map(f => f.label).join(', ')}.`);
         const elOf = f => f.el ?? document.getElementById(f.fieldId);
 
         this._summaryWatch?.abort();

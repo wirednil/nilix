@@ -903,9 +903,20 @@ select:disabled {
 
 /* Foco movido por el motor (utils/focusRing.js): visible aunque la usuaria
    viniera del mouse. */
-.focus-ring {
+.focus-ring,
+:is(input, textarea, select, button).focus-ring:focus {
     outline: 2px solid var(--border-color);
     outline-offset: 2px;
+}
+
+/* En un select, alrededor del campo y su ▾ juntos (el input queda tapado
+   por la capa "clave - nombre"). */
+.autocomplete-wrapper:has(input.focus-ring) {
+    outline: 2px solid var(--border-color);
+    outline-offset: 2px;
+}
+.autocomplete-wrapper input.focus-ring:focus {
+    outline: none;
 }
 
 /* Con foco la capa sigue visible (Autocomplete.js): que muestre el foco. */
