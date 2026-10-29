@@ -6,6 +6,7 @@
 import * as validator from '../../utils/validator.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import LookupService from '../../services/LookupService.js';
+import { confirmDiscard } from './ConfirmDialog.js';
 
 export class ValidationCoordinator {
     constructor(ctx) {
@@ -109,12 +110,21 @@ export class ValidationCoordinator {
     async loadRecord(value) {
         const { table, keyField, db = 'app' } = this.ctx.tableConfig;
         if (!table) return;  // url-based form — navigation via dropdown only
+        if (String(value) === String(this.ctx.currentKey ?? '')) return; // ya cargado
+        if (!(await this._confirmLeave())) {
+            // Se queda con lo que estaba cargando: el N° tipeado vuelve atrás.
+            const keyEl = this.ctx.getField(keyField) || this.ctx.container?.querySelector(`#${keyField}`);
+            if (keyEl) keyEl.value = this.ctx.currentKey ?? '';
+            return;
+        }
+        if (String(value) === String(this.ctx.currentKey ?? '')) return; // blur + change del mismo N°
         try {
             const { default: RecordService } = await import('../../services/RecordService.js');
             const record = await RecordService.load(table, keyField, value, db);
             if (record) {
                 this.ctx.currentKey = value; // set BEFORE fillForm to prevent change-loop
                 this.fillForm(record);
+                this.ctx.dirty = false;
                 // Single batched request: server runs after() for all fields and returns
                 // aggregated enableFields/disableFields — avoids N individual requests
                 if (this._handlerBridge) {
@@ -132,6 +142,7 @@ export class ValidationCoordinator {
             this._flashNav('Cargá un registro primero');
             return;
         }
+        if (!(await this._confirmLeave())) return;
         const { table, keyField, db = 'app' } = this.ctx.tableConfig;
         const { default: RecordService } = await import('../../services/RecordService.js');
         const record = await RecordService.navigate(table, keyField, this.ctx.currentKey, dir, db);
@@ -141,10 +152,16 @@ export class ValidationCoordinator {
         }
         this.ctx.currentKey = record[keyField]; // set before fillForm
         this.fillForm(record);
+        this.ctx.dirty = false;
         if (this._handlerBridge) {
             await this._handlerBridge.callAfter(keyField, record[keyField]);
         }
         this.ctx.statusBar?.push('success', `Registro ${record[keyField]} cargado`);
+    }
+
+    /** Con cambios sin guardar, pregunta antes de reemplazarlos. */
+    async _confirmLeave() {
+        return !this.ctx.dirty || confirmDiscard();
     }
 
     _flashNav(msg) {

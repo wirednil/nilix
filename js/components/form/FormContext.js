@@ -27,6 +27,9 @@ export class FormContext {
 
         this.outputDirectives = this._parseOutputDirectives(formNode);
         this.currentKey = null;
+        // Cambios de la usuaria sin guardar (FormRenderer.js) — se pregunta
+        // antes de dejar el form (ConfirmDialog.js).
+        this.dirty = false;
         this.permissions = null;
         this.formPath = null;
         this.fields = new Map();

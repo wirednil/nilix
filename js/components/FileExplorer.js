@@ -61,11 +61,12 @@ class FileExplorer {
             div.appendChild(badge);
         }
 
-        div.addEventListener('click', (e) => {
+        div.addEventListener('click', async (e) => {
             e.stopPropagation();
+            // false = la usuaria eligió quedarse en el form (datos sin guardar)
+            if (this.onItemSelected && (await this.onItemSelected(item)) === false) return;
             document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
             div.classList.add('active');
-            if (this.onItemSelected) this.onItemSelected(item);
         });
 
         li.appendChild(div);

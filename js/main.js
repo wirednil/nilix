@@ -127,8 +127,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const workspace = new Workspace(workspaceContainer, session?.publicToken ?? null);
         console.log("✅ Workspace instanciado.");
 
-        const fileExplorer = new FileExplorer(treeContainer, (item) => {
+        const fileExplorer = new FileExplorer(treeContainer, async (item) => {
             console.log("🖱️ Click en item:", item.label, item.type);
+            if (!(await workspace.confirmLeave())) return false;
             workspace.loadItem(item);
 
             // Cerrar sidebar en móvil al seleccionar un item

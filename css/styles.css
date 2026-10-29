@@ -2837,6 +2837,50 @@ body.dark-mode .report-card {
     background: var(--btn-hover-bg);
 }
 
+/* "Hay datos sin guardar. ¿Descartarlos?" (form/ConfirmDialog.js) */
+.confirm-dialog {
+    width: min(52ch, 94vw);
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.confirm-dialog-message {
+    margin: 0 0 1rem;
+    font-weight: bold;
+}
+
+.confirm-dialog-actions {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.confirm-dialog-actions > button {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+/* Seguir cargando = la opción segura, con el peso visual */
+.confirm-dialog-keep {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: 2px solid var(--btn-border);
+    box-shadow: 3px 3px 0 var(--btn-border);
+}
+
+.confirm-dialog-keep:hover {
+    background: var(--btn-hover-bg);
+}
+
+.confirm-dialog-discard {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 2px solid var(--btn-border);
+}
+
 .report-modal-print {
     background: var(--bg-color);
     color: var(--text-color);

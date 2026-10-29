@@ -36,6 +36,25 @@ class FormRenderer {
         }
     }
 
+    /**
+     * ctx.dirty = la usuaria cambió algo que no se guardó. Cuenta lo mismo
+     * que descarta "N° X creado" (input/change de verdad, o sf:user-change de
+     * un select o una fila de multifield), salvo el N°: tipearlo es navegar.
+     * Lo limpian cargar un registro (ValidationCoordinator) y guardar
+     * (SubmitManager). Workspace.js pregunta con esto antes de cambiar de
+     * item y antes de cerrar o recargar la pestaña.
+     */
+    _trackUnsaved(ctx, formEl) {
+        const keyField = ctx.tableConfig?.keyField;
+        const markDirty = (e) => {
+            if (e.type !== 'sf:user-change' && !e.isTrusted) return;
+            if (keyField && e.target?.id === keyField) return;
+            ctx.dirty = true;
+        };
+        ['input', 'change', 'sf:user-change'].forEach(type =>
+            formEl.addEventListener(type, markDirty, { signal: ctx.signal }));
+    }
+
     render(container, xmlString, options = {}) {
         // Clean up previous form if any
         this.destroy();
@@ -101,6 +120,7 @@ class FormRenderer {
             // reemplaza, así que la validación nativa tiene que quedar afuera.
             formEl.noValidate = true;
             layoutProcessor.processLayout(ctx.layoutNode, formEl);
+            this._trackUnsaved(ctx, formEl);
             // Between the fields and the action buttons (ANT/SIG/ENVIAR)
             formEl.appendChild(statusBar.el);
             submitManager.addFormActions(formEl);

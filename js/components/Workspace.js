@@ -2,6 +2,7 @@ console.log("🖥️ Workspace.js: Cargando imports...");
 
 import { getFile } from '../api/client.js';
 import FormRenderer from './FormRenderer.js';
+import { confirmDiscard } from './form/ConfirmDialog.js';
 import logger from '../utils/clientLogger.js';
 
 console.log("✅ Workspace.js: Imports listos.");
@@ -17,14 +18,33 @@ class Workspace {
         this.container = container;
         this.formRenderer = new FormRenderer();
         this.empresa = empresa;
+        // Cerrar o recargar la pestaña con cambios sin guardar: aviso del
+        // navegador. Solo el form principal (un subform abierto implica que
+        // en el principal se eligió algo, así que ya cuenta como cambio).
+        window.addEventListener('beforeunload', (e) => {
+            if (!this.formRenderer.ctx?.dirty) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
     }
 
     /**
      * Carga un item del menú (type=form o type=report)
      * @param {{ type: string, target: string, label: string, permissions: string }} item
      */
+    /**
+     * Antes de cambiar de item: si el form abierto tiene cambios sin guardar,
+     * pregunta. false = la usuaria se queda (FileExplorer no marca el item).
+     */
+    async confirmLeave() {
+        return !this.formRenderer.ctx?.dirty || confirmDiscard();
+    }
+
     async loadItem(item) {
         logger.info('Workspace', `loadItem type=${item.type} label=${item.label}`);
+        // Un reporte no pasa por render(): sin esto el form anterior (y su
+        // "sin guardar") seguía vivo detrás.
+        this.formRenderer.destroy();
         this.container.innerHTML = '';
 
         if (item.type === 'form') {

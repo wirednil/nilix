@@ -198,6 +198,7 @@ export class SubmitManager {
                     // savedId, no data[keyField]: en un alta la clave del form
                     // está vacía y el log decía "id=?".
                     logger.info('SubmitManager', `Guardado ok tabla=${this.ctx.tableConfig.table} id=${savedId ?? '?'} created=${result.created}`);
+                    this.ctx.dirty = false;
                     savedMsg = this.showSubmitFeedback(submitBtn, {
                         id: savedId,
                         created: isCreated,

@@ -902,9 +902,11 @@ describe('E2E — Dev Sandbox', async () => {
         await page.click('body');
         assert.ok((await overlay()).includes('Mochila Fixture'), 'sanity: manual pick shows in the overlay');
 
-        // Load record 1 by typing its key — it belongs to Tote Fixture.
+        // Load record 1 by typing its key — it belongs to Tote Fixture. The
+        // manual pick is unsaved, so it asks first (#55-#57): discard.
         await page.fill('#id', '1');
         await page.locator('#id').blur();
+        await page.click('.confirm-dialog-discard', { timeout: 5000 });
         await page.waitForTimeout(800);
         assert.equal(await page.inputValue('#id_producto_ref'), '1', 'sanity: the input holds the loaded key');
         assert.equal(await overlay(), '1 - Tote Fixture', 'overlay must show the loaded record, not the manual pick');
@@ -2116,5 +2118,127 @@ describe('E2E — Dev Sandbox', async () => {
             return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
         }), true, 'ring around the whole select');
         assert.equal(await ringOn('#nombre'), false, 'the previous field lost its ring');
+    });
+
+    describe('Unsaved changes (UX point 3)', () => {
+        // UX recorrido thym-pos 2026-10-26, punto 3: typing an N°, ANT/SIG or
+        // another explorer item discarded what was being entered, silently.
+        const DIALOG = '.confirm-dialog';
+        const openForm = async (page, label, waitFor) => {
+            await page.click(`.tree-node:has(span:text("${label}"))`);
+            await page.waitForSelector(waitFor, { timeout: 10000 });
+            await page.waitForTimeout(300);
+        };
+
+        it('55. Leaving a form with unsaved data through the explorer asks first; untouched forms do not', async () => {
+            const { page, baseUrl, context, loginAsOperador } = ctx;
+            await context.clearCookies();
+            await loginAsOperador();
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+
+            // Untouched → no question.
+            await openForm(page, 'Comprobante Fixture', '#monto');
+            await openForm(page, 'Validacion Fixture', '#canal');
+            assert.equal(await page.locator(DIALOG).count(), 0, 'no dialog for an untouched form');
+
+            // Typed something → asked; "Seguir cargando" keeps everything.
+            await page.fill('#nombre', 'A medio cargar');
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            assert.match(await page.textContent(DIALOG), /Hay datos sin guardar/);
+            assert.equal(await page.evaluate(() => document.activeElement?.className), 'confirm-dialog-keep focus-ring',
+                'the safe choice has the focus');
+            await page.click('.confirm-dialog-keep');
+            await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
+            assert.equal(await page.inputValue('#nombre'), 'A medio cargar', 'still there');
+            assert.equal(await page.locator('#canal').count(), 1, 'still on the same form');
+            assert.match(await page.textContent('.tree-node.active'), /Validacion Fixture/, 'explorer still marks this form');
+
+            // Escape = keep.
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.keyboard.press('Escape');
+            await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
+            assert.equal(await page.inputValue('#nombre'), 'A medio cargar');
+
+            // "Descartar" goes on.
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.click('.confirm-dialog-discard');
+            await page.waitForSelector('#monto', { timeout: 10000 });
+            assert.match(await page.textContent('.tree-node.active'), /Comprobante Fixture/);
+
+            // Only a multifield row → also unsaved.
+            await openForm(page, 'Subform Items', '#id_marca');
+            await page.click('.multifield-add-btn');
+            await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+            await page.fill('.mf-row-modal [data-col-id="detalle"]', 'Fila sin guardar');
+            await page.click('.mf-row-modal-save-btn');
+            await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+            await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.click('.confirm-dialog-discard');
+            await page.waitForSelector('#monto', { timeout: 10000 });
+        });
+
+        it('56. Typing an N° or using ANT/SIG with unsaved data asks first', async () => {
+            const { page, baseUrl, context, loginAsOperador } = ctx;
+            await context.clearCookies();
+            await loginAsOperador();
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await openForm(page, 'Comprobante Fixture', '#monto');
+
+            // N° with a new one half entered → keep: N° goes back to empty.
+            await page.fill('#nombre', 'Nuevo sin guardar');
+            await page.fill('#id', '1');
+            await page.keyboard.press('Tab');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.click('.confirm-dialog-keep');
+            await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
+            await page.waitForTimeout(300);
+            assert.equal(await page.inputValue('#nombre'), 'Nuevo sin guardar');
+            assert.equal(await page.inputValue('#id'), '', 'the N° typed is undone');
+            assert.equal(await page.locator(DIALOG).count(), 0, 'asked only once');
+
+            // Again → discard: record 1 loads.
+            await page.fill('#id', '1');
+            await page.keyboard.press('Tab');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.click('.confirm-dialog-discard');
+            await page.waitForFunction(() => document.getElementById('nombre')?.value === 'Comprobante Existente', null, { timeout: 5000 });
+
+            // Freshly loaded → SIG does not ask.
+            await page.click('button:has-text("SIG")');
+            await page.waitForTimeout(500);
+            assert.equal(await page.locator(DIALOG).count(), 0, 'a loaded record, untouched, does not ask');
+
+            // Edited → SIG asks; keep leaves the edit and the record.
+            await page.fill('#id', '1');
+            await page.keyboard.press('Tab');
+            await page.waitForFunction(() => document.getElementById('nombre')?.value === 'Comprobante Existente', null, { timeout: 5000 });
+            await page.fill('#monto', '999');
+            await page.click('button:has-text("SIG")');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.click('.confirm-dialog-keep');
+            await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
+            assert.equal(await page.inputValue('#monto'), '999');
+            assert.equal(await page.inputValue('#id'), '1');
+        });
+
+        it('57. Closing or reloading the tab with unsaved data triggers the browser warning', async () => {
+            const { page, baseUrl, context, loginAsOperador } = ctx;
+            await context.clearCookies();
+            await loginAsOperador();
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            await openForm(page, 'Comprobante Fixture', '#monto');
+            const warns = () => page.evaluate(() => {
+                const e = new Event('beforeunload', { cancelable: true });
+                window.dispatchEvent(e);
+                return e.defaultPrevented;
+            });
+            assert.equal(await warns(), false, 'untouched: no warning');
+            await page.fill('#nombre', 'Sin guardar');
+            assert.equal(await warns(), true, 'unsaved: warning');
+        });
     });
 });
