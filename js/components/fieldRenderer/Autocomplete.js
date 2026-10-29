@@ -39,8 +39,8 @@ export function createAutocomplete({ id, size, isRequired, isSkip, lookupConfig,
     // El valor real (la clave, lo que se guarda) sigue siendo inputEl.value
     // — sin tocar eso ningún caller existente se entera. Para catálogos
     // reales (lookupConfig) se agrega una capa visual encima que muestra
-    // "clave - nombre" mientras el input no tiene foco; al hacer foco para
-    // buscar de nuevo, se oculta y se ve el input real (igual que siempre).
+    // "clave - nombre"; al tipear o abrir la lista para buscar de nuevo, se
+    // oculta y se ve el input real (igual que siempre).
     const inputBox = createElement('span', 'autocomplete-input-box');
     inputBox.appendChild(inputEl);
 
@@ -316,6 +316,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
 
     function openDropdown() {
         if (inputEl.readOnly && !inputEl.dataset.skipSelect) return;
+        if (overlayEl) overlayEl.hidden = true;
 
         typedWhileOpening = false;
         loadCatalog().then(() => {
@@ -355,10 +356,10 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
         if (!catalogData) {
             loadCatalog();
         }
-        // Foco = buscar de nuevo: mostrar el input real (con la clave cruda),
-        // igual que siempre — la capa "clave - nombre" es solo para el
-        // estado cerrado/sin foco.
-        if (overlayEl) overlayEl.hidden = true;
+        // La capa "clave - nombre" sigue con el foco (con Tab, "3 - Flor" no
+        // pasa a ser un "3" pelado); se oculta al tipear o abrir la lista.
+        // La clave queda seleccionada: lo que se tipee la reemplaza.
+        if (overlayEl && !overlayEl.hidden) inputEl.select();
     }, listenerOpts);
 
     inputEl.addEventListener('blur', () => {
@@ -437,6 +438,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
     }, listenerOpts);
     
     inputEl.addEventListener('input', () => {
+        if (overlayEl) overlayEl.hidden = true;
         if (isOpen) {
             renderOptions(inputEl.value);
         } else if (!inputEl.readOnly) {

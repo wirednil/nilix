@@ -409,7 +409,9 @@ ul.tree.root {
 /* Contenedores Horizontales */
 .horizontal-container {
     display: flex;
-    gap: 0.5rem; /* Espacio reducido entre los campos */
+    /* Las etiquetas van en mayúsculas y sin cortar: con menos, la de un campo
+       se leía pegada a la del siguiente ("TOTAL ($)CÓMO PAGÓ"). */
+    gap: 1.5rem;
     align-items: flex-end; /* Alinear inputs por la base */
     flex-wrap: nowrap;
 }
@@ -867,10 +869,10 @@ select:disabled {
     max-width: 100%;
 }
 
-/* Capa "clave - nombre" para catálogos reales — cubre el input mientras no
-   tiene foco (el valor real sigue siendo la clave cruda, ver Autocomplete.js
-   refreshOverlay()). Al hacer foco para buscar de nuevo, se oculta y queda
-   el input real de siempre. */
+/* Capa "clave - nombre" para catálogos reales — cubre el input (el valor
+   real sigue siendo la clave cruda, ver Autocomplete.js refreshOverlay()).
+   Al tipear o abrir la lista para buscar de nuevo, se oculta y queda el
+   input real de siempre. */
 .autocomplete-display-overlay {
     position: absolute;
     inset: 0;
@@ -896,6 +898,11 @@ select:disabled {
    CSS de autor después) y la capa vacía tapaba el input: no se veía el
    borde rojo de un obligatorio ni lo que se tipeaba al buscar. */
 .autocomplete-display-overlay[hidden] { display: none; }
+
+/* Con foco la capa sigue visible (Autocomplete.js): que muestre el foco. */
+.autocomplete-wrapper input:focus ~ .autocomplete-display-overlay {
+    border-color: var(--border-color);
+}
 
 .autocomplete-wrapper input:focus {
     outline: none;

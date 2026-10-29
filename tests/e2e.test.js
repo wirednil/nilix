@@ -1921,4 +1921,76 @@ describe('E2E — Dev Sandbox', async () => {
             assert.equal(f.align, 'right', 'label next to its amount');
         }
     });
+
+    it('49. Back from a <subform> with multifield rows loaded → focus on "+ AGREGAR", not a row\'s ✕', async () => {
+        // 5th Chrome round 2026-10-27 (2b): in Venta, after "0 - Nueva clienta"
+        // with products already loaded, the focus landed on the first row's ✕
+        // — one Enter away from deleting it.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Items"))');
+        await page.waitForSelector('#id_marca', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+        await page.fill('.mf-row-modal [data-col-id="detalle"]', 'Fila foco');
+        await page.fill('.mf-row-modal [data-col-id="cant"]', '2');
+        await page.click('.mf-row-modal-save-btn');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+        assert.equal(await page.locator('.multifield-delete-btn').count(), 1, 'one row loaded');
+
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+        await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+        await page.waitForSelector('#nombre', { timeout: 10000 });
+        await page.fill('#nombre', 'Marca Filas E2E');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('#id_marca', { timeout: 10000 });
+        await page.waitForFunction(() => document.activeElement?.closest('.multifield-grid'), null, { timeout: 5000 }).catch(() => {});
+
+        const focused = await page.evaluate(() => document.activeElement?.className);
+        assert.equal(focused, 'multifield-btn multifield-add-btn', `focus after going back, got: ${focused}`);
+        assert.equal(await page.locator('.multifield-delete-btn').count(), 1, 'the row is still there');
+    });
+
+    it('50. Focusing a picked select with Tab keeps showing "key - name" until the user types or opens the list', async () => {
+        // 5th Chrome round 2026-10-27: tabbing into Clienta swapped "3 - Flor"
+        // for a bare "3".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Marca Uno' }).first().click();
+        await page.waitForTimeout(300);
+
+        const overlay = '#id_marca ~ .autocomplete-display-overlay';
+        await page.focus('#nota');
+        await page.keyboard.press('Tab');
+        assert.equal(await page.evaluate(() => document.activeElement?.id), 'id_marca');
+        assert.equal(await page.isVisible(overlay), true, 'overlay still shown with focus');
+        assert.equal(await page.textContent(overlay), '1 - Marca Uno');
+
+        // Typing replaces the key (it is selected) and shows the real input.
+        await page.keyboard.type('Marca');
+        assert.equal(await page.isVisible(overlay), false, 'overlay hidden once typing');
+        assert.equal(await page.inputValue('#id_marca'), 'Marca', 'typed text replaces the key');
+        await page.keyboard.press('Escape');
+
+        // Opening the list with the mouse also shows the real input.
+        await page.focus('#nota');
+        await page.click('#id_marca');
+        await page.waitForSelector('.autocomplete-item', { timeout: 3000 });
+        assert.equal(await page.isVisible(overlay), false, 'overlay hidden with the list open');
+    });
 });

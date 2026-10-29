@@ -74,10 +74,6 @@ export class LayoutProcessor {
             type === 'horizontal' ? 'horizontal-container' : 'vertical-container'
         );
 
-        if (type === 'horizontal') {
-            wrapper.style.gap = '0.5rem';
-        }
-
         parentContainer.appendChild(wrapper);
 
         Array.from(containerNode.children).forEach(child => {
@@ -268,7 +264,15 @@ export class LayoutProcessor {
             c.type !== 'hidden' && !c.disabled && !c.readOnly && c.tabIndex >= 0 &&
             c.getClientRects().length > 0 && !c.closest('.actions-nav'));
         const i = focusable.indexOf(el);
-        return i >= 0 ? focusable[i + 1] ?? null : null;
+        const next = i >= 0 ? focusable[i + 1] ?? null : null;
+        // Dentro de un multifield, lo primero puede ser el ✕ de una fila (un
+        // Enter y se borra) o las flechas de scroll: el lugar para seguir es
+        // "+ AGREGAR …".
+        const grid = next?.closest('.multifield-grid');
+        if (grid && !next.classList.contains('multifield-add-btn')) {
+            return grid.querySelector('.multifield-add-btn') ?? next;
+        }
+        return next;
     }
 
     extractFieldConfig(fieldXml, parentContainer) {

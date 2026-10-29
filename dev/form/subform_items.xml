@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture — select con <subform> seguido de un multifield, como Clienta y
+  Productos en ventas.xml de thym-pos. Al volver del alta con filas cargadas,
+  el foco va a "+ AGREGAR", no al ✕ de una fila. Ver tests/e2e.test.js #49.
+-->
+<form id="subform_items" title="Subform Items (fixture)">
+    <layout>
+        <field id="id_marca" label="Marca" type="select" size="6">
+            <validation>
+                <in-table table="sf_marcas" key="id" display="nombre">
+                    <copy from="nombre" to="nombre_marca"/>
+                </in-table>
+            </validation>
+            <subform trigger-value="0" form="subform_marca_nueva"/>
+        </field>
+        <field id="nombre_marca" label="Nombre marca" type="text" size="20" readonly="true" skip="true"/>
+        <field id="items" label="Items" type="multifield" rows="5" display="2" item-label="item">
+            <field id="detalle" label="Detalle" type="text" size="20"/>
+            <!-- 2da columna: con una sola, Multifield.js lo dibuja como textarea -->
+            <field id="cant" label="Cant." type="number" size="4"/>
+        </field>
+    </layout>
+</form>

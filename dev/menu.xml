@@ -12,5 +12,6 @@
     <option label="Comprobante Fixture" type="form" target="form/comprobante_fixture.xml" permissions="RADU"/>
     <option label="Validacion Fixture" type="form" target="form/validacion_fixture.xml" permissions="RADU"/>
     <option label="Subform Parent" type="form" target="form/subform_parent.xml" permissions="RADU"/>
+    <option label="Subform Items" type="form" target="form/subform_items.xml" permissions="RADU"/>
     <option label="Mes Fixture" type="report" target="reports/mes_fixture.yaml" permissions="R"/>
 </menu>
