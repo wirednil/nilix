@@ -2777,4 +2777,33 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForTimeout(500);
         assert.equal(await page.locator('.confirm-dialog').count(), 0, 'leaves without asking');
     });
+
+    it('75. Escape with a list open inside the row modal closes only the list; a second Escape closes the modal', async () => {
+        // 12th Chrome round 2026-10-31: Escape on the price list closed the
+        // whole "Editar producto" modal — a changed quantity would be lost.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('.multifield-add-btn', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal [data-col-id="id_producto"]', { timeout: 5000 });
+        await page.click('.mf-row-modal [data-col-id="id_producto"]');
+        await page.waitForTimeout(300);
+        await page.locator('.mf-row-modal .autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.fill('.mf-row-modal [data-col-id="cantidad"]', '3');
+
+        await page.click('.mf-row-modal [data-col-id="precio_unitario"]');
+        await page.waitForSelector('.mf-row-modal .autocomplete-item:visible', { timeout: 3000 });
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+        assert.equal(await page.locator('.mf-row-modal .autocomplete-item:visible').count(), 0, 'the list closed');
+        assert.equal(await page.locator('.mf-row-modal').count(), 1, 'the modal is still open');
+        assert.equal(await page.inputValue('.mf-row-modal [data-col-id="cantidad"]'), '3', 'nothing lost');
+
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+    });
 });

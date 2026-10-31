@@ -577,6 +577,9 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             }
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            // Solo la lista: el modal que la contiene (fila de multifield,
+            // comprobante) escucha Escape en document y se cerraba también.
+            e.stopPropagation();
             closeDropdown();
         }
     }, listenerOpts);
