@@ -1,0 +1,30 @@
+name: ancho_fixture
+description: Fixture — planilla con más columnas de las que entran, para el scroll horizontal (e2e #63-#64)
+kind: ledger
+
+config:
+  paginationMode: scroll
+  markdown: true
+
+fields:
+  - { name: mes,   type: string, dbRef: { table: resumen_fixture, field: mes } }
+  - { name: monto, type: float,  dbRef: { table: resumen_fixture, field: monto } }
+
+dataSources:
+  resumen:
+    table: resumen_fixture
+    orderBy:
+      - mes
+
+zones:
+  - name: tabla
+    layout: lines
+    condition: { when: after, on: report }
+    dataSource: resumen
+    expressions:
+      - { name: monto_fmt, field: monto, format: currency }
+    rowHeader:
+      - "  |MES|PRIMERA COLUMNA|SEGUNDA COLUMNA|TERCERA COLUMNA|CUARTA COLUMNA|QUINTA COLUMNA|SEXTA COLUMNA|SÉPTIMA COLUMNA|OCTAVA COLUMNA|"
+      - "  | :-- | --: | --: | --: | --: | --: | --: | --: | --: |"
+    rowBody:
+      - "  |{mes}|{monto_fmt}|{monto_fmt}|{monto_fmt}|{monto_fmt}|{monto_fmt}|{monto_fmt}|{monto_fmt}|{monto_fmt}|"

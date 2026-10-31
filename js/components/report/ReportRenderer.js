@@ -4,6 +4,7 @@
  */
 
 import { ExpressionEvaluator } from './ExpressionEvaluator.js';
+import { enableDragScroll } from '../../utils/dragScroll.js';
 
 // ── Marked.js loader (markdown in templates) ─────────────────────────────────
 let markedLib = null;
@@ -372,6 +373,7 @@ export class ReportRenderer {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'report-lines-md';
+        enableDragScroll(wrapper);
         wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
         const footerRows = (zone.rowFooter || []).filter(line => line.trim().startsWith('|')).length;
         this._moveRowsToTfoot(wrapper.querySelector('table'), footerRows);
@@ -431,6 +433,7 @@ export class ReportRenderer {
                 });
                 const wrapper = document.createElement('div');
                 wrapper.className = 'report-lines-md';
+                enableDragScroll(wrapper);
                 wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
                 el.appendChild(wrapper);
                 return el;
@@ -442,6 +445,7 @@ export class ReportRenderer {
                 if (mdLines.length === 0) return;
                 const wrapper = document.createElement('div');
                 wrapper.className = 'report-lines-md';
+                enableDragScroll(wrapper);
                 wrapper.innerHTML = this._markedParse(mdLines.join('\n'));
                 el.appendChild(wrapper);
                 mdLines = [];

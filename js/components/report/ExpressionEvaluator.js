@@ -95,6 +95,14 @@ export class ExpressionEvaluator {
             }
         }
 
+        // '2026-06' (param type: month) → 'junio 2026'
+        if (format === 'month') {
+            const m = String(value).match(/^(\d{4})-(\d{2})$/);
+            if (!m) return String(value);
+            const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+            return d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).replace(' de ', ' ');
+        }
+
         if (format === 'dayname') {
             try {
                 const d = new Date(value);

@@ -2135,6 +2135,13 @@ body.dark-mode select.field-error {
    nil-report — Nilix
    ============================================================ */
 
+/* 800px para la página suelta (report.html) y el comprobante; en el
+   workspace, todo el ancho disponible: una planilla ancha ("Ventas del mes")
+   no entraba aunque sobrara lugar. */
+#active-content .report-container {
+    max-width: none;
+}
+
 .report-container {
     max-width: 800px;
     margin: 0 auto;
@@ -2406,6 +2413,10 @@ body.dark-mode .report-card {
     font-family: var(--label-font);
     line-height: 1.5;
     overflow-x: auto;
+}
+/* Solo si hay algo para desplazar (utils/dragScroll.js): antes la manito
+   aparecía siempre y arrastrar no hacía nada. */
+.report-lines-md.is-scrollable {
     cursor: grab;
 }
 .report-lines-md.is-dragging {
@@ -2464,6 +2475,14 @@ body.dark-mode .report-card {
     padding: 3px 6px;
     border-bottom: 1px solid var(--input-border);
     white-space: nowrap;
+}
+/* Desplazada de costado, la primera columna (ej. N°) queda a la vista. No
+   la etiqueta del pie con colspan: fija, taparía los importes de al lado. */
+.report-lines-md.is-scrollable :is(th, td):first-child:not([colspan]) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--window-bg, var(--workspace-bg));
 }
 /* "Piso" entre el cuerpo y el pie (rowFooter → <tfoot>, ReportRenderer.
    _moveRowsToTfoot), y otro antes del total final si el pie tiene varias

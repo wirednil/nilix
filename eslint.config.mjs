@@ -37,6 +37,7 @@ const browserGlobals = {
     HTMLElement:           'readonly',
     AbortController:       'readonly',
     AbortSignal:           'readonly',
+    ResizeObserver:        'readonly',
     Node:                  'readonly',
     FormData:              'readonly',
     Blob:                  'readonly',

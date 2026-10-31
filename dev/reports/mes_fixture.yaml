@@ -24,8 +24,10 @@ zones:
   - name: encabezado
     layout: lines
     condition: { when: before, on: report }
+    expressions:
+      - { name: mes_titulo, field: mes, format: month }
     template:
-      - " # MES FIXTURE "
+      - " # MES FIXTURE — {mes_titulo} "
       - ""
 
   - name: tabla

@@ -2395,4 +2395,114 @@ describe('E2E — Dev Sandbox', async () => {
         assert.equal(await page.locator('.terminal-window .report-container').count(), 1, 'one report, not two stacked');
         assert.equal(await page.locator('.month-picker-bar input[type="month"]').inputValue(), '2026-07');
     });
+
+    describe('Wide report tables (2026-10-31, thym-pos "Ventas del mes")', () => {
+        const openReport = async (page, label) => {
+            await page.click(`.tree-node:has(span:text("${label}"))`);
+            await page.waitForSelector('.terminal-window .report-container table', { timeout: 20000 });
+            await page.waitForTimeout(300);
+        };
+        const login = async () => {
+            const { page, baseUrl, context, loginAsOperador } = ctx;
+            await context.clearCookies();
+            await loginAsOperador();
+            await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+            return page;
+        };
+
+        it('62. A report uses the whole width of the workspace, not a fixed 800px', async () => {
+            const page = await login();
+            await page.setViewportSize({ width: 1400, height: 800 });
+            try {
+                await openReport(page, 'Mes Fixture');
+                const w = await page.evaluate(() => {
+                    const win = document.querySelector('.terminal-window');
+                    const cs = window.getComputedStyle(win);
+                    return {
+                        report: Math.round(document.querySelector('.report-container').getBoundingClientRect().width),
+                        inner: Math.round(win.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
+                    };
+                });
+                assert.ok(w.report >= w.inner - 2, `report ${w.report}px of ${w.inner}px available`);
+            } finally {
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
+        });
+
+        it('63. A table wider than its box scrolls by dragging it with the mouse', async () => {
+            const page = await login();
+            await page.setViewportSize({ width: 900, height: 700 });
+            try {
+                await openReport(page, 'Ancho Fixture');
+                const box = '.report-lines-md:has(table)';
+                const info = await page.evaluate(sel => {
+                    const el = document.querySelector(sel);
+                    return { overflow: el.scrollWidth > el.clientWidth, cursor: window.getComputedStyle(el).cursor };
+                }, box);
+                assert.equal(info.overflow, true, 'sanity: the fixture overflows at 900px');
+                assert.equal(info.cursor, 'grab', 'it shows it can be dragged');
+
+                const cell = await page.locator(`${box} tbody td`).nth(1).boundingBox(); // visible
+                await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2);
+                await page.mouse.down();
+                await page.mouse.move(cell.x + cell.width / 2 - 250, cell.y + cell.height / 2, { steps: 10 });
+                await page.mouse.up();
+                const left = await page.evaluate(sel => document.querySelector(sel).scrollLeft, box);
+                assert.ok(left >= 200, `dragged 250px to the left → scrolled ${left}px`);
+
+                // A table that fits is not draggable.
+                await openReport(page, 'Mes Fixture');
+                assert.notEqual(await page.evaluate(() => window.getComputedStyle(document.querySelector('.report-lines-md:has(table)')).cursor), 'grab',
+                    'no grab cursor when there is nothing to scroll');
+            } finally {
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
+        });
+
+        it('64. Scrolled sideways, the first column stays in view', async () => {
+            const page = await login();
+            await page.setViewportSize({ width: 900, height: 700 });
+            try {
+                await openReport(page, 'Ancho Fixture');
+                const pos = await page.evaluate(() => {
+                    const box = document.querySelector('.report-lines-md:has(table)');
+                    box.scrollLeft = 300;
+                    const left = box.getBoundingClientRect().left;
+                    const firstCells = [...box.querySelectorAll('tr > :first-child')];
+                    return firstCells.map(c => Math.round(c.getBoundingClientRect().left - left));
+                });
+                assert.ok(pos.length > 1 && pos.every(d => Math.abs(d) <= 2), `first column offsets from the box: ${pos}`);
+            } finally {
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
+        });
+
+        it('65. The month picker keeps the focus between changes, so arrow keys keep moving the month', async () => {
+            const page = await login();
+            await page.click('.tree-node:has(span:text("Mes Fixture"))');
+            const picker = page.locator('.month-picker-bar input[type="month"]');
+            await picker.waitFor({ timeout: 15000 });
+            await picker.fill('2026-06');
+            await page.waitForFunction(() => document.querySelector('.terminal-window')?.textContent.includes('2026-06'), null, { timeout: 20000 });
+            await picker.focus();
+            await page.keyboard.press('ArrowUp');
+            await page.waitForTimeout(1500);
+            await page.keyboard.press('ArrowUp');
+            await page.waitForFunction(() => document.querySelector('.terminal-window table')?.textContent.includes('2026-08')
+                || document.querySelector('#month-picker-input')?.value === '2026-08', null, { timeout: 20000 }).catch(() => {});
+            assert.equal(await page.evaluate(() => document.getElementById('month-picker-input')?.value), '2026-08');
+            assert.equal(await page.evaluate(() => document.activeElement?.id), 'month-picker-input', 'focus stays on the picker');
+            assert.equal(await page.locator('.month-picker-bar').count(), 1, 'one picker');
+        });
+
+        it('66. A report header can show the month picked ("junio 2026")', async () => {
+            const page = await login();
+            await page.click('.tree-node:has(span:text("Mes Fixture"))');
+            const picker = page.locator('.month-picker-bar input[type="month"]');
+            await picker.waitFor({ timeout: 15000 });
+            await picker.fill('2026-06');
+            await page.waitForFunction(() => document.querySelector('.terminal-window table')?.textContent.includes('2026-06'), null, { timeout: 20000 });
+            assert.equal((await page.textContent('.report-container h1')).trim(), 'MES FIXTURE — junio 2026');
+        });
+    });
 });

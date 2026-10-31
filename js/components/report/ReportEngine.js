@@ -178,7 +178,9 @@ export class ReportEngine {
         );
 
         beforeReportZones.forEach(zone => {
-            let context = {};
+            // Sin dataSource, los params del reporte (ej. :mes) para el
+            // encabezado: "VENTAS DEL MES — {mes_titulo}".
+            let context = { ...this.params };
 
             if (zone.dataSource) {
                 context = this.data.get(zone.dataSource) || [];

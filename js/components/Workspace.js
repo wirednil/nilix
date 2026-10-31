@@ -116,32 +116,44 @@ class Workspace {
         // Cada carga tarda (DuckDB). Si se cambia el mes antes de que termine
         // la anterior, solo se muestra la última pedida: sin esto la carga del
         // mes inicial terminaba después y pisaba la del mes elegido.
+        //
+        // El selector de mes se dibuja una sola vez: al redibujarlo en cada
+        // cambio perdía el foco y con las flechas solo contaba la primera.
         let latest = 0;
-        const renderWith = async (currentParams) => {
+        let currentParams = params;
+        const content = document.createElement('div');
+        const renderWith = async () => {
             const run = ++latest;
-            windowDiv.innerHTML = '';
-            if (monthParamName) {
-                windowDiv.appendChild(buildMonthPickerBar(currentParams[monthParamName], (newValue) => {
-                    renderWith({ ...currentParams, [monthParamName]: newValue });
-                }));
-            }
+            // Mientras carga (DuckDB tarda unos segundos), no la tabla del mes
+            // anterior como si fuera la del elegido.
+            const loading = document.createElement('div');
+            loading.className = 'report-loading';
+            loading.textContent = 'Cargando';
+            content.replaceChildren(loading);
             try {
                 const engine = new ReportEngine();
                 await engine.load(target, yamlContent, this.empresa, currentParams);
                 const rendered = await engine.render();
                 if (run !== latest) return;
-                windowDiv.appendChild(rendered);
+                content.replaceChildren(rendered);
             } catch (err) {
                 if (run !== latest) return;
                 logger.error('Workspace', `Error renderizando reporte ${target}`, err);
                 const errEl = document.createElement('div');
                 errEl.className = 'report-error';
                 errEl.innerHTML = `<h2>Error al cargar el reporte</h2><p>${err.message}</p>`;
-                windowDiv.appendChild(errEl);
+                content.replaceChildren(errEl);
             }
         };
+        if (monthParamName) {
+            windowDiv.appendChild(buildMonthPickerBar(currentParams[monthParamName], (newValue) => {
+                currentParams = { ...currentParams, [monthParamName]: newValue };
+                renderWith();
+            }));
+        }
+        windowDiv.appendChild(content);
 
-        await renderWith(params);
+        await renderWith();
     }
 
     showError(message) {
