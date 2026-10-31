@@ -64,3 +64,16 @@
 ## 4. Verificado (2026-08-28)
 
 Suite completo `node --test tests/*.test.js`: **165/165** (corridas limpias; la única falla intermitente vista en el camino fue el mismo test preexistente ya conocido — "Update record — Clientes", sin relación con estos cambios). Medido en vivo (no asumido): botón `×` a 44×44px exacto en viewport 390px; texto del botón "Agregar"/"Guardar" según modo; alto del modal antes/después con el mismo estado; `.computed-field` aplicándose correctamente con fixture temporal (creado, probado, borrado); ausencia de ANT/SIG y feedback con ID real en un form sin `keyField`, también con fixture temporal antes de convertirlo en test permanente. Confirmado que desktop (viewport 1400px) no cambió — el `@media` nuevo no le aplica.
+
+## 5. Para cuando se analice la versión web mobile (anotado 2026-10-31)
+
+La grilla de productos en celular (tarjetas) es un **intento** de cómo debería
+verse; no se evaluó a fondo. Observaciones de la validación con Chrome a ~371px
+(thym-pos, Venta), a revisar en ese análisis — no antes:
+
+- Los productos pasan a tarjetas dentro de una caja con desplazamiento propio y
+  flechas ▲▼; la rueda del mouse sobre esa caja la desplaza a ella y no a la
+  página.
+- En la tarjeta, el valor queda pegado al rótulo: "MAYOR/MENOR ($) :$6.500,00".
+- Ver también, para tablas de reportes: criterio "se desplazan, no se agrandan"
+  en [PENDIENTES-ESTETICOS.md](PENDIENTES-ESTETICOS.md).

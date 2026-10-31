@@ -226,6 +226,17 @@ function _choiceOptionRows(col, rowEl, preferredValue) {
     // El widget ya antepone la key (el precio) antes del " - " (ver
     // renderOptions() en Autocomplete.js) — el display acá no repite el
     // valor, solo el sufijo (ej. fila completa: "1500 - (x mayor)").
+    // format="currency": "$35.000,00 (x menor)" sola, sin la clave cruda
+    // adelante (hideKey, Autocomplete.js). Acá y no en _buildChoiceCell: las
+    // opciones también se recalculan al elegir el producto (_refreshChoiceCell).
+    if (col.format === 'currency') {
+        return raw.map(o => ({
+            key: String(o.value),
+            display: o.suffix ? `${formatCurrency(o.value)} ${o.suffix}` : formatCurrency(o.value),
+            from: o.from,
+            hideKey: true
+        }));
+    }
     return raw.map(o => ({
         key: String(o.value),
         display: o.suffix || String(o.value),
@@ -279,15 +290,7 @@ function _buildChoiceCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
     const preferred = rowData && rowData[col.id] != null ? rowData[col.id] : null;
 
     const rows = _choiceOptionRows(col, rowEl, preferred);
-    const selectOptions = rows.map(r => ({ value: r.key, textContent: r.display, from: r.from }));
-    // Precio en pesos: la opción dice "$35.000,00 (x menor)" sola, sin la
-    // clave cruda adelante (Autocomplete.js, hideKey).
-    if (col.format === 'currency') {
-        selectOptions.forEach(o => {
-            o.textContent = `${formatCurrency(Number(o.value))}${o.textContent !== o.value ? ` ${o.textContent}` : ''}`;
-            o.hideKey = true;
-        });
-    }
+    const selectOptions = rows.map(r => ({ value: r.key, textContent: r.display, from: r.from, hideKey: r.hideKey }));
 
     const { wrapper, inputEl } = createAutocomplete({
         id, size: col.size, isRequired: false, isSkip: false,
