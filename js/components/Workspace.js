@@ -112,7 +112,13 @@ class Workspace {
         // DataSourceManager cachea por nombre de dataSource dentro de la
         // misma instancia — reusar el engine dejaría pegado el filtro del
         // primer mes elegido.
+        //
+        // Cada carga tarda (DuckDB). Si se cambia el mes antes de que termine
+        // la anterior, solo se muestra la última pedida: sin esto la carga del
+        // mes inicial terminaba después y pisaba la del mes elegido.
+        let latest = 0;
         const renderWith = async (currentParams) => {
+            const run = ++latest;
             windowDiv.innerHTML = '';
             if (monthParamName) {
                 windowDiv.appendChild(buildMonthPickerBar(currentParams[monthParamName], (newValue) => {
@@ -122,8 +128,11 @@ class Workspace {
             try {
                 const engine = new ReportEngine();
                 await engine.load(target, yamlContent, this.empresa, currentParams);
-                windowDiv.appendChild(await engine.render());
+                const rendered = await engine.render();
+                if (run !== latest) return;
+                windowDiv.appendChild(rendered);
             } catch (err) {
+                if (run !== latest) return;
                 logger.error('Workspace', `Error renderizando reporte ${target}`, err);
                 const errEl = document.createElement('div');
                 errEl.className = 'report-error';

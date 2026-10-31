@@ -2372,4 +2372,27 @@ describe('E2E — Dev Sandbox', async () => {
         await page.waitForFunction(() => /Tote Fixture/.test(document.querySelector('.multifield-grid tbody')?.textContent ?? ''), null, { timeout: 5000 });
         assert.ok(!/Mochila Fixture/.test(await grid()), 'record 1 rows only');
     });
+
+    it('61. Changing the month while a report is still loading shows the last month picked, not whichever load finished last', async () => {
+        // 2026-10-31, thym-pos "Ventas del mes": the first render (current
+        // month) finished after the one for the month picked meanwhile and
+        // replaced it — the report showed an empty month. Likely the cause of
+        // #19 failing now and then.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Mes Fixture"))');
+        const picker = page.locator('.month-picker-bar input[type="month"]');
+        await picker.waitFor({ timeout: 15000 });
+        await picker.fill('2026-06');
+        await picker.fill('2026-07');
+        await page.waitForFunction(() => document.querySelector('.terminal-window')?.textContent.includes('2026-07'), null, { timeout: 20000 });
+        await page.waitForTimeout(6000); // let any stale load finish
+        const text = await page.textContent('.terminal-window');
+        assert.ok(text.includes('2026-07') && text.includes('$2.000,00'), `July, got: ${text}`);
+        assert.ok(!text.includes('2026-06'), `no June, got: ${text}`);
+        assert.equal(await page.locator('.terminal-window .report-container').count(), 1, 'one report, not two stacked');
+        assert.equal(await page.locator('.month-picker-bar input[type="month"]').inputValue(), '2026-07');
+    });
 });
