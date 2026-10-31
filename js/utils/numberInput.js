@@ -68,11 +68,22 @@ export function setupNumberInput(inputEl, { currency = false, signal } = {}) {
     inputEl.dataset.numeric = 'true';
     inputEl.removeAttribute('step');
 
-    // capture: en el propio input corre antes que los otros 'change'
+    // capture: en el propio input corre antes que los otros 'change'/'blur'
     // (validación, fórmulas, handler), que ya leen el número normalizado.
-    inputEl.addEventListener('change', () => {
+    const normalize = () => {
         const n = parseLocaleNumber(inputEl.value);
         if (n !== null) inputEl.value = canonical(n);
+    };
+    inputEl.addEventListener('change', normalize, { capture: true, signal });
+    inputEl.addEventListener('blur', normalize, { capture: true, signal });
+    // Al editar, con coma decimal — como se escribe acá ("1500,5", no "1500.5").
+    // Mismo largo: se conserva la selección (con Tab queda todo seleccionado
+    // y lo que se tipee lo reemplaza; si no, se agregaba al final).
+    inputEl.addEventListener('focus', () => {
+        if (inputEl.readOnly || !inputEl.value.includes('.')) return;
+        const { selectionStart, selectionEnd, selectionDirection } = inputEl;
+        inputEl.value = inputEl.value.replace('.', ',');
+        inputEl.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
     }, { capture: true, signal });
 
     if (!currency) return;

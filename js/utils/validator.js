@@ -150,7 +150,9 @@ export function clearErrors() {
  * catálogo lo tapaba el overlay "clave - nombre").
  */
 export function errorContainerOf(inputEl) {
-    return (inputEl.closest('.autocomplete-wrapper') ?? inputEl).parentElement;
+    // Debajo del control entero: el select con su ▾, o la caja del monto con
+    // su "$1.500,50" (utils/numberInput.js) — adentro, la capa lo tapaba.
+    return (inputEl.closest('.autocomplete-wrapper') ?? inputEl.closest('.number-input-box') ?? inputEl).parentElement;
 }
 
 /**

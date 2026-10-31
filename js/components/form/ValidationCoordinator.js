@@ -176,7 +176,9 @@ export class ValidationCoordinator {
     /** Botón NUEVO: el form vacío, como recién abierto (pregunta si hay cambios). */
     async newRecord() {
         if (!(await this._confirmLeave())) return;
-        this.ctx.reload?.({ focusFirst: true });
+        // initialStatus: null — si no, volvía "Registro N° X creado" del
+        // último guardado (reload repite las opciones del render anterior).
+        this.ctx.reload?.({ focusFirst: true, initialStatus: null });
     }
 
     /** Con cambios sin guardar, pregunta antes de reemplazarlos. */

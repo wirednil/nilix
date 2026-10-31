@@ -92,9 +92,11 @@ export class SubmitManager {
 
         let pending = invalidFields;
         let summaryId = this.ctx.statusBar?.push('error', summaryOf(pending));
+        // Contra la lista original: un campo que vuelve a quedar en rojo (ej.
+        // volver de un subform sin guardar, LayoutProcessor.js) vuelve al resumen.
         const check = () => {
-            const still = pending.filter(f => elOf(f)?.classList.contains('field-error'));
-            if (still.length === pending.length) return;
+            const still = invalidFields.filter(f => elOf(f)?.classList.contains('field-error'));
+            if (still.length === pending.length && still.every((f, i) => f === pending[i])) return;
             pending = still;
             if (pending.length === 0) {
                 this.ctx.statusBar?.dismiss(summaryId);

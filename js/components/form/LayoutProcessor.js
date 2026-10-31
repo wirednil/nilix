@@ -404,6 +404,20 @@ export class LayoutProcessor {
         // sin guardar lo restaura — salir de un subform no borra nada.
         let previousValue = el.value !== subformConfig.triggerValue ? el.value : '';
 
+        // Cómo estaba el form justo antes de elegir el disparador: elegirlo
+        // cuenta como cambio (ctx.dirty) y le saca la marca roja al campo.
+        // Volver sin guardar devuelve las dos cosas — si no, una Venta vacía
+        // preguntaba "¿Descartarlos?" y el "Faltan…" dejaba de nombrar Clienta.
+        // capture en el propio input: corre antes que FormRenderer (dirty) y
+        // ValidationCoordinator (marca).
+        let beforeTrigger = null;
+        const snapshot = () => {
+            if (el.value !== subformConfig.triggerValue || beforeTrigger) return;
+            beforeTrigger = { dirty: !!this.ctx.dirty, hadError: el.classList.contains('field-error') };
+        };
+        ['sf:user-change', 'change'].forEach(type =>
+            el.addEventListener(type, snapshot, { capture: true, ...(signal ? { signal } : {}) }));
+
         el.addEventListener('change', async () => {
             if (el.value !== subformConfig.triggerValue) {
                 previousValue = el.value;
@@ -485,7 +499,11 @@ export class LayoutProcessor {
                 // guardar → vuelve lo que estaba elegido antes.
                 const key = fieldConfig.lookupConfig?.key;
                 const newKey = key && savedData ? savedData[key] : null;
+                const before = beforeTrigger;
+                beforeTrigger = null;
+                if (newKey == null && before?.hadError) el.classList.add('field-error');
                 this._setFieldValue(el, newKey != null ? String(newKey) : restoreValue);
+                if (newKey == null && before) this.ctx.dirty = before.dirty;
 
                 if (newKey != null) {
                     const label = fieldConfig.labelTxt || fieldConfig.id || '';

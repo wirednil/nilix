@@ -1777,6 +1777,18 @@ button[type="button"]:hover {
     transform: translate(-2px, -2px);
 }
 
+/* SIG en un registro nuevo (SubmitManager.js): que se note que no anda. */
+button:disabled,
+button:disabled:hover,
+button:disabled:active {
+    background-color: transparent;
+    color: var(--help-color);
+    border-style: dashed;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+}
+
 /* --- MENSAJES DE ERROR DE VALIDACIÓN --- */
 .error-msg {
     display: block;
@@ -2146,7 +2158,10 @@ body.dark-mode select.field-error {
        primario. Un form sin ANT/SIG (solo ENVIAR) ocupa el 100% del ancho. */
     .actions-nav > .nav-btn {
         width: auto;
-        flex: 1 1 calc(33% - 0.6rem);
+        flex: 1 1 0;
+        min-width: 0;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
         order: 1;
     }
     .actions-nav > button[type="submit"] {
@@ -3138,6 +3153,7 @@ body.dark-mode input[type="date"] {
    ensanchaba el modal y aparecía una barra horizontal. El nombre se corta
    con "…" (.autocomplete-display). */
 .mf-row-modal .autocomplete-dropdown { max-width: 100%; }
+.mf-row-modal .number-input-box { display: block; width: 100%; }
 .mf-row-modal .autocomplete-input-box { flex: 1; min-width: 0; }
 .mf-row-modal .multifield-cell-input,
 .mf-row-modal .autocomplete-display-overlay { width: 100% !important; }

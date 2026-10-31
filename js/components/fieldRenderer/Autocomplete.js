@@ -194,7 +194,7 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             // Opción fija con valor = texto ("Transferencia"): una sola vez,
             // no "Transferencia - Transferencia". Los catálogos siguen con
             // "clave - nombre".
-            if (String(row[keyField]) === String(row[displayField] ?? '')) {
+            if (row.hideKey || String(row[keyField]) === String(row[displayField] ?? '')) {
                 item.appendChild(displaySpan);
             } else {
                 item.appendChild(keySpan);

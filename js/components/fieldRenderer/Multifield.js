@@ -11,7 +11,7 @@ import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.j
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import { trapFocus } from '../../utils/focusTrap.js';
 import { focusWithRing } from '../../utils/focusRing.js';
-import { parseLocaleNumber, formatCurrency } from '../../utils/numberInput.js';
+import { parseLocaleNumber, formatCurrency, setupNumberInput, refreshNumberDisplay } from '../../utils/numberInput.js';
 
 // ============================================
 // CONSTANTES
@@ -263,6 +263,7 @@ function _applyChoiceSelection(inputEl, target) {
         delete inputEl.dataset.selectedKey;
         delete inputEl.dataset.selectedRow;
     }
+    refreshNumberDisplay(inputEl);
 }
 
 /**
@@ -279,6 +280,14 @@ function _buildChoiceCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
 
     const rows = _choiceOptionRows(col, rowEl, preferred);
     const selectOptions = rows.map(r => ({ value: r.key, textContent: r.display, from: r.from }));
+    // Precio en pesos: la opción dice "$35.000,00 (x menor)" sola, sin la
+    // clave cruda adelante (Autocomplete.js, hideKey).
+    if (col.format === 'currency') {
+        selectOptions.forEach(o => {
+            o.textContent = `${formatCurrency(Number(o.value))}${o.textContent !== o.value ? ` ${o.textContent}` : ''}`;
+            o.hideKey = true;
+        });
+    }
 
     const { wrapper, inputEl } = createAutocomplete({
         id, size: col.size, isRequired: false, isSkip: false,
@@ -293,6 +302,7 @@ function _buildChoiceCell(multifieldId, col, rowData, absoluteIndex, rowEl) {
     attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, null, rowEl, selectOptions, {});
 
     _applyChoiceSelection(inputEl, _resolveChoiceTarget(rows, col, inputEl, preferred));
+    if (col.format === 'currency') setupNumberInput(inputEl, { currency: true });
 
     return wrapper;
 }
@@ -386,6 +396,8 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
             }
 
             td.appendChild(input);
+            // Coma decimal y, si es format="currency", $35.000,00 sin foco.
+            if (col.type === 'number') setupNumberInput(input, { currency: col.format === 'currency' });
         }
 
         row.appendChild(td);
@@ -588,6 +600,7 @@ function _setupChangeTracking(gridContainer) {
             const result = _evaluateRowExpr(cell.dataset.isExpr, rowEl);
             if (result !== null) {
                 cell.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
+                refreshNumberDisplay(cell);
                 if (allRows && currentIdx >= 0) allRows[currentIdx][cell.dataset.colId] = result;
                 cell.dispatchEvent(new Event('change', { bubbles: true }));
             }

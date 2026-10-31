@@ -2616,6 +2616,14 @@ describe('E2E — Dev Sandbox', async () => {
         const nuevo = page.locator('button:has-text("NUEVO")');
         assert.equal(await sig.isDisabled(), true, 'SIG disabled on a new record');
         assert.equal(await nuevo.count(), 1, 'there is a NUEVO button');
+        // 10th Chrome round: it looked exactly like an enabled one.
+        const look = await page.evaluate(() => {
+            const [ant, sig] = ['ANT', 'SIG'].map(t => [...document.querySelectorAll('.actions-nav button')].find(b => b.textContent.includes(t)));
+            const cs = el => window.getComputedStyle(el);
+            return { cursor: cs(sig).cursor, sameColor: cs(sig).color === cs(ant).color && cs(sig).backgroundColor === cs(ant).backgroundColor };
+        });
+        assert.equal(look.cursor, 'not-allowed');
+        assert.equal(look.sameColor, false, 'SIG disabled looks different from ANT');
 
         await page.click('button:has-text("ANT")');
         await page.waitForFunction(() => document.getElementById('id')?.value !== '', null, { timeout: 5000 });
@@ -2641,6 +2649,30 @@ describe('E2E — Dev Sandbox', async () => {
         await nuevo.click();
         await page.click('.confirm-dialog-discard', { timeout: 5000 });
         await page.waitForFunction(() => document.getElementById('nombre')?.value === '', null, { timeout: 5000 });
+
+        // After saving, NUEVO does not bring back "Registro N° X creado".
+        await page.fill('#nombre', 'Para NUEVO');
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('.report-modal-back', { timeout: 15000 });
+        await page.click('.report-modal-back');
+        await page.waitForFunction(() => /creado/.test(document.querySelector('.status-bar-message')?.textContent ?? ''), null, { timeout: 5000 });
+        await page.click('button:has-text("ANT")');
+        await page.waitForFunction(() => document.getElementById('id')?.value !== '', null, { timeout: 5000 });
+        await nuevo.click();
+        await page.waitForFunction(() => document.getElementById('id')?.value === '', null, { timeout: 5000 });
+        await page.waitForTimeout(300);
+        const status = await page.locator('.status-bar').isVisible() ? await page.textContent('.status-bar-message') : '';
+        assert.ok(!/creado/.test(status), `stale message after NUEVO: "${status}"`);
+
+        // Phone width: ANT / NUEVO / SIG on one row.
+        await page.setViewportSize({ width: 371, height: 700 });
+        try {
+            await page.waitForTimeout(300);
+            const tops = await page.$$eval('.actions-nav .nav-btn', bs => bs.map(b => Math.round(b.getBoundingClientRect().top)));
+            assert.equal(new Set(tops).size, 1, `nav buttons on one row at 371px, tops: ${tops}`);
+        } finally {
+            await page.setViewportSize({ width: 1280, height: 720 });
+        }
     });
 
     it('73. Number fields take "1.500,50" whatever the browser language; money fields show "$1.500,50" when not focused', async () => {
@@ -2666,8 +2698,16 @@ describe('E2E — Dev Sandbox', async () => {
             ['35.000', '35000', '$35.000,00'],
             ['35000', '35000', '$35.000,00'],
         ];
+        // Como una persona: entrar al campo, seleccionar todo y escribir.
+        // (page.fill selecciona ANTES del foco, y el foco cambia "1500.5" por
+        // "1500,5" — lo tipeado se agregaba. Con Tab o click no pasa.)
+        const typeInto = async (sel, text) => {
+            await page.click(sel, { clickCount: 3 });
+            await page.keyboard.press('ControlOrMeta+a');
+            await page.keyboard.type(text);
+        };
         for (const [typed, stored, shown] of cases) {
-            await page.fill('#monto', typed);
+            await typeInto('#monto', typed);
             await page.locator('#monto').blur();
             await page.waitForTimeout(150);
             assert.equal(await page.inputValue('#monto'), stored, `"${typed}" is stored as ${stored}`);
@@ -2677,11 +2717,64 @@ describe('E2E — Dev Sandbox', async () => {
         await page.focus('#monto');
         assert.equal(await page.isVisible(overlay), false, 'the plain number while editing');
 
+        // Editing shows the decimal comma, as typed; leaving without
+        // changing it stores the number again.
+        assert.equal(await page.inputValue('#monto'), '35000');
+        await typeInto('#monto', '1.500,50');
+        await page.locator('#monto').blur();
+        await page.focus('#monto');
+        assert.equal(await page.inputValue('#monto'), '1500,5', 'comma while editing (10th Chrome round)');
+        await page.locator('#monto').blur();
+        assert.equal(await page.inputValue('#monto'), '1500.5', 'stored with a dot');
+
         // Validation sees the real number: -1500,50 is below <min>1</min>.
-        await page.fill('#monto', '-1500,50');
+        await typeInto('#monto', '-1500,50');
         await page.locator('#monto').blur();
         await page.waitForTimeout(300);
         assert.equal(await page.inputValue('#monto'), '-1500.5');
         assert.equal(await page.locator('#monto.field-error').count(), 1, 'out of range');
+        // 10th Chrome round: the message went inside the box and the
+        // formatted amount was drawn over it.
+        const placed = await page.evaluate(() => {
+            const input = document.getElementById('monto');
+            const box = input.closest('.number-input-box');
+            const overlay = box.querySelector('.number-display-overlay');
+            return {
+                msgInBox: !!box.querySelector('.error-msg'),
+                overlayH: Math.round(overlay.getBoundingClientRect().height),
+                inputH: Math.round(input.getBoundingClientRect().height),
+            };
+        });
+        assert.equal(placed.msgInBox, false, 'the message goes below the box');
+        assert.equal(placed.overlayH, placed.inputH, 'the formatted amount stays on the field');
+    });
+
+    it('74. Opening a <subform> and coming back without saving leaves the form as it was: no "unsaved", same red marks and summary', async () => {
+        // 10th Chrome round 2026-10-31: after "0 - Nueva clienta" + VOLVER on
+        // an empty Venta, leaving it asked "Hay datos sin guardar", and the
+        // "Faltan…" summary no longer named Clienta.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Subform Parent"))');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.click('#id_marca');
+        await page.waitForTimeout(300);
+        await page.locator('.autocomplete-item', { hasText: 'Nueva marca' }).first().click();
+        await page.waitForSelector('.subform-back-btn', { timeout: 10000 });
+        await page.click('.subform-back-btn');
+        await page.waitForSelector('#nota', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const warns = await page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        assert.equal(warns, false, 'nothing unsaved: it was empty before');
+        await page.click('.tree-node:has(span:text("Mes Fixture"))');
+        await page.waitForTimeout(500);
+        assert.equal(await page.locator('.confirm-dialog').count(), 0, 'leaves without asking');
     });
 });
