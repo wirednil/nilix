@@ -191,9 +191,16 @@ export function attachAutocompleteHandlers(inputEl, btnEl, dropdownEl, lookupCon
             const displaySpan = createElement('span', 'autocomplete-display');
             displaySpan.textContent = row[displayField] || '';
             
-            item.appendChild(keySpan);
-            item.appendChild(document.createTextNode(' - '));
-            item.appendChild(displaySpan);
+            // Opción fija con valor = texto ("Transferencia"): una sola vez,
+            // no "Transferencia - Transferencia". Los catálogos siguen con
+            // "clave - nombre".
+            if (String(row[keyField]) === String(row[displayField] ?? '')) {
+                item.appendChild(displaySpan);
+            } else {
+                item.appendChild(keySpan);
+                item.appendChild(document.createTextNode(' - '));
+                item.appendChild(displaySpan);
+            }
             item.dataset.rowData = JSON.stringify(row);
             
             item.addEventListener('click', () => selectItem(item));

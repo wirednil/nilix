@@ -103,6 +103,12 @@ export class ExpressionEvaluator {
             return d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).replace(' de ', ' ');
         }
 
+        // Solo día y mes ("15/06"): cuando el título ya dice mes y año.
+        if (format === 'daymonth') {
+            const m = String(value).match(/^\d{4}-(\d{2})-(\d{2})/);
+            return m ? `${m[2]}/${m[1]}` : String(value);
+        }
+
         if (format === 'dayname') {
             try {
                 const d = new Date(value);

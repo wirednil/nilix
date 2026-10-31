@@ -919,6 +919,41 @@ select:disabled {
     outline: none;
 }
 
+/* Monto con format="currency" (utils/numberInput.js): sin foco, una capa
+   muestra "$35.000,00" encima del número; el input conserva su fondo,
+   borde y estado (solo lectura, deshabilitado), y su texto se oculta. */
+.number-input-box {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+}
+.number-input-box:has(> input.expand-to-label) {
+    display: block;
+}
+.number-input-box.show-formatted > input {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+}
+.number-display-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding:
+        calc(var(--line-height) / 2 - var(--border-thickness))
+        calc(1ch - var(--border-thickness));
+    border: var(--border-thickness) solid transparent;
+    box-sizing: border-box;
+    color: var(--text-color);
+    font: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+}
+.number-display-overlay[hidden] { display: none; }
+.number-input-box:has(> input:disabled) .number-display-overlay { opacity: 0.6; }
+
 /* Con foco la capa sigue visible (Autocomplete.js): que muestre el foco. */
 .autocomplete-wrapper input:focus ~ .autocomplete-display-overlay {
     border-color: var(--border-color);
@@ -2106,21 +2141,16 @@ body.dark-mode select.field-error {
     .actions-nav { flex-direction: row; flex-wrap: wrap; gap: 0.8rem; }
     button { width: 100%; }
 
-    /* Con los 3 botones (ANT, ENVIAR, SIG en ese orden de DOM): ANT/SIG
-       emparejados en una fila, ENVIAR solo en la suya abajo — separa la
-       navegación (par simétrico) del commit primario, y ahorra una fila de
-       alto en una pantalla ya corta. Los selectores nth-child+nth-last-child
-       solo matchean cuando hay exactamente 3 botones, así que un form sin
-       ANT/SIG (solo ENVIAR) sigue ocupando el 100% del ancho como antes. */
-    .actions-nav > button:nth-child(1):nth-last-child(3),
-    .actions-nav > button:nth-child(3):nth-last-child(1) {
+    /* Navegación (ANT, NUEVO, SIG — .nav-btn, SubmitManager.js) en una fila,
+       ENVIAR solo en la suya abajo: separa la navegación del commit
+       primario. Un form sin ANT/SIG (solo ENVIAR) ocupa el 100% del ancho. */
+    .actions-nav > .nav-btn {
         width: auto;
-        flex: 1 1 calc(50% - 0.4rem);
+        flex: 1 1 calc(33% - 0.6rem);
+        order: 1;
     }
-    .actions-nav > button:nth-child(1):nth-last-child(3) { order: 1; }
-    .actions-nav > button:nth-child(3):nth-last-child(1) { order: 2; }
-    .actions-nav > button:nth-child(2):nth-last-child(2) {
-        order: 3;
+    .actions-nav > button[type="submit"] {
+        order: 2;
         width: auto;
         flex: 1 1 100%;
     }
@@ -3104,6 +3134,10 @@ body.dark-mode input[type="date"] {
    ocupar todo el ancho de la tarjeta (más aún ahora que el overlay
    "clave - nombre" necesita espacio para el nombre completo). */
 .mf-row-modal .autocomplete-wrapper { width: 100%; }
+/* La lista no pasa del ancho del campo: un producto de nombre largo
+   ensanchaba el modal y aparecía una barra horizontal. El nombre se corta
+   con "…" (.autocomplete-display). */
+.mf-row-modal .autocomplete-dropdown { max-width: 100%; }
 .mf-row-modal .autocomplete-input-box { flex: 1; min-width: 0; }
 .mf-row-modal .multifield-cell-input,
 .mf-row-modal .autocomplete-display-overlay { width: 100% !important; }

@@ -11,7 +11,7 @@ import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.j
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import { trapFocus } from '../../utils/focusTrap.js';
 import { focusWithRing } from '../../utils/focusRing.js';
-import { confirmAction } from '../form/ConfirmDialog.js';
+import { parseLocaleNumber, formatCurrency } from '../../utils/numberInput.js';
 
 // ============================================
 // CONSTANTES
@@ -62,7 +62,8 @@ function _getColumns(thead) {
             size:  parseInt(th.getAttribute('data-size')) || null,
             lookupConfig: lookupRaw ? JSON.parse(lookupRaw) : null,
             choiceConfig: choiceRaw ? JSON.parse(choiceRaw) : null,
-            defaultValue: th.getAttribute('data-default') || null
+            defaultValue: th.getAttribute('data-default') || null,
+            format: th.getAttribute('data-format') || null
         };
     });
 }
@@ -396,8 +397,7 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
     const delBtn = createElement('button', 'multifield-delete-btn', '✕');
     delBtn.type = 'button';
     delBtn.title = 'Eliminar fila';
-    delBtn.addEventListener('click', async () => {
-        if (!(await _confirmDeleteRow())) return;
+    delBtn.addEventListener('click', () => {
         const gridContainer = delBtn.closest('.multifield-grid');
         const rowEl = delBtn.closest('tr');
         const idx = parseInt(rowEl.getAttribute('data-row-index'));
@@ -436,6 +436,15 @@ function _resolveDisplayValue(col, rowData) {
     return v != null ? v : '';
 }
 
+/** Texto de la celda compacta: format="currency" → "$35.000,00", como los reportes. */
+function _displayText(col, value) {
+    if (col.format === 'currency') {
+        const n = parseLocaleNumber(value);
+        if (n !== null) return formatCurrency(n);
+    }
+    return String(value);
+}
+
 /**
  * Construye una fila compacta de solo lectura para el grid persistido.
  * Cada celda lleva un <input type="hidden"> con el mismo name que usaba el
@@ -463,7 +472,7 @@ function _buildDisplayRow(multifieldId, columns, rowData, absoluteIndex) {
         hidden.value = (rowData && rowData[col.id] != null) ? rowData[col.id] : '';
         td.appendChild(hidden);
 
-        td.appendChild(createElement('span', 'multifield-display-value', String(_resolveDisplayValue(col, rowData))));
+        td.appendChild(createElement('span', 'multifield-display-value', _displayText(col, _resolveDisplayValue(col, rowData))));
         row.appendChild(td);
     });
 
@@ -472,12 +481,10 @@ function _buildDisplayRow(multifieldId, columns, rowData, absoluteIndex) {
     const delBtn = createElement('button', 'multifield-delete-btn', '✕');
     delBtn.type = 'button';
     delBtn.title = 'Eliminar fila';
-    delBtn.addEventListener('click', async (e) => {
+    delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Antes del await: la fila se puede redibujar mientras se pregunta.
         const gridContainer = delBtn.closest('.multifield-grid');
         const idx = parseInt(row.getAttribute('data-row-index'));
-        if (!(await _confirmDeleteRow())) return;
         _deleteRow(gridContainer, idx);
     });
     actionTd.appendChild(delBtn);
@@ -847,11 +854,8 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
 /**
  * Elimina la fila en absoluteIndex del grid
  */
-/** Diálogo propio (ConfirmDialog.js), no el confirm() nativo que bloquea la página. */
-function _confirmDeleteRow() {
-    return confirmAction({ message: '¿Eliminar esta fila?', confirmLabel: 'ELIMINAR', cancelLabel: 'CANCELAR' });
-}
-
+// El ✕ borra sin preguntar (usuario 2026-10-31): antes un confirm() nativo
+// que bloqueaba la página, después un diálogo propio — los dos sobraban.
 function _deleteRow(gridContainer, absoluteIndex) {
     const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
     if (absoluteIndex < 0 || absoluteIndex >= allRows.length) return;
@@ -986,6 +990,8 @@ export const renderGridFromMultifield = (fieldXml, parentContainer, config, mess
         if (checkExpr) th.setAttribute('data-check', checkExpr);
         const fieldSize = parseInt(field.getAttribute('size')) || null;
         if (fieldSize) th.setAttribute('data-size', String(fieldSize));
+        const fieldFormat = field.getAttribute('format');
+        if (fieldFormat) th.setAttribute('data-format', fieldFormat);
         // <default> como elemento hijo, misma convención que un <field> normal
         // (LayoutProcessor.js — no como atributo, ver AGENTS.md).
         const defaultVal = field.querySelector('default')?.textContent?.trim();

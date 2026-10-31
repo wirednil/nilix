@@ -5,6 +5,8 @@
  * @version 1.0.0
  */
 
+import { parseLocaleNumber } from './numberInput.js';
+
 console.log("🧮 ExpressionEngine.js: Cargando...");
 
 /**
@@ -429,8 +431,9 @@ class ExpressionEngine {
 
             // Convertir según tipo
             if (field) {
-                if (field.type === 'number') {
-                    context[key] = parseFloat(value) || 0;
+                if (field.type === 'number' || field.dataset?.numeric) {
+                    // "1.500,50" mientras se tipea (utils/numberInput.js)
+                    context[key] = parseLocaleNumber(value) ?? 0;
                 } else if (field.type === 'date') {
                     context[key] = value ? new Date(value) : null;
                 } else if (field.type === 'checkbox') {

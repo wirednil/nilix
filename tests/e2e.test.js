@@ -2202,6 +2202,17 @@ describe('E2E — Dev Sandbox', async () => {
             assert.equal(await page.inputValue('#nombre'), 'Nuevo sin guardar');
             assert.equal(await page.inputValue('#id'), '', 'the N° typed is undone');
             assert.equal(await page.locator(DIALOG).count(), 0, 'asked only once');
+            // 9th Chrome round: the focus was left on the page.
+            assert.equal(await page.evaluate(() => document.activeElement?.id), 'id', 'focus back on the N°');
+
+            // Escape too.
+            await page.fill('#id', '1');
+            await page.keyboard.press('Tab');
+            await page.waitForSelector(DIALOG, { timeout: 5000 });
+            await page.keyboard.press('Escape');
+            await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
+            await page.waitForTimeout(300);
+            assert.equal(await page.evaluate(() => document.activeElement?.id), 'id', 'focus back on the N° (Escape)');
 
             // Again → discard: record 1 loads.
             await page.fill('#id', '1');
@@ -2245,9 +2256,9 @@ describe('E2E — Dev Sandbox', async () => {
         });
     });
 
-    it('58. A row\'s ✕ asks in the app\'s own dialog (not the browser\'s confirm), and deleting counts as unsaved', async () => {
-        // Usuario 2026-10-29: "¿Eliminar este registro?" was a native
-        // confirm() — it blocks the page and looks nothing like the rest.
+    it('58. A row\'s ✕ deletes it right away — no question, no native confirm()', async () => {
+        // Usuario 2026-10-29: the native confirm() blocked the page; 2026-10-31:
+        // "que se elimine sin preguntar".
         const { page, baseUrl, context, loginAsOperador } = ctx;
         await context.clearCookies();
         await loginAsOperador();
@@ -2272,26 +2283,14 @@ describe('E2E — Dev Sandbox', async () => {
             assert.equal(await rows(), 2);
 
             await page.locator('.multifield-delete-btn').first().click();
-            await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+            await page.waitForTimeout(300);
+            assert.equal(await page.locator('.confirm-dialog').count(), 0, 'no question');
             assert.deepEqual(native, [], 'no native confirm()');
-            assert.match(await page.textContent('.confirm-dialog'), /¿Eliminar esta fila\?/);
-            assert.match(await page.textContent('.confirm-dialog-discard'), /ELIMINAR/);
-            assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('confirm-dialog-keep')), true,
-                'focus on the safe choice');
-            await page.click('.confirm-dialog-keep');
-            await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
-            assert.equal(await rows(), 2, 'cancel keeps the row');
-
-            await page.locator('.multifield-delete-btn').first().click();
-            await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
-            await page.click('.confirm-dialog-discard');
-            await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
             assert.equal(await rows(), 1, 'deleted');
             assert.match(await page.textContent('.multifield-grid'), /Fila B/);
             assert.ok(!/Fila A/.test(await page.textContent('.multifield-grid')), 'the right row went');
             assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('multifield-add-btn')), true,
                 'focus goes on to "+ AGREGAR", not <body>');
-            assert.deepEqual(native, [], 'no native confirm()');
         } finally {
             page.off('dialog', onDialog);
         }
@@ -2315,8 +2314,7 @@ describe('E2E — Dev Sandbox', async () => {
         });
         assert.equal(await warns(), false, 'just loaded: clean');
         await page.locator('.multifield-delete-btn').first().click();
-        await page.click('.confirm-dialog-discard', { timeout: 5000 });
-        await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
+        await page.waitForTimeout(300);
         assert.equal(await warns(), true, 'a deleted row is an unsaved change');
     });
 
@@ -2581,5 +2579,109 @@ describe('E2E — Dev Sandbox', async () => {
             assert.ok(new Set(dots).size > 1, `the dots move: ${dots}`);
             await page.evaluate(() => document.body.classList.remove('dark-mode'));
         });
+    });
+
+    it('71. A fixed-option select whose value and text are the same shows it once ("Local", not "Local - Local")', async () => {
+        // UX recorrido thym-pos 2026-10-26, punto 18: "Transferencia - Transferencia".
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#canal', { timeout: 10000 });
+        await page.click('#canal');
+        await page.waitForSelector('.autocomplete-item', { timeout: 3000 });
+        const items = await page.$$eval('.autocomplete-item', els => els.filter(e => e.offsetParent).map(e => e.textContent.trim()));
+        assert.deepEqual(items, ['Web', 'Local']);
+        // Catalogs keep "key - name".
+        await page.keyboard.press('Escape');
+        await page.click('#id_producto');
+        await page.waitForTimeout(400);
+        const cat = await page.$$eval('.autocomplete-item', els => els.filter(e => e.offsetParent).map(e => e.textContent.trim()));
+        assert.ok(cat.some(t => / - Mochila Fixture$/.test(t)), `catalog items: ${cat}`);
+    });
+
+    it('72. New record: SIG is disabled, ANT opens the last record, and NUEVO starts a new one (asking if unsaved)', async () => {
+        // UX recorrido thym-pos 2026-10-26, puntos 9 y 10: ANT/SIG answered
+        // "Cargá un registro primero", and there was no way back to a blank
+        // form except clicking the explorer again.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Comprobante Fixture"))');
+        await page.waitForSelector('#monto', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        const sig = page.locator('button:has-text("SIG")');
+        const nuevo = page.locator('button:has-text("NUEVO")');
+        assert.equal(await sig.isDisabled(), true, 'SIG disabled on a new record');
+        assert.equal(await nuevo.count(), 1, 'there is a NUEVO button');
+
+        await page.click('button:has-text("ANT")');
+        await page.waitForFunction(() => document.getElementById('id')?.value !== '', null, { timeout: 5000 });
+        const last = Number(await page.inputValue('#id'));
+        assert.ok(last >= 1, `ANT from a new record opens the last one, got N° ${last}`);
+        assert.equal(await sig.isDisabled(), false, 'SIG enabled once a record is loaded');
+        await page.click('button:has-text("SIG")');
+        await page.waitForTimeout(500);
+        assert.equal(Number(await page.inputValue('#id')), last, 'it really was the last one');
+
+        // NUEVO on an untouched record → blank, no question.
+        await nuevo.click();
+        await page.waitForFunction(() => document.getElementById('id')?.value === '' && document.getElementById('nombre')?.value === '', null, { timeout: 5000 });
+        assert.equal(await page.locator('.confirm-dialog').count(), 0);
+        assert.equal(await sig.isDisabled(), true);
+
+        // NUEVO with unsaved data → asks.
+        await page.fill('#nombre', 'A medio cargar');
+        await nuevo.click();
+        await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+        await page.click('.confirm-dialog-keep');
+        assert.equal(await page.inputValue('#nombre'), 'A medio cargar');
+        await nuevo.click();
+        await page.click('.confirm-dialog-discard', { timeout: 5000 });
+        await page.waitForFunction(() => document.getElementById('nombre')?.value === '', null, { timeout: 5000 });
+    });
+
+    it('73. Number fields take "1.500,50" whatever the browser language; money fields show "$1.500,50" when not focused', async () => {
+        // UX recorrido thym-pos 2026-10-26, puntos 2 y 14: in an English
+        // browser <input type="number"> turned "1.500,50" into 1.50050 (and
+        // "-1500,50" into -150050); the form showed 35000 while reports said
+        // $35.000,00.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Validacion Fixture"))');
+        await page.waitForSelector('#monto', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        assert.equal(await page.getAttribute('#monto', 'inputmode'), 'decimal', 'numeric keyboard on phones');
+        assert.notEqual(await page.getAttribute('#monto', 'type'), 'number', 'not left to the browser locale');
+        const overlay = '#monto ~ .number-display-overlay';
+        const cases = [
+            ['1.500,50', '1500.5', '$1.500,50'],
+            ['1500,5', '1500.5', '$1.500,50'],
+            ['1500.50', '1500.5', '$1.500,50'],
+            ['35.000', '35000', '$35.000,00'],
+            ['35000', '35000', '$35.000,00'],
+        ];
+        for (const [typed, stored, shown] of cases) {
+            await page.fill('#monto', typed);
+            await page.locator('#monto').blur();
+            await page.waitForTimeout(150);
+            assert.equal(await page.inputValue('#monto'), stored, `"${typed}" is stored as ${stored}`);
+            assert.equal(await page.isVisible(overlay), true, 'formatted when not focused');
+            assert.equal((await page.textContent(overlay)).trim(), shown);
+        }
+        await page.focus('#monto');
+        assert.equal(await page.isVisible(overlay), false, 'the plain number while editing');
+
+        // Validation sees the real number: -1500,50 is below <min>1</min>.
+        await page.fill('#monto', '-1500,50');
+        await page.locator('#monto').blur();
+        await page.waitForTimeout(300);
+        assert.equal(await page.inputValue('#monto'), '-1500.5');
+        assert.equal(await page.locator('#monto.field-error').count(), 1, 'out of range');
     });
 });

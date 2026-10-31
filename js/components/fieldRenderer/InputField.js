@@ -7,6 +7,7 @@
 import { createElement } from '../../utils/domUtils.js';
 import { createLabel } from './Label.js';
 import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.js';
+import { setupNumberInput } from '../../utils/numberInput.js';
 
 // ============================================
 // CONSTANTES
@@ -134,7 +135,7 @@ export const assembleFieldComponents = (wrapper, label, inputGroup) => {
 export const renderInputField = (config, messages, parentContainer, formContainer = null, { signal } = {}) => {
     const {
         id, labelTxt, type, size, isRequired, isSkip,
-        defaultValue, parentIsHorizontal, helpId, rows, align, selectOptions, lookupConfig
+        defaultValue, parentIsHorizontal, helpId, rows, align, selectOptions, lookupConfig, format
     } = config;
 
     const fieldWrapper = createFieldWrapper(parentIsHorizontal);
@@ -169,6 +170,9 @@ export const renderInputField = (config, messages, parentContainer, formContaine
         });
 
         groupDiv.appendChild(inputEl);
+        // Coma decimal sin depender del idioma del navegador, y $35.000,00
+        // sin foco si es format="currency" (utils/numberInput.js).
+        if (type === 'number') setupNumberInput(inputEl, { currency: format === 'currency', signal });
         assembleFieldComponents(fieldWrapper, labelEl, groupDiv);
         parentContainer.appendChild(fieldWrapper);
 

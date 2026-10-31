@@ -11,6 +11,7 @@ import {
 } from '../fieldRenderer/index.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import { focusWithRing } from '../../utils/focusRing.js';
+import { refreshNumberDisplay } from '../../utils/numberInput.js';
 
 export class LayoutProcessor {
     constructor(ctx, onFieldRendered) {
@@ -211,6 +212,7 @@ export class LayoutProcessor {
                 } else {
                     el.value = String(result ?? '');
                 }
+                refreshNumberDisplay(el); // "$35.000,00" si es format="currency"
             } catch (e) {
                 console.error('❌ computed field error:', expr, e);
             }
@@ -367,6 +369,7 @@ export class LayoutProcessor {
                 parentIsHorizontal,
                 helpId,
                 align: fieldXml.getAttribute('align'),
+                format: fieldXml.getAttribute('format'),  // "currency": $35.000,00 (utils/numberInput.js)
                 rows: fieldXml.getAttribute('rows'),
                 display: fieldXml.getAttribute('display'),
                 selectOptions,

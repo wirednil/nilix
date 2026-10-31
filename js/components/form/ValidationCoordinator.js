@@ -7,6 +7,7 @@ import * as validator from '../../utils/validator.js';
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import LookupService from '../../services/LookupService.js';
 import { confirmDiscard } from './ConfirmDialog.js';
+import { focusWithRing } from '../../utils/focusRing.js';
 
 export class ValidationCoordinator {
     constructor(ctx) {
@@ -116,9 +117,14 @@ export class ValidationCoordinator {
         if (!table) return;  // url-based form — navigation via dropdown only
         if (String(value) === String(this.ctx.currentKey ?? '')) return; // ya cargado
         if (!(await this._confirmLeave())) {
-            // Se queda con lo que estaba cargando: el N° tipeado vuelve atrás.
+            // Se queda con lo que estaba cargando: el N° tipeado vuelve atrás
+            // y el foco al N° (el Tab que disparó la pregunta ya lo había
+            // movido; si no, quedaba en la página).
             const keyEl = this.ctx.getField(keyField) || this.ctx.container?.querySelector(`#${keyField}`);
-            if (keyEl) keyEl.value = this.ctx.currentKey ?? '';
+            if (keyEl) {
+                keyEl.value = this.ctx.currentKey ?? '';
+                focusWithRing(keyEl);
+            }
             return;
         }
         if (String(value) === String(this.ctx.currentKey ?? '')) return; // blur + change del mismo N°
@@ -129,6 +135,7 @@ export class ValidationCoordinator {
                 this.ctx.currentKey = value; // set BEFORE fillForm to prevent change-loop
                 this.fillForm(record);
                 this.ctx.dirty = false;
+                this.ctx.updateNav?.();
                 // Single batched request: server runs after() for all fields and returns
                 // aggregated enableFields/disableFields — avoids N individual requests
                 if (this._handlerBridge) {
@@ -142,14 +149,16 @@ export class ValidationCoordinator {
     }
 
     async navigateToAdjacent(dir) {
-        if (!this.ctx.currentKey || !this.ctx.tableConfig) {
-            this._flashNav('Cargá un registro primero');
-            return;
-        }
+        if (!this.ctx.tableConfig) return;
+        // Registro nuevo: ANT abre el último (el anterior a "más que todos");
+        // SIG no tiene siguiente (y está deshabilitado, SubmitManager.js).
+        const fromNew = this.ctx.currentKey == null || this.ctx.currentKey === '';
+        if (fromNew && dir === 'next') return;
         if (!(await this._confirmLeave())) return;
         const { table, keyField, db = 'app' } = this.ctx.tableConfig;
         const { default: RecordService } = await import('../../services/RecordService.js');
-        const record = await RecordService.navigate(table, keyField, this.ctx.currentKey, dir, db);
+        const from = fromNew ? Number.MAX_SAFE_INTEGER : this.ctx.currentKey;
+        const record = await RecordService.navigate(table, keyField, from, dir, db);
         if (!record) {
             this._flashNav(`No hay más registros (${dir === 'next' ? '→' : '←'} límite)`);
             return;
@@ -157,10 +166,17 @@ export class ValidationCoordinator {
         this.ctx.currentKey = record[keyField]; // set before fillForm
         this.fillForm(record);
         this.ctx.dirty = false;
+        this.ctx.updateNav?.();
         if (this._handlerBridge) {
             await this._handlerBridge.callAfter(keyField, record[keyField]);
         }
         this.ctx.statusBar?.push('success', `Registro ${record[keyField]} cargado`);
+    }
+
+    /** Botón NUEVO: el form vacío, como recién abierto (pregunta si hay cambios). */
+    async newRecord() {
+        if (!(await this._confirmLeave())) return;
+        this.ctx.reload?.({ focusFirst: true });
     }
 
     /** Con cambios sin guardar, pregunta antes de reemplazarlos. */

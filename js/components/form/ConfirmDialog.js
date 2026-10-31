@@ -5,7 +5,6 @@
  *              - confirmDiscard(): "Hay datos sin guardar. ¿Descartarlos?"
  *                antes de dejar un form con cambios (explorador, ANT/SIG,
  *                tipear un N°).
- *              - ✕ de una fila de multifield: "¿Eliminar esta fila?".
  *              Mismo backdrop que los otros modales. El foco va a la opción
  *              segura (un Enter apurado no borra nada); Escape y el click
  *              afuera también la eligen. Un solo diálogo a la vez: un segundo

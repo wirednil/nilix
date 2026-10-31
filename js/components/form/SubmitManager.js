@@ -25,17 +25,27 @@ export class SubmitManager {
         const { nav, submitBtn } = uiComponents.createActionButtons();
 
         if (this.ctx.tableConfig?.keyField && this.ctx.tableConfig?.table) {
-            const antBtn = document.createElement('button');
-            antBtn.type = 'button';
-            antBtn.textContent = '< ANT';
-            antBtn.onclick = () => this.coordinator?.navigateToAdjacent('prev');
+            const navBtn = (cls, text, onclick) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `nav-btn ${cls}`;
+                btn.textContent = text;
+                btn.onclick = onclick;
+                return btn;
+            };
+            const antBtn = navBtn('nav-ant', '< ANT', () => this.coordinator?.navigateToAdjacent('prev'));
+            // Vuelve al form vacío para cargar uno nuevo (antes solo se podía
+            // haciendo click otra vez en el explorador). Pregunta si hay cambios.
+            const nuevoBtn = navBtn('nav-nuevo', 'NUEVO', () => this.coordinator?.newRecord());
+            const sigBtn = navBtn('nav-sig', 'SIG >', () => this.coordinator?.navigateToAdjacent('next'));
+            nav.insertBefore(nuevoBtn, nav.firstChild);
             nav.insertBefore(antBtn, nav.firstChild);
-
-            const sigBtn = document.createElement('button');
-            sigBtn.type = 'button';
-            sigBtn.textContent = 'SIG >';
-            sigBtn.onclick = () => this.coordinator?.navigateToAdjacent('next');
             nav.appendChild(sigBtn);
+
+            // En un registro nuevo no hay "siguiente": SIG deshabilitado.
+            // ANT sí: abre el último (ValidationCoordinator.navigateToAdjacent).
+            this.ctx.updateNav = () => { sigBtn.disabled = this.ctx.currentKey == null; };
+            this.ctx.updateNav();
         }
 
         formEl.appendChild(nav);
@@ -70,7 +80,10 @@ export class SubmitManager {
         const summaryOf = fields => (fields.length === 1
             ? `Falta "${nameOf(fields[0])}".`
             : `Faltan ${fields.length} datos: ${fields.map(nameOf).join(', ')}.`);
-        const elOf = f => f.el ?? document.getElementById(f.fieldId);
+        // Dentro del form, no en document: con un subform abierto el form
+        // sale del DOM y un 'change' tardío (Autocomplete) daba por completos
+        // los campos que no encontraba — el resumen perdía Cómo pagó/Envío.
+        const elOf = f => f.el ?? formEl.querySelector(`#${CSS.escape(f.fieldId)}`);
 
         this._summaryWatch?.abort();
         const watch = this._summaryWatch = new AbortController();

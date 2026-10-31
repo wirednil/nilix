@@ -26,7 +26,8 @@
             </options>
             <validation><required>true</required></validation>
         </field>
-        <field id="monto" label="Monto" type="number" size="10">
+        <!-- format="currency": $1.500,50 sin foco (e2e #73) -->
+        <field id="monto" label="Monto" type="number" size="10" format="currency">
             <validation><min>1</min></validation>
         </field>
         <!-- Como "Productos" en la venta: al menos una fila (#39) -->

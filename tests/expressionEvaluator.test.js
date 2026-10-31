@@ -44,4 +44,13 @@ describe('ExpressionEvaluator — fórmulas bajo CSP (sin new Function)', () => 
     it('if() sigue andando', () => {
         assert.equal(evaluator.evaluateFormula("if(envio_retiro == 'Retira', 'RETIRA', 'ENVÍO')", { envio_retiro: 'Retira' }), 'RETIRA');
     });
+
+    it('formato month: "2026-06" → "junio 2026"', () => {
+        assert.equal(evaluator.formatValue('2026-06', 'month'), 'junio 2026');
+    });
+
+    it('formato daymonth: solo día y mes ("15/06"), para cuando el título ya dice mes y año', () => {
+        assert.equal(evaluator.formatValue('2026-06-15', 'daymonth'), '15/06');
+        assert.equal(evaluator.formatValue('2026-10-03', 'daymonth'), '03/10');
+    });
 });
