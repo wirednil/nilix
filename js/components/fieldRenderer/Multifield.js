@@ -11,6 +11,7 @@ import { createAutocomplete, attachAutocompleteHandlers } from './Autocomplete.j
 import ExpressionEngine from '../../utils/ExpressionEngine.js';
 import { trapFocus } from '../../utils/focusTrap.js';
 import { focusWithRing } from '../../utils/focusRing.js';
+import { confirmAction } from '../form/ConfirmDialog.js';
 
 // ============================================
 // CONSTANTES
@@ -395,8 +396,8 @@ function _buildRow(multifieldId, columns, rowData, absoluteIndex) {
     const delBtn = createElement('button', 'multifield-delete-btn', '✕');
     delBtn.type = 'button';
     delBtn.title = 'Eliminar fila';
-    delBtn.addEventListener('click', () => {
-        if (!confirm('¿Eliminar este registro?')) return;
+    delBtn.addEventListener('click', async () => {
+        if (!(await _confirmDeleteRow())) return;
         const gridContainer = delBtn.closest('.multifield-grid');
         const rowEl = delBtn.closest('tr');
         const idx = parseInt(rowEl.getAttribute('data-row-index'));
@@ -471,11 +472,12 @@ function _buildDisplayRow(multifieldId, columns, rowData, absoluteIndex) {
     const delBtn = createElement('button', 'multifield-delete-btn', '✕');
     delBtn.type = 'button';
     delBtn.title = 'Eliminar fila';
-    delBtn.addEventListener('click', (e) => {
+    delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (!confirm('¿Eliminar este registro?')) return;
+        // Antes del await: la fila se puede redibujar mientras se pregunta.
         const gridContainer = delBtn.closest('.multifield-grid');
         const idx = parseInt(row.getAttribute('data-row-index'));
+        if (!(await _confirmDeleteRow())) return;
         _deleteRow(gridContainer, idx);
     });
     actionTd.appendChild(delBtn);
@@ -845,6 +847,11 @@ function _openRowModal(gridContainer, columns, rowData, absoluteIndex) {
 /**
  * Elimina la fila en absoluteIndex del grid
  */
+/** Diálogo propio (ConfirmDialog.js), no el confirm() nativo que bloquea la página. */
+function _confirmDeleteRow() {
+    return confirmAction({ message: '¿Eliminar esta fila?', confirmLabel: 'ELIMINAR', cancelLabel: 'CANCELAR' });
+}
+
 function _deleteRow(gridContainer, absoluteIndex) {
     const allRows = JSON.parse(gridContainer.dataset.allRows || '[]');
     if (absoluteIndex < 0 || absoluteIndex >= allRows.length) return;
@@ -866,6 +873,11 @@ function _deleteRow(gridContainer, absoluteIndex) {
     gridContainer.dataset.totalRows = allRows.length;
 
     _rerenderDisplayGrid(gridContainer);
+    // Borrar una fila es un cambio de la usuaria, como agregarla (cambios sin
+    // guardar, resumen "Faltan…"). El ✕ ya no existe: el foco sigue en
+    // "+ AGREGAR" en vez de caer en <body>.
+    gridContainer.dispatchEvent(new CustomEvent('sf:user-change', { bubbles: true }));
+    focusWithRing(gridContainer.querySelector('.multifield-add-btn'));
 }
 
 // ============================================

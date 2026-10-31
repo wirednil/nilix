@@ -52,8 +52,12 @@ export class ValidationCoordinator {
             // Elegir en un select (Autocomplete.js) dispara 'change', no
             // 'input' — sin esto el campo quedaba rojo con un valor ya puesto.
             if (inputEl.value.trim()) this.clearFieldError(fieldId);
-            // Skip handler calls during programmatic fillForm to avoid N×callAfter per load
-            if (!this._filling && handlerBridge) {
+            // Skip handler calls during programmatic fillForm to avoid N×callAfter per load.
+            // El N° de una tabla tampoco: loadRecord() corre los after() de todo
+            // el registro (callAfterLoad) recién después de cargarlo. Llamarlo
+            // acá ponía las filas del otro registro en el multifield antes de
+            // preguntar "¿Descartarlos?" — y con un N° inexistente, vaciaba la grilla.
+            if (!this._filling && handlerBridge && !(isKeyField && this.ctx.tableConfig?.table)) {
                 await handlerBridge.callAfter(fieldId, inputEl.value);
             }
             // Key field changed (e.g. user selected from dropdown) → fill the whole form

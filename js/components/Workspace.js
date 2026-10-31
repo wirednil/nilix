@@ -37,7 +37,11 @@ class Workspace {
      * pregunta. false = la usuaria se queda (FileExplorer no marca el item).
      */
     async confirmLeave() {
-        return !this.formRenderer.ctx?.dirty || confirmDiscard();
+        const ctx = this.formRenderer.ctx;
+        if (!ctx?.dirty) return true;
+        const leave = await confirmDiscard();
+        if (!leave && ctx.lastFocused?.isConnected) ctx.lastFocused.focus();
+        return leave;
     }
 
     async loadItem(item) {

@@ -2151,6 +2151,9 @@ describe('E2E — Dev Sandbox', async () => {
             await page.click('.confirm-dialog-keep');
             await page.waitForSelector(DIALOG, { state: 'detached', timeout: 5000 });
             assert.equal(await page.inputValue('#nombre'), 'A medio cargar', 'still there');
+            // 8th Chrome round: the focus was left on <body>.
+            assert.equal(await page.evaluate(() => document.activeElement?.id), 'nombre',
+                'back to the field the user was in');
             assert.equal(await page.locator('#canal').count(), 1, 'still on the same form');
             assert.match(await page.textContent('.tree-node.active'), /Validacion Fixture/, 'explorer still marks this form');
 
@@ -2240,5 +2243,133 @@ describe('E2E — Dev Sandbox', async () => {
             await page.fill('#nombre', 'Sin guardar');
             assert.equal(await warns(), true, 'unsaved: warning');
         });
+    });
+
+    it('58. A row\'s ✕ asks in the app\'s own dialog (not the browser\'s confirm), and deleting counts as unsaved', async () => {
+        // Usuario 2026-10-29: "¿Eliminar este registro?" was a native
+        // confirm() — it blocks the page and looks nothing like the rest.
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        const native = [];
+        const onDialog = d => { native.push(d.message()); d.dismiss().catch(() => {}); };
+        // After goto: leaving a previous test's unsaved form fires the
+        // browser's beforeunload dialog (#57), which is not what this checks.
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        page.on('dialog', onDialog);
+        try {
+            await page.click('.tree-node:has(span:text("Subform Items"))');
+            await page.waitForSelector('#id_marca', { timeout: 10000 });
+            await page.waitForTimeout(300);
+            for (const detalle of ['Fila A', 'Fila B']) {
+                await page.click('.multifield-add-btn');
+                await page.waitForSelector('.mf-row-modal', { timeout: 5000 });
+                await page.fill('.mf-row-modal [data-col-id="detalle"]', detalle);
+                await page.click('.mf-row-modal-save-btn');
+                await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+            }
+            const rows = () => page.locator('.multifield-delete-btn').count();
+            assert.equal(await rows(), 2);
+
+            await page.locator('.multifield-delete-btn').first().click();
+            await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+            assert.deepEqual(native, [], 'no native confirm()');
+            assert.match(await page.textContent('.confirm-dialog'), /¿Eliminar esta fila\?/);
+            assert.match(await page.textContent('.confirm-dialog-discard'), /ELIMINAR/);
+            assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('confirm-dialog-keep')), true,
+                'focus on the safe choice');
+            await page.click('.confirm-dialog-keep');
+            await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
+            assert.equal(await rows(), 2, 'cancel keeps the row');
+
+            await page.locator('.multifield-delete-btn').first().click();
+            await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+            await page.click('.confirm-dialog-discard');
+            await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
+            assert.equal(await rows(), 1, 'deleted');
+            assert.match(await page.textContent('.multifield-grid'), /Fila B/);
+            assert.ok(!/Fila A/.test(await page.textContent('.multifield-grid')), 'the right row went');
+            assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('multifield-add-btn')), true,
+                'focus goes on to "+ AGREGAR", not <body>');
+            assert.deepEqual(native, [], 'no native confirm()');
+        } finally {
+            page.off('dialog', onDialog);
+        }
+    });
+
+    it('59. Deleting a row of a just-loaded record counts as unsaved', async () => {
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('#total', { timeout: 10000 });
+        await page.waitForTimeout(300);
+        await page.fill('#id', '1');
+        await page.keyboard.press('Tab');
+        await page.waitForSelector('.multifield-delete-btn', { timeout: 5000 });
+        const warns = () => page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        assert.equal(await warns(), false, 'just loaded: clean');
+        await page.locator('.multifield-delete-btn').first().click();
+        await page.click('.confirm-dialog-discard', { timeout: 5000 });
+        await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
+        assert.equal(await warns(), true, 'a deleted row is an unsaved change');
+    });
+
+    it('60. Typing an N° and choosing "Seguir cargando" leaves the multifield as it was (no rows from the other record)', async () => {
+        // 8th Chrome round 2026-10-29: in Venta, the handler's after('id')
+        // ran on the N° change *before* the question and populated the grid
+        // with venta 1's products; "Seguir cargando" kept them — saving would
+        // have created a venta with someone else's products.
+        // venta_draft record 1 has one row: product 1 (Tote Fixture).
+        const { page, baseUrl, context, loginAsOperador } = ctx;
+        await context.clearCookies();
+        await loginAsOperador();
+        await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+        await page.click('.tree-node:has(span:text("Venta Draft"))');
+        await page.waitForSelector('#total', { timeout: 10000 });
+        await page.waitForTimeout(300);
+
+        await page.click('.multifield-add-btn');
+        await page.waitForSelector('.mf-row-modal [data-col-id="id_producto"]', { timeout: 5000 });
+        await page.click('.mf-row-modal [data-col-id="id_producto"]');
+        await page.waitForTimeout(300);
+        await page.locator('.mf-row-modal .autocomplete-item', { hasText: 'Mochila Fixture' }).first().click();
+        await page.click('.mf-row-modal-save-btn');
+        await page.waitForSelector('.mf-row-modal-backdrop', { state: 'detached', timeout: 5000 });
+        const grid = () => page.textContent('.multifield-grid tbody');
+        const before = await grid();
+        const totalBefore = await page.inputValue('#total');
+        assert.match(before, /Mochila Fixture/);
+
+        await page.fill('#id', '1');
+        await page.keyboard.press('Tab');
+        await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+        await page.waitForTimeout(500); // anything racing the question would land here
+        assert.equal(await grid(), before, 'the grid does not change while asking');
+        await page.click('.confirm-dialog-keep');
+        await page.waitForSelector('.confirm-dialog', { state: 'detached', timeout: 5000 });
+        await page.waitForTimeout(500);
+        assert.equal(await grid(), before, 'still only the row the user added');
+        assert.equal(await page.inputValue('#total'), totalBefore);
+
+        // A N° that does not exist does not touch the grid either.
+        await page.fill('#id', '99999');
+        await page.keyboard.press('Tab');
+        await page.waitForSelector('.confirm-dialog', { timeout: 5000 });
+        await page.click('.confirm-dialog-discard');
+        await page.waitForTimeout(800);
+        assert.match(await grid(), /Mochila Fixture/, 'no record 99999 → nothing replaced the rows');
+
+        // Discard with a real N° → its rows.
+        await page.fill('#id', '1');
+        await page.keyboard.press('Tab');
+        await page.click('.confirm-dialog-discard', { timeout: 5000 });
+        await page.waitForFunction(() => /Tote Fixture/.test(document.querySelector('.multifield-grid tbody')?.textContent ?? ''), null, { timeout: 5000 });
+        assert.ok(!/Mochila Fixture/.test(await grid()), 'record 1 rows only');
     });
 });

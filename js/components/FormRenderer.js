@@ -53,6 +53,9 @@ class FormRenderer {
         };
         ['input', 'change', 'sf:user-change'].forEach(type =>
             formEl.addEventListener(type, markDirty, { signal: ctx.signal }));
+        // Último control usado: a donde vuelve el foco si la usuaria elige
+        // quedarse (un click en el explorador lo dejaba en <body>).
+        formEl.addEventListener('focusin', (e) => { ctx.lastFocused = e.target; }, { signal: ctx.signal });
     }
 
     render(container, xmlString, options = {}) {

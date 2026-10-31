@@ -1,12 +1,16 @@
 /**
  * @file ConfirmDialog.js
- * @description "Hay datos sin guardar. ¿Descartarlos?" antes de dejar un form
- *              con cambios (explorador, ANT/SIG, tipear un N°) — antes se
- *              perdía lo cargado sin aviso. Mismo backdrop que los otros
- *              modales. El foco va a "Seguir cargando" (lo seguro: un Enter
- *              apurado no borra nada); Escape y el click afuera también siguen.
- *              Un solo diálogo a la vez: un segundo pedido mientras está
- *              abierto (blur + change del mismo N°) recibe la misma respuesta.
+ * @description Confirmación propia del motor, en lugar del confirm() nativo
+ *              (bloquea la página y no se parece al resto). Usos:
+ *              - confirmDiscard(): "Hay datos sin guardar. ¿Descartarlos?"
+ *                antes de dejar un form con cambios (explorador, ANT/SIG,
+ *                tipear un N°).
+ *              - ✕ de una fila de multifield: "¿Eliminar esta fila?".
+ *              Mismo backdrop que los otros modales. El foco va a la opción
+ *              segura (un Enter apurado no borra nada); Escape y el click
+ *              afuera también la eligen. Un solo diálogo a la vez: un segundo
+ *              pedido mientras está abierto (blur + change del mismo N°)
+ *              recibe la misma respuesta.
  */
 
 import { trapFocus } from '../../utils/focusTrap.js';
@@ -14,8 +18,14 @@ import { focusWithRing } from '../../utils/focusRing.js';
 
 let pending = null;
 
-/** @returns {Promise<boolean>} true = descartar y seguir; false = quedarse */
-export function confirmDiscard(message = 'Hay datos sin guardar. ¿Descartarlos?') {
+/**
+ * @param {object} options
+ * @param {string} options.message
+ * @param {string} options.confirmLabel - La acción destructiva (ej. DESCARTAR)
+ * @param {string} options.cancelLabel  - La opción segura, con el foco
+ * @returns {Promise<boolean>} true = confirmó la acción
+ */
+export function confirmAction({ message, confirmLabel, cancelLabel }) {
     if (pending) return pending;
     const opener = document.activeElement;
 
@@ -39,11 +49,11 @@ export function confirmDiscard(message = 'Hay datos sin guardar. ¿Descartarlos?
         const keepBtn = document.createElement('button');
         keepBtn.type = 'button';
         keepBtn.className = 'confirm-dialog-keep';
-        keepBtn.textContent = 'SEGUIR CARGANDO';
+        keepBtn.textContent = cancelLabel;
         const discardBtn = document.createElement('button');
         discardBtn.type = 'button';
         discardBtn.className = 'confirm-dialog-discard';
-        discardBtn.textContent = 'DESCARTAR';
+        discardBtn.textContent = confirmLabel;
         actions.append(keepBtn, discardBtn);
 
         modal.append(text, actions);
@@ -70,6 +80,15 @@ export function confirmDiscard(message = 'Hay datos sin guardar. ¿Descartarlos?
         focusWithRing(keepBtn);
     });
     return pending;
+}
+
+/** @returns {Promise<boolean>} true = descartar y seguir; false = quedarse */
+export function confirmDiscard() {
+    return confirmAction({
+        message: 'Hay datos sin guardar. ¿Descartarlos?',
+        confirmLabel: 'DESCARTAR',
+        cancelLabel: 'SEGUIR CARGANDO',
+    });
 }
 
 export default confirmDiscard;
