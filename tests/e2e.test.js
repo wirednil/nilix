@@ -2410,25 +2410,6 @@ describe('E2E — Dev Sandbox', async () => {
             return page;
         };
 
-        it('62. A report uses the whole width of the workspace, not a fixed 800px', async () => {
-            const page = await login();
-            await page.setViewportSize({ width: 1400, height: 800 });
-            try {
-                await openReport(page, 'Mes Fixture');
-                const w = await page.evaluate(() => {
-                    const win = document.querySelector('.terminal-window');
-                    const cs = window.getComputedStyle(win);
-                    return {
-                        report: Math.round(document.querySelector('.report-container').getBoundingClientRect().width),
-                        inner: Math.round(win.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
-                    };
-                });
-                assert.ok(w.report >= w.inner - 2, `report ${w.report}px of ${w.inner}px available`);
-            } finally {
-                await page.setViewportSize({ width: 1280, height: 720 });
-            }
-        });
-
         it('63. A table wider than its box scrolls by dragging it with the mouse', async () => {
             const page = await login();
             await page.setViewportSize({ width: 900, height: 700 });
@@ -2503,6 +2484,102 @@ describe('E2E — Dev Sandbox', async () => {
             await picker.fill('2026-06');
             await page.waitForFunction(() => document.querySelector('.terminal-window table')?.textContent.includes('2026-06'), null, { timeout: 20000 });
             assert.equal((await page.textContent('.report-container h1')).trim(), 'MES FIXTURE — junio 2026');
+        });
+
+        it('67. Dragging up/down with the hand scrolls the page, too', async () => {
+            const page = await login();
+            await page.setViewportSize({ width: 900, height: 220 });
+            try {
+                await openReport(page, 'Ancho Fixture');
+                const scroller = () => page.evaluate(() => document.getElementById('workspace').scrollTop);
+                assert.ok(await page.evaluate(() => {
+                    const w = document.getElementById('workspace');
+                    return w.scrollHeight > w.clientHeight;
+                }), 'sanity: the workspace scrolls at this height');
+                const cell = await page.locator('.report-lines-md:has(table) tbody td').nth(1).boundingBox();
+                await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2);
+                await page.mouse.down();
+                await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2 - 100, { steps: 10 });
+                await page.mouse.up();
+                assert.ok(await scroller() >= 60, `dragged 100px up → page scrolled ${await scroller()}px`);
+            } finally {
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
+        });
+
+        it('68. A table that continues sideways shows it: a shade on the edge with more, gone at the end', async () => {
+            // Usuario 2026-10-31: no más ancho — que se intuya que se desplaza.
+            const page = await login();
+            await page.setViewportSize({ width: 900, height: 700 });
+            try {
+                await openReport(page, 'Ancho Fixture');
+                const shades = () => page.evaluate(() => {
+                    const frame = document.querySelector('.report-scroll-frame');
+                    const op = pseudo => Number(window.getComputedStyle(frame, pseudo).opacity);
+                    return { left: op('::before'), right: op('::after') };
+                });
+                await page.waitForTimeout(400);
+                assert.deepEqual(await shades(), { left: 0, right: 1 }, 'at the start: more to the right');
+                await page.evaluate(() => {
+                    const box = document.querySelector('.report-lines-md:has(table)');
+                    box.scrollLeft = 120;
+                });
+                await page.waitForTimeout(400);
+                assert.deepEqual(await shades(), { left: 1, right: 1 }, 'in the middle: both');
+                await page.evaluate(() => {
+                    const box = document.querySelector('.report-lines-md:has(table)');
+                    box.scrollLeft = box.scrollWidth;
+                });
+                await page.waitForTimeout(400);
+                assert.deepEqual(await shades(), { left: 1, right: 0 }, 'at the end: only to the left');
+            } finally {
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
+        });
+
+        it('69. Report tables use the multifield header look and alternate row shades', async () => {
+            // Usuario 2026-10-31: "me gusta el header de productos de ventas".
+            const page = await login();
+            await page.click('.tree-node:has(span:text("Venta Draft"))');
+            await page.waitForSelector('.multifield-table thead', { timeout: 10000 });
+            const mf = await page.evaluate(() => {
+                const cs = window.getComputedStyle(document.querySelector('.multifield-table thead'));
+                return { bg: cs.backgroundColor, color: cs.color };
+            });
+            await openReport(page, 'Ancho Fixture');
+            const rep = await page.evaluate(() => {
+                const t = document.querySelector('.report-lines-md table');
+                const cs = window.getComputedStyle(t.tHead.rows[0].cells[0]);
+                const rows = [...t.tBodies[0].rows].map(r => window.getComputedStyle(r.cells[1]).backgroundColor);
+                return { bg: cs.backgroundColor, color: cs.color, rows };
+            });
+            assert.deepEqual({ bg: rep.bg, color: rep.color }, mf, 'same header as the multifield');
+            assert.ok(rep.rows.length >= 2 && rep.rows[0] !== rep.rows[1], `alternating rows: ${rep.rows}`);
+        });
+
+        it('70. In dark mode the month picker calendar icon is light, and "Cargando" shows its dots', async () => {
+            const page = await login();
+            await page.evaluate(() => document.body.classList.add('dark-mode'));
+            await page.click('.tree-node:has(span:text("Mes Fixture"))');
+            const picker = page.locator('.month-picker-bar input[type="month"]');
+            await picker.waitFor({ timeout: 15000 });
+            assert.equal(await picker.evaluate(el => window.getComputedStyle(el).colorScheme), 'dark',
+                'dark color-scheme → the native calendar icon is drawn light');
+            const dots = await page.evaluate(async () => {
+                const el = document.createElement('div');
+                el.className = 'report-loading';
+                el.textContent = 'Cargando';
+                document.body.appendChild(el);
+                const widths = [];
+                for (let i = 0; i < 6; i++) {
+                    widths.push(window.getComputedStyle(el, '::after').width);
+                    await new Promise(r => setTimeout(r, 250));
+                }
+                el.remove();
+                return widths;
+            });
+            assert.ok(new Set(dots).size > 1, `the dots move: ${dots}`);
+            await page.evaluate(() => document.body.classList.remove('dark-mode'));
         });
     });
 });

@@ -2135,13 +2135,6 @@ body.dark-mode select.field-error {
    nil-report — Nilix
    ============================================================ */
 
-/* 800px para la página suelta (report.html) y el comprobante; en el
-   workspace, todo el ancho disponible: una planilla ancha ("Ventas del mes")
-   no entraba aunque sobrara lugar. */
-#active-content .report-container {
-    max-width: none;
-}
-
 .report-container {
     max-width: 800px;
     margin: 0 auto;
@@ -2419,6 +2412,42 @@ body.dark-mode .report-card {
 .report-lines-md.is-scrollable {
     cursor: grab;
 }
+
+/* Una tabla más ancha que la pantalla se desplaza (no se agranda): una
+   sombra en el borde donde sigue avisa que hay más (utils/dragScroll.js). */
+.report-scroll-frame {
+    position: relative;
+}
+.report-scroll-frame::before,
+.report-scroll-frame::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2.5rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 2;
+}
+.report-scroll-frame::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.22), transparent);
+}
+.report-scroll-frame::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.22), transparent);
+}
+body.dark-mode .report-scroll-frame::before {
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.22), transparent);
+}
+body.dark-mode .report-scroll-frame::after {
+    background: linear-gradient(to left, rgba(255, 255, 255, 0.22), transparent);
+}
+.report-scroll-frame.more-left::before,
+.report-scroll-frame.more-right::after {
+    opacity: 1;
+}
 .report-lines-md.is-dragging {
     cursor: grabbing;
     user-select: none;
@@ -2475,6 +2504,17 @@ body.dark-mode .report-card {
     padding: 3px 6px;
     border-bottom: 1px solid var(--input-border);
     white-space: nowrap;
+    background: var(--window-bg, var(--workspace-bg));
+}
+/* Mismo encabezado que la grilla de productos (.multifield-table thead) y
+   filas alternadas. Fondos opacos: la primera columna fija (abajo) tapa lo
+   que pasa por detrás. */
+.report-lines-md thead th {
+    background: var(--border-color);
+    color: var(--bg-color);
+}
+.report-lines-md tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--text-color) 7%, var(--window-bg, var(--workspace-bg)));
 }
 /* Desplazada de costado, la primera columna (ej. N°) queda a la vista. No
    la etiqueta del pie con colspan: fija, taparía los importes de al lado. */
@@ -2482,7 +2522,6 @@ body.dark-mode .report-card {
     position: sticky;
     left: 0;
     z-index: 1;
-    background: var(--window-bg, var(--workspace-bg));
 }
 /* "Piso" entre el cuerpo y el pie (rowFooter → <tfoot>, ReportRenderer.
    _moveRowsToTfoot), y otro antes del total final si el pie tiene varias
@@ -2541,16 +2580,25 @@ body.dark-mode .report-card {
     color: var(--help-icon-color);
 }
 
+/* Los puntos aparecen de a uno (animar `content` no anda en Chrome). */
 .report-loading::after {
     content: '...';
-    animation: dots 1.5s steps(4, end) infinite;
+    display: inline-block;
+    width: 0;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: dots 1.5s steps(4, jump-none) infinite;
 }
 
 @keyframes dots {
-    0%, 20% { content: ''; }
-    40% { content: '.'; }
-    60% { content: '..'; }
-    80%, 100% { content: '...'; }
+    to { width: 3ch; }
+}
+
+/* Modo oscuro: el ícono nativo del calendario se dibujaba oscuro sobre
+   fondo oscuro. */
+body.dark-mode input[type="month"],
+body.dark-mode input[type="date"] {
+    color-scheme: dark;
 }
 
 
